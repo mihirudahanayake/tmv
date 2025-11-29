@@ -190,4 +190,4 @@ const CreateUserPage = () => {
   );
 };
 
-export default CreateUserPage;
+export default CreateUser;
