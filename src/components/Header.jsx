@@ -1,48 +1,17 @@
-import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { FaHome, FaUserPlus, FaTasks, FaList, FaBars, FaTimes } from 'react-icons/fa';
-import { onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
-import { auth, db } from '../firebase/config';
+import { useState } from 'react';
 
-const Header = () => {
+const Header = ({ userType }) => {
   const location = useLocation();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [userType, setUserType] = useState<'loading' | 'guest' | 'user' | 'admin'>('loading');
 
-  useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (user) => {
-      if (!user) {
-        setUserType('guest');
-        return;
-      }
+  const isActive = (path) => location.pathname === path;
 
-      try {
-        const snap = await getDoc(doc(db, 'users', user.uid));
-        if (snap.exists()) {
-          const data = snap.data();
-          const type = data.userType === 'admin' ? 'admin' : 'user';
-          setUserType(type);
-        } else {
-          setUserType('user');
-        }
-      } catch {
-        setUserType('user');
-      }
-    });
-
-    return () => unsub();
-  }, []);
-
-  // For HashRouter; if using BrowserRouter, use location.pathname instead
-  const isActive = (path) => location.hash.endsWith(path);
-
-  // Home path depends on userType
   const homePath = userType === 'admin' ? '/admin-home' : '/home';
 
   const navItems = [
-    { path: homePath, label: 'Home', icon: <FaHome /> },
-    // admin-only links are pushed below if needed
+    { path: homePath, label: 'Home', icon: <FaHome /> }
   ];
 
   if (userType === 'admin') {
@@ -58,7 +27,7 @@ const Header = () => {
       <nav className="container mx-auto px-4 py-4">
         <div className="flex items-center justify-between">
           <h1 className="text-lg sm:text-xl md:text-2xl font-bold">
-            TMV
+            Videography Manager
           </h1>
 
           <button

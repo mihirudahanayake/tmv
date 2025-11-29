@@ -61,7 +61,7 @@ const CreateUser = () => {
 
   return (
     <div className="min-h-screen bg-gray-100">
-      <Header />
+      <Header userType="admin" />
 
       <main className="container mx-auto px-4 py-6 sm:py-8">
         <div className="max-w-2xl mx-auto bg-white rounded-lg shadow-md p-4 sm:p-8">

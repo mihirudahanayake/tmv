@@ -48,7 +48,7 @@ const WorkList = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-100">
-        <Header />
+        <Header userType="admin" />
         <div className="flex flex-col justify-center items-center h-64">
           <FaSpinner className="animate-spin text-4xl text-blue-600 mb-4" />
           <p className="text-gray-600">Loading works...</p>
@@ -59,7 +59,7 @@ const WorkList = () => {
 
   return (
     <div className="min-h-screen bg-gray-100">
-      <Header />
+      <Header userType="admin" />
       
       <main className="container mx-auto px-4 py-6 sm:py-8">
         <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-4 sm:mb-6">

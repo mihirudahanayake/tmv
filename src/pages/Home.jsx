@@ -3,7 +3,7 @@ import Header from '../components/Header';
 const Home = () => {
   return (
     <div className="min-h-screen bg-gray-100">
-      <Header />
+      <Header userType="user" />
       <main className="container mx-auto px-4 py-8">
         <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-4">
           Welcome
