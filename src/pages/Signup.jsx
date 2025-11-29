@@ -297,7 +297,7 @@ const Signup = () => {
           </div>
 
           {/* Profile picture */}
-          <div>
+          {/* <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1">
               Profile picture
             </label>
@@ -310,7 +310,7 @@ const Signup = () => {
             <p className="text-xs text-gray-500 mt-1">
               Optional. JPG or PNG, a few MB max.
             </p>
-          </div>
+          </div> */}
 
           {/* Password */}
           <div>
