@@ -8,6 +8,8 @@ import CreateUser from './pages/CreateUser.jsx';
 import AssignWork from './pages/AssignWork.jsx';
 import WorkList from './pages/WorkList.jsx';
 import Profile from './pages/Profile.jsx';
+import ManageUsers from './pages/ManageUsers.jsx';
+import UserDetails from './pages/UserDetails.jsx';
 
 function App() {
   return (
@@ -21,6 +23,8 @@ function App() {
         <Route path="/assign-work" element={<AssignWork />} />
         <Route path="/work-list" element={<WorkList />} />
         <Route path="/profile" element={<Profile />} />
+        <Route path="/manage-users" element={<ManageUsers />} />
+        <Route path="/users/:userId" element={<UserDetails />} />
       </Routes>
     </Router>
   );

@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { FaHome, FaUserPlus, FaTasks, FaList, FaBars, FaTimes } from 'react-icons/fa';
+import { FaHome, FaUserPlus, FaTasks, FaList, FaBars, FaTimes, FaUser } from 'react-icons/fa';
 import { useState } from 'react';
 
 const Header = ({ userType }) => {
@@ -11,12 +11,13 @@ const Header = ({ userType }) => {
   const homePath = userType === 'admin' ? '/admin-home' : '/home';
 
   const navItems = [
-    { path: homePath, label: 'Home', icon: <FaHome /> }
+    { path: homePath, label: 'Home', icon: <FaHome /> },
+    { path: '/profile', label: 'Profile', icon: <FaUser /> } // visible for both
   ];
 
   if (userType === 'admin') {
     navItems.push(
-      { path: '/create-user', label: 'Create User', icon: <FaUserPlus /> },
+      { path: '/manage-users', label: 'Manage Users', icon: <FaUserPlus /> },
       { path: '/assign-work', label: 'Assign Work', icon: <FaTasks /> },
       { path: '/work-list', label: 'Work List', icon: <FaList /> }
     );
