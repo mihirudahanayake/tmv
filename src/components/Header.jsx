@@ -34,20 +34,24 @@ const Header = () => {
     return () => unsub();
   }, []);
 
-  const isActive = (path) => location.hash.endsWith(path); // because HashRouter
+  // For HashRouter; if using BrowserRouter, use location.pathname instead
+  const isActive = (path) => location.hash.endsWith(path);
 
-  const baseNavItems = [
-    { path: '/home', label: 'Home', icon: <FaHome /> }
+  // Home path depends on userType
+  const homePath = userType === 'admin' ? '/admin-home' : '/home';
+
+  const navItems = [
+    { path: homePath, label: 'Home', icon: <FaHome /> },
+    // admin-only links are pushed below if needed
   ];
 
-  const adminNavItems = [
-    { path: '/create-user', label: 'Create User', icon: <FaUserPlus /> },
-    { path: '/assign-work', label: 'Assign Work', icon: <FaTasks /> },
-    { path: '/work-list', label: 'Work List', icon: <FaList /> }
-  ];
-
-  const navItems =
-    userType === 'admin' ? [...baseNavItems, ...adminNavItems] : baseNavItems;
+  if (userType === 'admin') {
+    navItems.push(
+      { path: '/create-user', label: 'Create User', icon: <FaUserPlus /> },
+      { path: '/assign-work', label: 'Assign Work', icon: <FaTasks /> },
+      { path: '/work-list', label: 'Work List', icon: <FaList /> }
+    );
+  }
 
   return (
     <header className="bg-blue-600 text-white shadow-lg">
@@ -57,7 +61,6 @@ const Header = () => {
             TMV
           </h1>
 
-          {/* Mobile menu button */}
           <button
             onClick={() => setIsMenuOpen(!isMenuOpen)}
             className="lg:hidden text-2xl focus:outline-none"
@@ -66,7 +69,6 @@ const Header = () => {
             {isMenuOpen ? <FaTimes /> : <FaBars />}
           </button>
 
-          {/* Desktop navigation */}
           <ul className="hidden lg:flex space-x-6">
             {navItems.map((item) => (
               <li key={item.path}>
@@ -84,7 +86,6 @@ const Header = () => {
           </ul>
         </div>
 
-        {/* Mobile navigation */}
         {isMenuOpen && (
           <ul className="lg:hidden mt-4 space-y-2 pb-2">
             {navItems.map((item) => (
