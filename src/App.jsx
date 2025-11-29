@@ -6,7 +6,7 @@ import WorkList from './pages/WorkList';
 
 function App() {
   return (
-    <Router basename="/videography-team-manager">
+    <Router basename="/tmv">
       <Routes>
         <Route path="/" element={<Homepage />} />
         <Route path="/create-user" element={<CreateUser />} />
