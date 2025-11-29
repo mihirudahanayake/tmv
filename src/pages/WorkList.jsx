@@ -116,78 +116,87 @@ const WorkList = () => {
     );
   }
 
-  const renderTaskCard = (task, isCompleteSection = false) => (
-    <div
-      key={task.id}
-      className="bg-white rounded-lg shadow-md p-4 sm:p-6 hover:shadow-xl transition cursor-pointer"
-      onClick={() => navigate(`/tasks/${task.id}`)}
-    >
-      <div className="flex justify-between items-start mb-3">
-        <h3 className="text-lg sm:text-xl font-semibold text-gray-800 flex-1 pr-2">
-          {task.title || 'Task'}
-        </h3>
-        <span
-          className={`px-2 sm:px-3 py-1 rounded-full text-xs font-semibold ${getPriorityColor(
-            task.priority
-          )}`}
-        >
-          {task.priority || 'medium'}
-        </span>
-      </div>
+  const renderTaskCard = (task, isCompleteSection = false) => {
+    const status = task.status || 'incomplete';
 
-      {task.description && (
-        <p className="text-gray-600 mb-4 text-sm sm:text-base line-clamp-3">
-          {task.description}
-        </p>
-      )}
+    return (
+      <div
+        key={task.id}
+        className="bg-white rounded-lg shadow-md p-4 sm:p-6 hover:shadow-xl transition cursor-pointer"
+        onClick={() => navigate(`/tasks/${task.id}`)}
+      >
+        <div className="flex justify-between items-start mb-3">
+          <div className="flex-1 pr-2">
+            <h3 className="text-lg sm:text-xl font-semibold text-gray-800">
+              {task.title || 'Task'}
+            </h3>
+            <p className="mt-1 text-xs sm:text-sm text-gray-500 capitalize">
+              Status: {status}
+            </p>
+          </div>
+          <span
+            className={`px-2 sm:px-3 py-1 rounded-full text-xs font-semibold ${getPriorityColor(
+              task.priority
+            )}`}
+          >
+            {task.priority || 'medium'}
+          </span>
+        </div>
 
-      {task.date && (
+        {task.description && (
+          <p className="text-gray-600 mb-4 text-sm sm:text-base line-clamp-3">
+            {task.description}
+          </p>
+        )}
+
+        {task.date && (
+          <div className="mb-3">
+            <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-500">
+              <FaCalendarAlt />
+              <span>Date: {new Date(task.date).toLocaleDateString()}</span>
+            </div>
+          </div>
+        )}
+
         <div className="mb-3">
-          <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-500">
-            <FaCalendarAlt />
-            <span>Date: {new Date(task.date).toLocaleDateString()}</span>
+          <div className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-gray-700 mb-2">
+            <FaUsers />
+            <span>Assigned to:</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {task.assignedUsers?.map((userId) => (
+              <span
+                key={userId}
+                className="bg-gray-100 px-2 py-1 rounded text-xs sm:text-sm text-gray-700"
+              >
+                {users[userId]?.name || 'Unknown'}
+              </span>
+            ))}
           </div>
         </div>
-      )}
 
-      <div className="mb-3">
-        <div className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-gray-700 mb-2">
-          <FaUsers />
-          <span>Assigned to:</span>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {task.assignedUsers?.map((userId) => (
-            <span
-              key={userId}
-              className="bg-gray-100 px-2 py-1 rounded text-xs sm:text-sm text-gray-700"
-            >
-              {users[userId]?.name || 'Unknown'}
-            </span>
-          ))}
-        </div>
+        {!isCompleteSection && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleMarkComplete(task.id);
+            }}
+            className="mt-2 inline-flex items-center gap-2 px-3 py-1.5 rounded bg-green-600 text-white text-xs sm:text-sm hover:bg-green-700"
+          >
+            <FaCheck />
+            Mark as complete
+          </button>
+        )}
+
+        {isCompleteSection && (
+          <p className="mt-2 text-xs sm:text-sm text-green-700 font-semibold">
+            Completed
+          </p>
+        )}
       </div>
-
-      {!isCompleteSection && (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            handleMarkComplete(task.id);
-          }}
-          className="mt-2 inline-flex items-center gap-2 px-3 py-1.5 rounded bg-green-600 text-white text-xs sm:text-sm hover:bg-green-700"
-        >
-          <FaCheck />
-          Mark as complete
-        </button>
-      )}
-
-      {isCompleteSection && (
-        <p className="mt-2 text-xs sm:text-sm text-green-700 font-semibold">
-          Completed
-        </p>
-      )}
-    </div>
-  );
+    );
+  };
 
   const hasAnyTasks = incompleteTasks.length > 0 || completeTasks.length > 0;
 
