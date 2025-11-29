@@ -14,7 +14,5 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
-// Do NOT use getAnalytics here
-
 export const auth = getAuth(app);
 export const db = getFirestore(app);

@@ -4,7 +4,7 @@ import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase/config';
 import Header from '../components/Header';
 
-const CreateUser = () => {
+const Signup = () => {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -25,16 +25,18 @@ const CreateUser = () => {
     setMessage({ type: '', text: '' });
 
     try {
+      // create auth user
       const userCredential = await createUserWithEmailAndPassword(
         auth,
         formData.email,
         formData.password
       );
 
-      // only this email is admin, others are user
+      // decide role based on email
       const role =
         formData.email === 'mihirudahanayake@gmail.com' ? 'admin' : 'user';
 
+      // create Firestore profile
       await setDoc(doc(db, 'users', userCredential.user.uid), {
         name: formData.name,
         email: formData.email,
@@ -44,7 +46,7 @@ const CreateUser = () => {
         createdAt: new Date().toISOString(),
       });
 
-      setMessage({ type: 'success', text: 'User created successfully.' });
+      setMessage({ type: 'success', text: 'Account created successfully.' });
       setFormData({
         name: '',
         email: '',
@@ -64,9 +66,9 @@ const CreateUser = () => {
       <Header />
 
       <main className="container mx-auto px-4 py-6 sm:py-8">
-        <div className="max-w-2xl mx-auto bg-white rounded-lg shadow-md p-4 sm:p-8">
+        <div className="max-w-md mx-auto bg-white rounded-lg shadow-md p-4 sm:p-8">
           <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-4 sm:mb-6">
-            Create New User Account
+            User Signup
           </h2>
 
           {message.text && (
@@ -154,9 +156,9 @@ const CreateUser = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-blue-600 text-white py-2 sm:py-3 px-4 rounded font-semibold hover:bg-blue-700 transition disabled:opacity-50 text-sm sm:text-base"
+              className="w-full bg-green-600 text-white py-2 sm:py-3 px-4 rounded font-semibold hover:bg-green-700 transition disabled:opacity-50 text-sm sm:text-base"
             >
-              {loading ? 'Creating user...' : 'Create User'}
+              {loading ? 'Creating account...' : 'Sign Up'}
             </button>
           </form>
         </div>
@@ -165,4 +167,4 @@ const CreateUser = () => {
   );
 };
 
-export default CreateUser;
+export default Signup;
