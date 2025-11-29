@@ -10,7 +10,7 @@ import WorkList from './pages/WorkList.jsx';
 
 function App() {
   return (
-    <Router basename="/tmv">
+    <Router>
       <Routes>
         {/* Auth */}
         <Route path="/" element={<Login />} />
