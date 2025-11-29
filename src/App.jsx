@@ -1,8 +1,9 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import Homepage from './pages/Homepage';
-import CreateUser from './pages/CreateUser';
-import AssignWork from './pages/AssignWork';
-import WorkList from './pages/WorkList';
+
+import Homepage from './pages/Homepage.jsx';
+import CreateUser from './pages/CreateUser.jsx';
+import AssignWork from './pages/AssignWork.jsx';
+import WorkList from './pages/WorkList.jsx';
 
 function App() {
   return (
