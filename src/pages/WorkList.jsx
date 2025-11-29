@@ -90,7 +90,7 @@ const WorkList = () => {
                 <div className="mb-3">
                   <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-500">
                     <FaCalendarAlt />
-                    <span>Deadline: {new Date(work.deadline).toLocaleDateString()}</span>
+                    <span>Date: {new Date(work.date).toLocaleDateString()}</span>
                   </div>
                 </div>
                 

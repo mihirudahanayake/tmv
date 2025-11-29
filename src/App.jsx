@@ -7,6 +7,7 @@ import Signup from './pages/Signup.jsx';
 import CreateUser from './pages/CreateUser.jsx';
 import AssignWork from './pages/AssignWork.jsx';
 import WorkList from './pages/WorkList.jsx';
+import Profile from './pages/Profile.jsx';
 
 function App() {
   return (
@@ -19,6 +20,7 @@ function App() {
         <Route path="/create-user" element={<CreateUser />} />
         <Route path="/assign-work" element={<AssignWork />} />
         <Route path="/work-list" element={<WorkList />} />
+        <Route path="/profile" element={<Profile />} />
       </Routes>
     </Router>
   );

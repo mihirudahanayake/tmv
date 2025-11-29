@@ -2,26 +2,41 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
-import { auth, db } from '../firebase/config';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { auth, db, storage } from '../firebase/config';
 
 const ADMIN_EMAIL = 'mihirudahanayake@gmail.com';
 
 const Signup = () => {
   const navigate = useNavigate();
+
   const [form, setForm] = useState({
     name: '',
     email: '',
     phoneNo: '',
     department: 'videography',
     firstPriority: 'videography',
+    batch: '20/21',
+    studyDepartment: 'ITT',
+    gender: 'male',
+    registrationNumber: '',
+    cardNumber: '',
+    birthday: '',
     password: '',
     confirmPassword: ''
   });
+
+  const [profileFile, setProfileFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const handleChange = (e) => {
     setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
+  };
+
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0];
+    setProfileFile(file || null);
   };
 
   const handleSubmit = async (e) => {
@@ -44,12 +59,26 @@ const Signup = () => {
       const user = userCredential.user;
       const userType = user.email === ADMIN_EMAIL ? 'admin' : 'user';
 
+      let photoURL = null;
+      if (profileFile) {
+        const fileRef = ref(storage, `profilePictures/${user.uid}`);
+        await uploadBytes(fileRef, profileFile);
+        photoURL = await getDownloadURL(fileRef);
+      }
+
       await setDoc(doc(db, 'users', user.uid), {
         name: form.name,
         email: form.email,
         phoneNo: form.phoneNo,
         department: form.department,
         firstPriority: form.firstPriority,
+        batch: form.batch,
+        studyDepartment: form.studyDepartment,
+        gender: form.gender,
+        registrationNumber: form.registrationNumber,
+        cardNumber: form.cardNumber || null,
+        birthday: form.birthday || null,
+        photoURL,
         userType,
         createdAt: new Date().toISOString()
       });
@@ -80,6 +109,7 @@ const Signup = () => {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
+          {/* Name */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1">
               Name
@@ -94,6 +124,7 @@ const Signup = () => {
             />
           </div>
 
+          {/* Email */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1">
               Email
@@ -108,6 +139,7 @@ const Signup = () => {
             />
           </div>
 
+          {/* Phone */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1">
               Phone number
@@ -122,9 +154,120 @@ const Signup = () => {
             />
           </div>
 
+          {/* Batch */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1">
-              Department
+              Batch
+            </label>
+            <select
+              name="batch"
+              value={form.batch}
+              onChange={handleChange}
+              className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            >
+              <option value="20/21">20/21</option>
+              <option value="21/22">21/22</option>
+              <option value="22/23">22/23</option>
+              <option value="23/24">23/24</option>
+            </select>
+          </div>
+
+          {/* Study department */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">
+              Department in study
+            </label>
+            <select
+              name="studyDepartment"
+              value={form.studyDepartment}
+              onChange={handleChange}
+              className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            >
+              <option value="ITT">ITT</option>
+              <option value="EET">EET</option>
+              <option value="MTT">MTT</option>
+              <option value="BPT">BPT</option>
+              <option value="Food">Food</option>
+            </select>
+          </div>
+
+          {/* Gender */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">
+              Gender
+            </label>
+            <div className="flex items-center gap-4 text-sm">
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="gender"
+                  value="male"
+                  checked={form.gender === 'male'}
+                  onChange={handleChange}
+                />
+                <span>Male</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="gender"
+                  value="female"
+                  checked={form.gender === 'female'}
+                  onChange={handleChange}
+                />
+                <span>Female</span>
+              </label>
+            </div>
+          </div>
+
+          {/* Registration number */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">
+              Registration number
+            </label>
+            <input
+              type="text"
+              name="registrationNumber"
+              value={form.registrationNumber}
+              onChange={handleChange}
+              required
+              className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            />
+          </div>
+
+          {/* Card number (optional) */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">
+              Card (if have)
+            </label>
+            <input
+              type="text"
+              name="cardNumber"
+              value={form.cardNumber}
+              onChange={handleChange}
+              placeholder="Optional"
+              className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            />
+          </div>
+
+          {/* Birthday */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">
+              Birthday
+            </label>
+            <input
+              type="date"
+              name="birthday"
+              value={form.birthday}
+              onChange={handleChange}
+              className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            />
+          </div>
+
+          {/* Work department */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">
+              Department (work)
             </label>
             <select
               name="department"
@@ -137,9 +280,10 @@ const Signup = () => {
             </select>
           </div>
 
+          {/* First priority work department */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1">
-              First priority department
+              First priority department (work)
             </label>
             <select
               name="firstPriority"
@@ -152,6 +296,23 @@ const Signup = () => {
             </select>
           </div>
 
+          {/* Profile picture */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">
+              Profile picture
+            </label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleFileChange}
+              className="w-full text-sm"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Optional. JPG or PNG, a few MB max.
+            </p>
+          </div>
+
+          {/* Password */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1">
               Password
@@ -167,6 +328,7 @@ const Signup = () => {
             />
           </div>
 
+          {/* Confirm password */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1">
               Confirm password

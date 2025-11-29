@@ -9,7 +9,7 @@ const AssignWork = () => {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    deadline: '',
+    date: '',
     priority: 'medium',
     assignedUsers: []
   });
@@ -65,7 +65,7 @@ const AssignWork = () => {
       setFormData({
         title: '',
         description: '',
-        deadline: '',
+        date: '',
         priority: 'medium',
         assignedUsers: []
       });
@@ -129,12 +129,12 @@ const AssignWork = () => {
               <div>
                 <label className="flex items-center gap-2 text-gray-700 font-semibold mb-2 text-sm sm:text-base">
                   <FaCalendarAlt />
-                  <span>Deadline</span>
+                  <span>Date</span>
                 </label>
                 <input
                   type="date"
-                  name="deadline"
-                  value={formData.deadline}
+                  name="date"
+                  value={formData.date}
                   onChange={handleChange}
                   required
                   className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 text-sm sm:text-base"
@@ -178,7 +178,7 @@ const AssignWork = () => {
                         className="mr-3 w-4 h-4"
                       />
                       <span className="text-gray-700 text-sm sm:text-base">
-                        {user.name} - {user.specialty || 'No specialty'}
+                        {user.name}
                       </span>
                     </label>
                   ))
