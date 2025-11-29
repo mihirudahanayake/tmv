@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
+import { useNavigate } from 'react-router-dom';
 import { db } from '../firebase/config';
 import { FaCalendarAlt, FaUsers, FaSpinner, FaSearch, FaCheck } from 'react-icons/fa';
 import Header from '../components/Header';
@@ -12,6 +13,8 @@ const WorkList = () => {
   const [searchText, setSearchText] = useState('');
   const [dateFilter, setDateFilter] = useState(''); // yyyy-mm-dd
 
+  const navigate = useNavigate();
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -21,13 +24,13 @@ const WorkList = () => {
     try {
       const usersSnapshot = await getDocs(collection(db, 'users'));
       const usersMap = {};
-      usersSnapshot.docs.forEach(d => {
+      usersSnapshot.docs.forEach((d) => {
         usersMap[d.id] = d.data();
       });
       setUsers(usersMap);
 
       const worksSnapshot = await getDocs(collection(db, 'works'));
-      const worksData = worksSnapshot.docs.map(d => ({
+      const worksData = worksSnapshot.docs.map((d) => ({
         id: d.id,
         ...d.data()
       }));
@@ -53,21 +56,18 @@ const WorkList = () => {
     try {
       const taskRef = doc(db, 'works', taskId);
       await updateDoc(taskRef, { status: 'complete' });
-      // update local state
-      setTasks(prev =>
-        prev.map(t => (t.id === taskId ? { ...t, status: 'complete' } : t))
+      setTasks((prev) =>
+        prev.map((t) => (t.id === taskId ? { ...t, status: 'complete' } : t))
       );
     } catch (err) {
       console.error('Failed to mark task complete:', err);
     }
   };
 
-  // filter + sort
   const normalizedSearch = searchText.trim().toLowerCase();
 
   const filteredAndSorted = tasks
     .filter((task) => {
-      // date filter: compare only date part
       if (dateFilter) {
         const taskDateStr = task.date
           ? new Date(task.date).toISOString().slice(0, 10)
@@ -79,30 +79,29 @@ const WorkList = () => {
 
       const title = (task.title || '').toLowerCase();
 
-      // user names and cards from assigned users
-      const assigned = (task.assignedUsers || []).map(uid => users[uid] || {});
-      const names = assigned.map(u => (u.name || '').toLowerCase());
-      const cards = assigned.map(u => (u.cardNumber || '').toLowerCase());
+      const assigned = (task.assignedUsers || []).map(
+        (uid) => users[uid] || {}
+      );
+      const names = assigned.map((u) => (u.name || '').toLowerCase());
+      const cards = assigned.map((u) => (u.cardNumber || '').toLowerCase());
 
       const matchTitle = title.includes(normalizedSearch);
-      const matchName = names.some(n => n.includes(normalizedSearch));
-      const matchCard = cards.some(c => c.includes(normalizedSearch));
+      const matchName = names.some((n) => n.includes(normalizedSearch));
+      const matchCard = cards.some((c) => c.includes(normalizedSearch));
 
       return matchTitle || matchName || matchCard;
     })
     .sort((a, b) => {
-      // newest date first; missing dates go last
       const da = a.date ? new Date(a.date).getTime() : 0;
       const dbt = b.date ? new Date(b.date).getTime() : 0;
-      return dbt - da;
+      return dbt - da; // newest first
     });
 
-  // split into incomplete (includes 'incomplete' or 'done') and complete
   const incompleteTasks = filteredAndSorted.filter(
-    t => (t.status || 'incomplete') !== 'complete'
+    (t) => (t.status || 'incomplete') !== 'complete'
   );
   const completeTasks = filteredAndSorted.filter(
-    t => (t.status || 'incomplete') === 'complete'
+    (t) => (t.status || 'incomplete') === 'complete'
   );
 
   if (loading) {
@@ -120,7 +119,8 @@ const WorkList = () => {
   const renderTaskCard = (task, isCompleteSection = false) => (
     <div
       key={task.id}
-      className="bg-white rounded-lg shadow-md p-4 sm:p-6 hover:shadow-xl transition"
+      className="bg-white rounded-lg shadow-md p-4 sm:p-6 hover:shadow-xl transition cursor-pointer"
+      onClick={() => navigate(`/tasks/${task.id}`)}
     >
       <div className="flex justify-between items-start mb-3">
         <h3 className="text-lg sm:text-xl font-semibold text-gray-800 flex-1 pr-2">
@@ -145,9 +145,7 @@ const WorkList = () => {
         <div className="mb-3">
           <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-500">
             <FaCalendarAlt />
-            <span>
-              Date: {new Date(task.date).toLocaleDateString()}
-            </span>
+            <span>Date: {new Date(task.date).toLocaleDateString()}</span>
           </div>
         </div>
       )}
@@ -169,10 +167,13 @@ const WorkList = () => {
         </div>
       </div>
 
-      {!isCompleteSection && (task.status === 'done' || task.status === 'incomplete' || !task.status) && (
+      {!isCompleteSection && (
         <button
           type="button"
-          onClick={() => handleMarkComplete(task.id)}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleMarkComplete(task.id);
+          }}
           className="mt-2 inline-flex items-center gap-2 px-3 py-1.5 rounded bg-green-600 text-white text-xs sm:text-sm hover:bg-green-700"
         >
           <FaCheck />
@@ -188,8 +189,7 @@ const WorkList = () => {
     </div>
   );
 
-  const hasAnyTasks =
-    incompleteTasks.length > 0 || completeTasks.length > 0;
+  const hasAnyTasks = incompleteTasks.length > 0 || completeTasks.length > 0;
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -230,7 +230,6 @@ const WorkList = () => {
           </div>
         ) : (
           <>
-            {/* Incomplete / done (user side) tasks */}
             {incompleteTasks.length > 0 && (
               <section className="mb-6">
                 <h3 className="text-lg sm:text-xl font-semibold text-gray-800 mb-3">
@@ -242,7 +241,6 @@ const WorkList = () => {
               </section>
             )}
 
-            {/* Completed tasks */}
             {completeTasks.length > 0 && (
               <section>
                 <h3 className="text-lg sm:text-xl font-semibold text-gray-800 mb-3">

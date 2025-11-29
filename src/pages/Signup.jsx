@@ -2,10 +2,11 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { auth, db, storage } from '../firebase/config';
+import { auth, db } from '../firebase/config';
 
 const ADMIN_EMAIL = 'mihirudahanayake@gmail.com';
+
+const WORK_DEPARTMENTS = ['videography', 'photography'];
 
 const Signup = () => {
   const navigate = useNavigate();
@@ -14,7 +15,8 @@ const Signup = () => {
     name: '',
     email: '',
     phoneNo: '',
-    department: 'videography',
+    // work departments as array
+    departments: ['videography'],
     firstPriority: 'videography',
     batch: '20/21',
     studyDepartment: 'ITT',
@@ -26,17 +28,28 @@ const Signup = () => {
     confirmPassword: ''
   });
 
-  const [profileFile, setProfileFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const handleChange = (e) => {
-    setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
+    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
-  const handleFileChange = (e) => {
-    const file = e.target.files?.[0];
-    setProfileFile(file || null);
+  const handleDepartmentToggle = (value) => {
+    setForm((prev) => {
+      const exists = prev.departments.includes(value);
+      const next = exists
+        ? prev.departments.filter((d) => d !== value)
+        : [...prev.departments, value];
+
+      // ensure firstPriority always in selected list
+      let nextFirst = prev.firstPriority;
+      if (!next.includes(nextFirst)) {
+        nextFirst = next[0] || '';
+      }
+
+      return { ...prev, departments: next, firstPriority: nextFirst };
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -45,6 +58,11 @@ const Signup = () => {
 
     if (form.password !== form.confirmPassword) {
       setError('Password and confirm password do not match.');
+      return;
+    }
+
+    if (form.departments.length === 0) {
+      setError('Please select at least one work department.');
       return;
     }
 
@@ -59,26 +77,20 @@ const Signup = () => {
       const user = userCredential.user;
       const userType = user.email === ADMIN_EMAIL ? 'admin' : 'user';
 
-      let photoURL = null;
-      if (profileFile) {
-        const fileRef = ref(storage, `profilePictures/${user.uid}`);
-        await uploadBytes(fileRef, profileFile);
-        photoURL = await getDownloadURL(fileRef);
-      }
-
       await setDoc(doc(db, 'users', user.uid), {
         name: form.name,
         email: form.email,
         phoneNo: form.phoneNo,
-        department: form.department,
+        // work fields
+        departments: form.departments,
         firstPriority: form.firstPriority,
+        // study / personal
         batch: form.batch,
         studyDepartment: form.studyDepartment,
         gender: form.gender,
         registrationNumber: form.registrationNumber,
         cardNumber: form.cardNumber || null,
         birthday: form.birthday || null,
-        photoURL,
         userType,
         createdAt: new Date().toISOString()
       });
@@ -94,6 +106,8 @@ const Signup = () => {
       setLoading(false);
     }
   };
+
+  const isDeptSelected = (value) => form.departments.includes(value);
 
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center px-4">
@@ -264,20 +278,26 @@ const Signup = () => {
             />
           </div>
 
-          {/* Work department */}
+          {/* Work departments (multiple) */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1">
-              Department (work)
+              Departments (work)
             </label>
-            <select
-              name="department"
-              value={form.department}
-              onChange={handleChange}
-              className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-            >
-              <option value="videography">Videography</option>
-              <option value="photography">Photography</option>
-            </select>
+            <div className="bg-gray-50 border rounded p-2 flex flex-col gap-1">
+              {WORK_DEPARTMENTS.map((dept) => (
+                <label key={dept} className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={isDeptSelected(dept)}
+                    onChange={() => handleDepartmentToggle(dept)}
+                  />
+                  <span className="capitalize">{dept}</span>
+                </label>
+              ))}
+            </div>
+            <p className="mt-1 text-xs text-gray-500">
+              You can select one or more departments.
+            </p>
           </div>
 
           {/* First priority work department */}
@@ -291,26 +311,13 @@ const Signup = () => {
               onChange={handleChange}
               className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             >
-              <option value="videography">Videography</option>
-              <option value="photography">Photography</option>
+              {form.departments.map((dept) => (
+                <option key={dept} value={dept}>
+                  {dept}
+                </option>
+              ))}
             </select>
           </div>
-
-          {/* Profile picture */}
-          {/* <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">
-              Profile picture
-            </label>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleFileChange}
-              className="w-full text-sm"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Optional. JPG or PNG, a few MB max.
-            </p>
-          </div> */}
 
           {/* Password */}
           <div>

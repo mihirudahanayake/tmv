@@ -14,8 +14,13 @@ const Header = ({ userType }) => {
 const navItems = [
   { path: homePath, label: 'Home', icon: <FaHome /> },
   { path: '/profile', label: 'Profile', icon: <FaUser /> },
-  { path: '/task-history', label: 'Task History', icon: <FaHistory /> }
 ];
+
+    if (userType === 'user') {
+    navItems.push(
+      { path: '/task-history', label: 'Task History', icon: <FaHistory /> }
+    );
+  }
 
   if (userType === 'admin') {
     navItems.push(

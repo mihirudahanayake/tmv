@@ -22,13 +22,20 @@ const UserDetails = () => {
         const worksSnap = await getDocs(collection(db, 'works'));
         const allWorks = worksSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-        // adjust this filter to match your schema
+        // tasks where this user is in assignedUsers
         const userWorks = allWorks.filter(w => {
-          if (!w.assignedTo) return false;
-          if (Array.isArray(w.assignedTo)) {
-            return w.assignedTo.includes(userId);
+          if (!w.assignedUsers) return false;
+          if (Array.isArray(w.assignedUsers)) {
+            return w.assignedUsers.includes(userId);
           }
-          return w.assignedTo === userId;
+          return w.assignedUsers === userId;
+        });
+
+        // sort by date (newest first)
+        userWorks.sort((a, b) => {
+          const da = a.date ? new Date(a.date).getTime() : 0;
+          const dbt = b.date ? new Date(b.date).getTime() : 0;
+          return dbt - da;
         });
 
         setWorks(userWorks);
@@ -82,12 +89,12 @@ const UserDetails = () => {
             </div>
 
             <h2 className="text-xl sm:text-2xl font-semibold text-gray-800 mb-3">
-              Work history
+              Task history
             </h2>
 
             {works.length === 0 ? (
               <p className="text-gray-600 text-sm sm:text-base">
-                No work assignments for this user.
+                No tasks for this user.
               </p>
             ) : (
               <div className="space-y-3">
@@ -98,11 +105,11 @@ const UserDetails = () => {
                   >
                     <div className="flex justify-between items-center mb-1">
                       <h3 className="font-semibold text-gray-800">
-                        {w.title || 'Untitled work'}
+                        {w.title || 'Untitled task'}
                       </h3>
                       {w.date && (
                         <span className="flex items-center gap-1 text-xs text-gray-500">
-                          <FaCalendarAlt /> {w.date}
+                          <FaCalendarAlt /> {new Date(w.date).toLocaleDateString()}
                         </span>
                       )}
                     </div>
