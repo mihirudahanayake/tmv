@@ -1,5 +1,13 @@
 import { useEffect, useState } from 'react';
-import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
+import {
+  collection,
+  getDocs,
+  doc,
+  updateDoc,
+  query,
+  where,
+  onSnapshot
+} from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { db, auth } from '../firebase/config';
 import Header from '../components/Header';
@@ -10,6 +18,9 @@ const Home = () => {
   const [tasks, setTasks] = useState([]);
   const [loadingUser, setLoadingUser] = useState(true);
   const [loadingTasks, setLoadingTasks] = useState(false);
+  const [toast, setToast] = useState('');
+
+  const userType = 'user';
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
@@ -19,6 +30,7 @@ const Home = () => {
     return () => unsub();
   }, []);
 
+  // load tasks for user
   useEffect(() => {
     if (!user) return;
 
@@ -28,14 +40,12 @@ const Home = () => {
         const snap = await getDocs(collection(db, 'works'));
         const all = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
-        // only tasks assigned to this user
         const mine = all.filter(
           (t) =>
             Array.isArray(t.assignedUsers) &&
             t.assignedUsers.includes(user.uid)
         );
 
-        // newest date first
         mine.sort((a, b) => {
           const da = a.date ? new Date(a.date).getTime() : 0;
           const dbt = b.date ? new Date(b.date).getTime() : 0;
@@ -53,12 +63,48 @@ const Home = () => {
     loadTasks();
   }, [user]);
 
+  // toast helper
+  const showToast = (msg) => {
+    setToast(msg);
+    setTimeout(() => setToast(''), 4000);
+  };
+
+  // real-time notification when new task assigned
+  useEffect(() => {
+    if (!user) return;
+
+    const q = query(
+      collection(db, 'works'),
+      where('assignedUsers', 'array-contains', user.uid)
+    );
+
+    const unsub = onSnapshot(q, (snap) => {
+      snap.docChanges().forEach((change) => {
+        if (change.type === 'added') {
+          const data = change.doc.data();
+          showToast(`New task assigned: ${data.title || 'Task'}`);
+          // also add to local list if not already present
+          setTasks((prev) => {
+            const exists = prev.some((t) => t.id === change.doc.id);
+            if (exists) return prev;
+            const newTask = { id: change.doc.id, ...data };
+            return [newTask, ...prev].sort((a, b) => {
+              const da = a.date ? new Date(a.date).getTime() : 0;
+              const dbt = b.date ? new Date(b.date).getTime() : 0;
+              return dbt - da;
+            });
+          });
+        }
+      });
+    });
+
+    return () => unsub();
+  }, [user]);
+
   const statusOf = (task) => task.status || 'incomplete';
 
   const handleToggleDone = async (task) => {
     const currentStatus = statusOf(task);
-
-    // do nothing if admin already marked complete
     if (currentStatus === 'complete') return;
 
     const nextStatus = currentStatus === 'done' ? 'incomplete' : 'done';
@@ -76,9 +122,6 @@ const Home = () => {
     }
   };
 
-  const userType = 'user';
-
-  // user should not see tasks that admin has fully completed
   const visibleTasks = tasks.filter((t) => statusOf(t) !== 'complete');
   const currentTasks = visibleTasks.filter((t) => statusOf(t) !== 'done');
   const doneTasks = visibleTasks.filter((t) => statusOf(t) === 'done');
@@ -86,6 +129,14 @@ const Home = () => {
   return (
     <div className="min-h-screen bg-gray-100">
       <Header userType={userType} />
+
+      {/* toast notification */}
+      {toast && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-blue-600 text-white text-xs sm:text-sm px-4 py-2 rounded shadow">
+          {toast}
+        </div>
+      )}
+
       <main className="container mx-auto px-4 py-8">
         <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-4">
           Welcome
