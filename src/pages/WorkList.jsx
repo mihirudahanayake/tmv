@@ -59,7 +59,6 @@ const WorkList = () => {
 
   const filteredAndSorted = tasks
     .filter((task) => {
-      // date range filter
       if (startDate || endDate) {
         if (!task.date) return false;
         const d = new Date(task.date);
@@ -89,7 +88,7 @@ const WorkList = () => {
     .sort((a, b) => {
       const da = a.date ? new Date(a.date).getTime() : 0;
       const dbt = b.date ? new Date(b.date).getTime() : 0;
-      return dbt - da; // newest first
+      return dbt - da;
     });
 
   const incompleteTasks = filteredAndSorted.filter(
@@ -122,6 +121,9 @@ const WorkList = () => {
 
   const renderTaskCard = (task, isCompleteSection = false) => {
     const status = task.status || 'incomplete';
+    const userDetails = task.assignedUserDetails || [];
+    // roleCompletion: { userId_role: 'done' }
+    const roleCompletion = task.roleCompletion || {};
 
     return (
       <div
@@ -167,15 +169,49 @@ const WorkList = () => {
             <FaUsers />
             <span>Assigned to:</span>
           </div>
-          <div className="flex flex-wrap gap-2">
-            {task.assignedUsers?.map((userId) => (
-              <span
-                key={userId}
-                className="bg-gray-100 px-2 py-1 rounded text-xs sm:text-sm text-gray-700"
-              >
-                {users[userId]?.name || 'Unknown'}
-              </span>
-            ))}
+          <div className="space-y-2">
+            {userDetails.map((detail) => {
+              const userId = detail.userId;
+              const roles = detail.roles || [];
+              const userName = users[userId]?.name || 'Unknown';
+
+              return (
+                <div
+                  key={userId}
+                  className="bg-gray-50 px-2 py-1 rounded text-xs sm:text-sm"
+                >
+                  <p className="font-semibold text-gray-800">{userName}</p>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {roles.map((role) => {
+                      const key = `${userId}_${role}`;
+                      const isDone = roleCompletion[key] === 'done';
+                      return (
+                        <span
+                          key={role}
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs ${
+                            isDone
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-gray-200 text-gray-700'
+                          }`}
+                        >
+                          {isDone && <FaCheck className="text-xs" />}
+                          {role}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+            {userDetails.length === 0 &&
+              task.assignedUsers?.map((userId) => (
+                <span
+                  key={userId}
+                  className="bg-gray-100 px-2 py-1 rounded text-xs sm:text-sm text-gray-700"
+                >
+                  {users[userId]?.name || 'Unknown'}
+                </span>
+              ))}
           </div>
         </div>
 
@@ -209,7 +245,6 @@ const WorkList = () => {
       <Header userType="admin" />
 
       <main className="container mx-auto px-4 py-6 sm:py-8">
-        {/* Filters */}
         <div className="flex flex-col gap-3 mb-4 sm:mb-6">
           <h2 className="text-xl sm:text-2xl font-bold text-gray-800">
             All Tasks

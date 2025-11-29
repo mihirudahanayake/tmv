@@ -4,12 +4,15 @@ import {
   doc,
   getDoc,
   updateDoc,
+  deleteDoc,
   collection,
   getDocs
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import Header from '../components/Header';
-import { FaCalendarAlt, FaUsers, FaSpinner } from 'react-icons/fa';
+import { FaCalendarAlt, FaSpinner, FaTrash } from 'react-icons/fa';
+
+const WORK_ROLES = ['videography', 'editing'];
 
 const TaskDetails = () => {
   const { taskId } = useParams();
@@ -17,9 +20,10 @@ const TaskDetails = () => {
 
   const [task, setTask] = useState(null);
   const [users, setUsers] = useState([]);
-  const [assignedIds, setAssignedIds] = useState([]);
+  const [assignedUserDetails, setAssignedUserDetails] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -28,17 +32,15 @@ const TaskDetails = () => {
     const load = async () => {
       setLoading(true);
       try {
-        // load all users for assignment
         const usersSnap = await getDocs(collection(db, 'users'));
-        const usersData = usersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const usersData = usersSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
         setUsers(usersData);
 
-        // load task
         const taskSnap = await getDoc(doc(db, 'works', taskId));
         if (taskSnap.exists()) {
           const data = { id: taskSnap.id, ...taskSnap.data() };
           setTask(data);
-          setAssignedIds(data.assignedUsers || []);
+          setAssignedUserDetails(data.assignedUserDetails || []);
         } else {
           setError('Task not found.');
         }
@@ -55,15 +57,35 @@ const TaskDetails = () => {
 
   const handleToggleUser = (uid) => {
     if (!editing) return;
-    setAssignedIds(prev =>
-      prev.includes(uid) ? prev.filter(id => id !== uid) : [...prev, uid]
+    const exists = assignedUserDetails.find((u) => u.userId === uid);
+    if (exists) {
+      setAssignedUserDetails((prev) => prev.filter((u) => u.userId !== uid));
+    } else {
+      setAssignedUserDetails((prev) => [
+        ...prev,
+        { userId: uid, roles: ['videography'] }
+      ]);
+    }
+  };
+
+  const handleToggleRole = (uid, role) => {
+    if (!editing) return;
+    setAssignedUserDetails((prev) =>
+      prev.map((item) => {
+        if (item.userId !== uid) return item;
+        const hasRole = item.roles.includes(role);
+        const roles = hasRole
+          ? item.roles.filter((r) => r !== role)
+          : [...item.roles, role];
+        return { ...item, roles: roles.length ? roles : [role] };
+      })
     );
   };
 
   const handleFieldChange = (e) => {
     if (!editing) return;
     const { name, value } = e.target;
-    setTask(prev => ({ ...prev, [name]: value }));
+    setTask((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSave = async (e) => {
@@ -77,7 +99,8 @@ const TaskDetails = () => {
       const { id, ...rest } = task;
       await updateDoc(doc(db, 'works', task.id), {
         ...rest,
-        assignedUsers: assignedIds
+        assignedUsers: assignedUserDetails.map((u) => u.userId),
+        assignedUserDetails
       });
       setSuccess('Task updated successfully.');
       setEditing(false);
@@ -86,6 +109,25 @@ const TaskDetails = () => {
       setError('Failed to update task.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!window.confirm('Are you sure you want to delete this task?')) return;
+
+    setDeleting(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      await deleteDoc(doc(db, 'works', taskId));
+      setSuccess('Task deleted successfully.');
+      setTimeout(() => navigate('/work-list'), 1500);
+    } catch (err) {
+      console.error(err);
+      setError('Failed to delete task.');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -118,6 +160,11 @@ const TaskDetails = () => {
     );
   }
 
+  const isUserAssigned = (uid) =>
+    assignedUserDetails.some((u) => u.userId === uid);
+  const getUserRoles = (uid) =>
+    assignedUserDetails.find((u) => u.userId === uid)?.roles || [];
+
   return (
     <div className="min-h-screen bg-gray-100">
       <Header userType="admin" />
@@ -128,16 +175,26 @@ const TaskDetails = () => {
           </h1>
           <div className="flex gap-2">
             {!editing ? (
-              <button
-                onClick={() => {
-                  setEditing(true);
-                  setError('');
-                  setSuccess('');
-                }}
-                className="px-3 py-1 rounded bg-blue-600 text-white text-sm hover:bg-blue-700"
-              >
-                Edit
-              </button>
+              <>
+                <button
+                  onClick={() => {
+                    setEditing(true);
+                    setError('');
+                    setSuccess('');
+                  }}
+                  className="px-3 py-1 rounded bg-blue-600 text-white text-sm hover:bg-blue-700"
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="px-3 py-1 rounded bg-red-600 text-white text-sm hover:bg-red-700 disabled:opacity-50 inline-flex items-center gap-1"
+                >
+                  <FaTrash />
+                  {deleting ? 'Deleting...' : 'Delete'}
+                </button>
+              </>
             ) : (
               <>
                 <button
@@ -152,6 +209,8 @@ const TaskDetails = () => {
                     setEditing(false);
                     setSuccess('');
                     setError('');
+                    // reload original data
+                    setAssignedUserDetails(task.assignedUserDetails || []);
                   }}
                   className="px-3 py-1 rounded bg-gray-300 text-gray-800 text-sm hover:bg-gray-400"
                 >
@@ -179,7 +238,7 @@ const TaskDetails = () => {
           </div>
         )}
 
-        <form className="space-y-4">
+        <form className="space-y-4" onSubmit={handleSave}>
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1">
               Title
@@ -251,28 +310,55 @@ const TaskDetails = () => {
 
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Assigned users
+              Assigned users and work types
             </label>
-            <div className="bg-white rounded border p-3 max-h-64 overflow-y-auto">
-              {users.map((u) => (
-                <label
-                  key={u.id}
-                  className="flex items-center justify-between text-sm py-1"
-                >
-                  <span>
-                    {u.name || 'No name'}{' '}
-                    <span className="text-xs text-gray-500">
-                      ({u.cardNumber || '-'})
-                    </span>
-                  </span>
-                  <input
-                    type="checkbox"
-                    checked={assignedIds.includes(u.id)}
-                    onChange={() => handleToggleUser(u.id)}
-                    disabled={!editing}
-                  />
-                </label>
-              ))}
+            <div className="bg-white rounded border p-3 max-h-80 overflow-y-auto">
+              {users.map((u) => {
+                const assigned = isUserAssigned(u.id);
+                const roles = getUserRoles(u.id);
+
+                return (
+                  <div key={u.id} className="mb-2 p-2 rounded hover:bg-gray-50">
+                    <label className="flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={assigned}
+                        onChange={() => handleToggleUser(u.id)}
+                        disabled={!editing}
+                        className="mr-3 w-4 h-4"
+                      />
+                      <div className="flex-1">
+                        <p className="text-sm">
+                          {u.name || 'No name'}{' '}
+                          <span className="text-xs text-gray-500">
+                            ({u.cardNumber || '-'})
+                          </span>
+                        </p>
+                      </div>
+                    </label>
+
+                    {assigned && (
+                      <div className="mt-1 ml-7 flex flex-wrap gap-2 text-xs sm:text-sm">
+                        {WORK_ROLES.map((role) => (
+                          <button
+                            key={role}
+                            type="button"
+                            onClick={() => handleToggleRole(u.id, role)}
+                            disabled={!editing}
+                            className={`px-2 py-1 rounded border ${
+                              roles.includes(role)
+                                ? 'bg-green-600 text-white border-green-600'
+                                : 'bg-white text-gray-700 border-gray-300'
+                            } ${!editing ? 'cursor-default' : 'cursor-pointer'}`}
+                          >
+                            {role}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
               {users.length === 0 && (
                 <p className="text-xs text-gray-500">No users found.</p>
               )}
