@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { FaHome, FaUserPlus, FaTasks, FaList, FaBars, FaTimes, FaUser } from 'react-icons/fa';
 import { useState } from 'react';
+import { FaHistory } from 'react-icons/fa';
 
 const Header = ({ userType }) => {
   const location = useLocation();
@@ -10,10 +11,11 @@ const Header = ({ userType }) => {
 
   const homePath = userType === 'admin' ? '/admin-home' : '/home';
 
-  const navItems = [
-    { path: homePath, label: 'Home', icon: <FaHome /> },
-    { path: '/profile', label: 'Profile', icon: <FaUser /> } // visible for both
-  ];
+const navItems = [
+  { path: homePath, label: 'Home', icon: <FaHome /> },
+  { path: '/profile', label: 'Profile', icon: <FaUser /> },
+  { path: '/task-history', label: 'Task History', icon: <FaHistory /> }
+];
 
   if (userType === 'admin') {
     navItems.push(
