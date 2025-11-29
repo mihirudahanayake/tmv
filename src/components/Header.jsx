@@ -8,16 +8,12 @@ const Header = () => {
   
   const isActive = (path) => location.pathname === path;
   
-const navItems = [
-  { path: '/', label: 'Home', icon: <FaHome /> },
-  { path: '/create-user', label: 'Create User', icon: <FaUserPlus /> },
-  { path: '/assign-work', label: 'Assign Work', icon: <FaTasks /> },
-  { path: '/work-list', label: 'Work List', icon: <FaList /> },
-  // new:
-  { path: '/login', label: 'Login', icon: <FaUserPlus /> },
-  { path: '/signup', label: 'Signup', icon: <FaUserPlus /> },
-];
-
+  const navItems = [
+    { path: '/', label: 'Home', icon: <FaHome /> },
+    { path: '/create-user', label: 'Create User', icon: <FaUserPlus /> },
+    { path: '/assign-work', label: 'Assign Work', icon: <FaTasks /> },
+    { path: '/work-list', label: 'Work List', icon: <FaList /> }
+  ];
 
   return (
     <header className="bg-blue-600 text-white shadow-lg">
