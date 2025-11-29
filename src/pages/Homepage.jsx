@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { FaUserPlus, FaTasks } from 'react-icons/fa';
 import Header from '../components/Header';
 
-const HomePage = () => {
+const Homepage = () => {
   const navigate = useNavigate();
 
   return (
@@ -58,4 +58,4 @@ const HomePage = () => {
   );
 };
 
-export default HomePage;
+export default Homepage;

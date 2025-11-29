@@ -4,7 +4,7 @@ import { db } from '../firebase/config';
 import { FaCalendarAlt, FaUsers, FaSpinner } from 'react-icons/fa';
 import Header from '../components/Header';
 
-const WorkListPage = () => {
+const WorkList = () => {
   const [works, setWorks] = useState([]);
   const [users, setUsers] = useState({});
   const [loading, setLoading] = useState(true);

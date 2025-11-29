@@ -4,7 +4,7 @@ import { db } from '../firebase/config';
 import { FaFileAlt, FaAlignLeft, FaCalendarAlt, FaExclamationCircle, FaUsers } from 'react-icons/fa';
 import Header from '../components/Header';
 
-const AssignWorkPage = () => {
+const AssignWork = () => {
   const [users, setUsers] = useState([]);
   const [formData, setFormData] = useState({
     title: '',

@@ -5,7 +5,7 @@ import { auth, db } from '../firebase/config';
 import { FaUser, FaEnvelope, FaLock, FaPhone, FaVideo, FaUserTag } from 'react-icons/fa';
 import Header from '../components/Header';
 
-const CreateUserPage = () => {
+const CreateUser = () => {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
