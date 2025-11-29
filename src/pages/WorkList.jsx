@@ -11,7 +11,8 @@ const WorkList = () => {
   const [loading, setLoading] = useState(true);
 
   const [searchText, setSearchText] = useState('');
-  const [dateFilter, setDateFilter] = useState(''); // yyyy-mm-dd
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
   const navigate = useNavigate();
 
@@ -42,16 +43,6 @@ const WorkList = () => {
     }
   };
 
-  const getPriorityColor = (priority) => {
-    const colors = {
-      low: 'bg-blue-100 text-blue-800',
-      medium: 'bg-yellow-100 text-yellow-800',
-      high: 'bg-orange-100 text-orange-800',
-      urgent: 'bg-red-100 text-red-800'
-    };
-    return colors[priority] || colors.medium;
-  };
-
   const handleMarkComplete = async (taskId) => {
     try {
       const taskRef = doc(db, 'works', taskId);
@@ -68,11 +59,15 @@ const WorkList = () => {
 
   const filteredAndSorted = tasks
     .filter((task) => {
-      if (dateFilter) {
-        const taskDateStr = task.date
-          ? new Date(task.date).toISOString().slice(0, 10)
-          : '';
-        if (taskDateStr !== dateFilter) return false;
+      // date range filter
+      if (startDate || endDate) {
+        if (!task.date) return false;
+        const d = new Date(task.date);
+        const iso = new Date(d.getTime() - d.getTimezoneOffset() * 60000)
+          .toISOString()
+          .slice(0, 10);
+        if (startDate && iso < startDate) return false;
+        if (endDate && iso > endDate) return false;
       }
 
       if (!normalizedSearch) return true;
@@ -116,6 +111,15 @@ const WorkList = () => {
     );
   }
 
+  const getStatusColor = (status) => {
+    const colors = {
+      incomplete: 'bg-gray-100 text-gray-800',
+      done: 'bg-yellow-100 text-yellow-800',
+      complete: 'bg-green-100 text-green-800'
+    };
+    return colors[status] || colors.incomplete;
+  };
+
   const renderTaskCard = (task, isCompleteSection = false) => {
     const status = task.status || 'incomplete';
 
@@ -131,15 +135,15 @@ const WorkList = () => {
               {task.title || 'Task'}
             </h3>
             <p className="mt-1 text-xs sm:text-sm text-gray-500 capitalize">
-              Status: {status}
+              Priority: {task.priority || 'medium'}
             </p>
           </div>
           <span
-            className={`px-2 sm:px-3 py-1 rounded-full text-xs font-semibold ${getPriorityColor(
-              task.priority
+            className={`px-2 sm:px-3 py-1 rounded-full text-xs font-semibold capitalize ${getStatusColor(
+              status
             )}`}
           >
-            {task.priority || 'medium'}
+            {status}
           </span>
         </div>
 
@@ -205,13 +209,14 @@ const WorkList = () => {
       <Header userType="admin" />
 
       <main className="container mx-auto px-4 py-6 sm:py-8">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 sm:mb-6">
+        {/* Filters */}
+        <div className="flex flex-col gap-3 mb-4 sm:mb-6">
           <h2 className="text-xl sm:text-2xl font-bold text-gray-800">
             All Tasks
           </h2>
 
-          <div className="flex flex-col sm:flex-row gap-3 sm:items-center w-full sm:w-auto">
-            <div className="relative flex-1">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="relative flex-1 min-w-0">
               <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm" />
               <input
                 type="text"
@@ -222,12 +227,22 @@ const WorkList = () => {
               />
             </div>
 
-            <input
-              type="date"
-              value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
-              className="w-full sm:w-44 px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:gap-2 w-full sm:w-auto">
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-full px-2 py-2 border rounded text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                aria-label="Start date"
+              />
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-full px-2 py-2 border rounded text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                aria-label="End date"
+              />
+            </div>
           </div>
         </div>
 
