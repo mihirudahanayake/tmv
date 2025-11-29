@@ -1,32 +1,56 @@
+// functions/index.js
+const functions = require('firebase-functions');
+const admin = require('firebase-admin');
+
+admin.initializeApp();
+const db = admin.firestore();
+
 /**
- * Import function triggers from their respective submodules:
- *
- * import {onCall} from "firebase-functions/v2/https";
- * import {onDocumentWritten} from "firebase-functions/v2/firestore";
- *
- * See a full list of supported triggers at https://firebase.google.com/docs/functions
+ * Trigger when a task is created or updated.
+ * Sends FCM to all assigned users that have fcmToken.
  */
+exports.onTaskWrite = functions.firestore
+  .document('works/{taskId}')
+  .onWrite(async (change, context) => {
+    const after = change.after.exists ? change.after.data() : null;
+    if (!after) return null;
 
-import {setGlobalOptions} from "firebase-functions";
-import {onRequest} from "firebase-functions/https";
-import * as logger from "firebase-functions/logger";
+    const assignedUsers = after.assignedUsers || [];
+    if (!Array.isArray(assignedUsers) || assignedUsers.length === 0) {
+      return null;
+    }
 
-// Start writing functions
-// https://firebase.google.com/docs/functions/typescript
+    // Firestore 'in' query supports up to 10 IDs, so chunk if needed
+    const chunks = [];
+    for (let i = 0; i < assignedUsers.length; i += 10) {
+      chunks.push(assignedUsers.slice(i, i + 10));
+    }
 
-// For cost control, you can set the maximum number of containers that can be
-// running at the same time. This helps mitigate the impact of unexpected
-// traffic spikes by instead downgrading performance. This limit is a
-// per-function limit. You can override the limit for each function using the
-// `maxInstances` option in the function's options, e.g.
-// `onRequest({ maxInstances: 5 }, (req, res) => { ... })`.
-// NOTE: setGlobalOptions does not apply to functions using the v1 API. V1
-// functions should each use functions.runWith({ maxInstances: 10 }) instead.
-// In the v1 API, each function can only serve one request per container, so
-// this will be the maximum concurrent request count.
-setGlobalOptions({ maxInstances: 10 });
+    const tokens = [];
+    for (const group of chunks) {
+      const snap = await db
+        .collection('users')
+        .where(admin.firestore.FieldPath.documentId(), 'in', group)
+        .get();
 
-// export const helloWorld = onRequest((request, response) => {
-//   logger.info("Hello logs!", {structuredData: true});
-//   response.send("Hello from Firebase!");
-// });
+      snap.docs.forEach((docSnap) => {
+        const data = docSnap.data();
+        if (data.fcmToken) {
+          tokens.push(data.fcmToken);
+        }
+      });
+    }
+
+    if (!tokens.length) return null;
+
+    const message = {
+      notification: {
+        title: 'New task assigned',
+        body: after.title || 'You have a new task',
+      },
+      tokens,
+    };
+
+    await admin.messaging().sendMulticast(message);
+    return null;
+  });
