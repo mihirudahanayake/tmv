@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import { onAuthStateChanged, updatePassword } from 'firebase/auth';
+import { onAuthStateChanged, updatePassword, signOut } from 'firebase/auth';
+import { useNavigate } from 'react-router-dom';
 import { auth, db } from '../firebase/config';
 import Header from '../components/Header';
 
 const Profile = () => {
   const [userData, setUserData] = useState(null);
   const [originalData, setOriginalData] = useState(null);
-  const [status, setStatus] = useState('loading'); // loading | no-auth | ready | error
+  const [status, setStatus] = useState('loading');
 
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
@@ -22,6 +23,8 @@ const Profile = () => {
     newPassword: '',
     confirmPassword: ''
   });
+
+  const navigate = useNavigate();
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
@@ -47,6 +50,11 @@ const Profile = () => {
 
     return () => unsub();
   }, []);
+
+  const handleLogout = async () => {
+    await signOut(auth);
+    navigate('/'); // login route
+  };
 
   const handleFieldChange = (e) => {
     if (!isEditingProfile) return;
@@ -148,9 +156,17 @@ const Profile = () => {
       <Header userType={userType} />
 
       <main className="container mx-auto px-4 py-6 sm:py-8 max-w-2xl">
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-6">
-          Profile
-        </h1>
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">
+            Profile
+          </h1>
+          <button
+            onClick={handleLogout}
+            className="text-xs sm:text-sm px-3 py-1 rounded bg-red-600 text-white hover:bg-red-700"
+          >
+            Logout
+          </button>
+        </div>
 
         {status === 'loading' && (
           <p className="text-gray-600 text-sm sm:text-base">Loading profile...</p>
