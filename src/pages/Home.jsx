@@ -21,20 +21,27 @@ const Home = () => {
 
   useEffect(() => {
     if (!user) return;
+
     const loadTasks = async () => {
       setLoadingTasks(true);
       try {
         const snap = await getDocs(collection(db, 'works'));
         const all = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-        const mine = all.filter((t) =>
-          Array.isArray(t.assignedUsers) && t.assignedUsers.includes(user.uid)
+
+        // only tasks assigned to this user
+        const mine = all.filter(
+          (t) =>
+            Array.isArray(t.assignedUsers) &&
+            t.assignedUsers.includes(user.uid)
         );
-        // sort by date newest first
+
+        // newest date first
         mine.sort((a, b) => {
           const da = a.date ? new Date(a.date).getTime() : 0;
           const dbt = b.date ? new Date(b.date).getTime() : 0;
           return dbt - da;
         });
+
         setTasks(mine);
       } catch (err) {
         console.error('Error loading user tasks:', err);
@@ -42,25 +49,39 @@ const Home = () => {
         setLoadingTasks(false);
       }
     };
+
     loadTasks();
   }, [user]);
 
-  const handleMarkDone = async (taskId) => {
+  const statusOf = (task) => task.status || 'incomplete';
+
+  const handleToggleDone = async (task) => {
+    const currentStatus = statusOf(task);
+
+    // do nothing if admin already marked complete
+    if (currentStatus === 'complete') return;
+
+    const nextStatus = currentStatus === 'done' ? 'incomplete' : 'done';
+
     try {
-      const ref = doc(db, 'works', taskId);
-      await updateDoc(ref, { status: 'done' });
+      const ref = doc(db, 'works', task.id);
+      await updateDoc(ref, { status: nextStatus });
       setTasks((prev) =>
-        prev.map((t) => (t.id === taskId ? { ...t, status: 'done' } : t))
+        prev.map((t) =>
+          t.id === task.id ? { ...t, status: nextStatus } : t
+        )
       );
     } catch (err) {
-      console.error('Failed to mark task done:', err);
+      console.error('Failed to update task status:', err);
     }
   };
 
   const userType = 'user';
 
-  const incomplete = tasks.filter((t) => (t.status || 'incomplete') !== 'done');
-  const done = tasks.filter((t) => (t.status || 'incomplete') === 'done');
+  // user should not see tasks that admin has fully completed
+  const visibleTasks = tasks.filter((t) => statusOf(t) !== 'complete');
+  const currentTasks = visibleTasks.filter((t) => statusOf(t) !== 'done');
+  const doneTasks = visibleTasks.filter((t) => statusOf(t) === 'done');
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -70,7 +91,7 @@ const Home = () => {
           Welcome
         </h1>
         <p className="text-gray-600 text-sm sm:text-base mb-6">
-          Here are your tasks. You can mark them as done when finished.
+          Here are your tasks. Mark them as done when you finish. You can undo until admin marks them as complete.
         </p>
 
         {loadingUser || loadingTasks ? (
@@ -78,19 +99,19 @@ const Home = () => {
             <FaSpinner className="animate-spin text-xl text-blue-600" />
             <span>Loading tasks...</span>
           </div>
-        ) : tasks.length === 0 ? (
+        ) : visibleTasks.length === 0 ? (
           <p className="text-gray-600 text-sm sm:text-base">
-            You do not have any tasks assigned yet.
+            You do not have any active tasks.
           </p>
         ) : (
           <>
-            {incomplete.length > 0 && (
+            {currentTasks.length > 0 && (
               <section className="mb-6">
                 <h2 className="text-lg sm:text-xl font-semibold text-gray-800 mb-3">
                   Current tasks
                 </h2>
                 <div className="space-y-3">
-                  {incomplete.map((task) => (
+                  {currentTasks.map((task) => (
                     <div
                       key={task.id}
                       className="bg-white rounded-lg shadow p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
@@ -115,7 +136,7 @@ const Home = () => {
                       </div>
                       <button
                         type="button"
-                        onClick={() => handleMarkDone(task.id)}
+                        onClick={() => handleToggleDone(task)}
                         className="self-start sm:self-auto px-3 py-1.5 rounded bg-green-600 text-white text-xs sm:text-sm font-semibold hover:bg-green-700"
                       >
                         Mark as done
@@ -126,36 +147,45 @@ const Home = () => {
               </section>
             )}
 
-            {done.length > 0 && (
+            {doneTasks.length > 0 && (
               <section>
                 <h2 className="text-lg sm:text-xl font-semibold text-gray-800 mb-3">
-                  Done tasks
+                  Done tasks (waiting for admin)
                 </h2>
                 <div className="space-y-3">
-                  {done.map((task) => (
+                  {doneTasks.map((task) => (
                     <div
                       key={task.id}
-                      className="bg-white rounded-lg shadow p-4 sm:p-5"
+                      className="bg-white rounded-lg shadow p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
                     >
-                      <h3 className="font-semibold text-gray-800 text-sm sm:text-base mb-1">
-                        {task.title || 'Task'}
-                      </h3>
-                      {task.date && (
-                        <p className="flex items-center gap-1 text-xs sm:text-sm text-gray-500">
-                          <FaCalendarAlt />
-                          <span>
-                            {new Date(task.date).toLocaleDateString()}
-                          </span>
+                      <div>
+                        <h3 className="font-semibold text-gray-800 text-sm sm:text-base mb-1">
+                          {task.title || 'Task'}
+                        </h3>
+                        {task.date && (
+                          <p className="flex items-center gap-1 text-xs sm:text-sm text-gray-500">
+                            <FaCalendarAlt />
+                            <span>
+                              {new Date(task.date).toLocaleDateString()}
+                            </span>
+                          </p>
+                        )}
+                        {task.description && (
+                          <p className="text-gray-700 text-xs sm:text-sm mt-2">
+                            {task.description}
+                          </p>
+                        )}
+                        <p className="mt-2 text-xs sm:text-sm text-green-700 font-semibold">
+                          Marked as done. Admin has not completed it yet.
                         </p>
-                      )}
-                      {task.description && (
-                        <p className="text-gray-700 text-xs sm:text-sm mt-2">
-                          {task.description}
-                        </p>
-                      )}
-                      <p className="mt-2 text-xs sm:text-sm text-green-700 font-semibold">
-                        Marked as done
-                      </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleToggleDone(task)}
+                        className="self-start sm:self-auto px-3 py-1.5 rounded bg-gray-300 text-gray-800 text-xs sm:text-sm font-semibold hover:bg-gray-400"
+                      >
+                        Undo done
+                      </button>
                     </div>
                   ))}
                 </div>
