@@ -6,8 +6,10 @@ import {
   updateDoc,
   deleteDoc,
   collection,
-  getDocs
+  getDocs,
+  addDoc
 } from 'firebase/firestore';
+
 import { db } from '../firebase/config';
 import Header from '../components/Header';
 import { FaCalendarAlt, FaSpinner, FaTrash, FaBox, FaSearch } from 'react-icons/fa';
@@ -110,30 +112,64 @@ const TaskDetails = () => {
     setTask((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSave = async (e) => {
-    e.preventDefault();
-    if (!task) return;
-    setSaving(true);
-    setError('');
-    setSuccess('');
+const handleSave = async (e) => {
+  e.preventDefault();
+  if (!task) return;
+  setSaving(true);
+  setError('');
+  setSuccess('');
 
-    try {
-      const { id, ...rest } = task;
-      await updateDoc(doc(db, 'works', task.id), {
-        ...rest,
-        assignedUsers: assignedUserDetails.map((u) => u.userId),
-        assignedUserDetails,
-        assignedItems
+  try {
+    const { id, ...rest } = task;
+
+    // old assigned users before edit
+    const oldUserIds = task.assignedUsers || [];
+    // new assigned users after edit
+    const newUserIds = assignedUserDetails.map((u) => u.userId);
+
+    await updateDoc(doc(db, 'works', task.id), {
+      ...rest,
+      assignedUsers: newUserIds,
+      assignedUserDetails,
+      assignedItems
+    });
+
+    // users that were newly added
+    const newlyAddedIds = newUserIds.filter((uid) => !oldUserIds.includes(uid));
+
+    if (newlyAddedIds.length > 0) {
+      const emailPromises = newlyAddedIds.map(async (uid) => {
+        const snap = await getDoc(doc(db, 'users', uid));
+        const data = snap.data();
+        return data?.email || null;
       });
-      setSuccess('Task updated successfully.');
-      setEditing(false);
-    } catch (err) {
-      console.error(err);
-      setError('Failed to update task.');
-    } finally {
-      setSaving(false);
+      const emails = (await Promise.all(emailPromises)).filter(Boolean);
+
+      if (emails.length > 0) {
+        await addDoc(collection(db, 'mail'), {
+          to: emails,
+          message: {
+            subject: `You were added to a task: ${task.title}`,
+            text: `You have been added to the work "${task.title}".\n\nDescription: ${task.description}\nDate: ${task.date}`,
+            html: `<p>You have been added to the work <b>${task.title}</b>.</p>
+                   <p>${task.description}</p>
+                   <p><b>Date:</b> ${task.date}</p>
+                   <p>Confirm your work go through https://mihirudahanayake.github.io/tmv/</p>`
+          }
+        });
+      }
     }
-  };
+
+    setSuccess('Task updated successfully.');
+    setEditing(false);
+  } catch (err) {
+    console.error(err);
+    setError('Failed to update task.');
+  } finally {
+    setSaving(false);
+  }
+};
+
 
   const handleDelete = async () => {
     if (!window.confirm('Are you sure you want to delete this task?')) return;

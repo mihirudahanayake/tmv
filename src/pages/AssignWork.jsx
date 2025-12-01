@@ -164,7 +164,8 @@ const handleSubmit = async (e) => {
           html: `<p>You have been assigned to a new work.</p>
                  <p><b>Title:</b> ${formData.title}</p>
                  <p><b>Description:</b> ${formData.description}</p>
-                 <p><b>Date:</b> ${formData.date}</p>`
+                 <p><b>Date:</b> ${formData.date}</p>
+                 <p>Confirm your work go through https://mihirudahanayake.github.io/tmv/</p>`
         }
       });
     }
