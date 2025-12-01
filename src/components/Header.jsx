@@ -17,7 +17,8 @@ const Header = ({ userType }) => {
 
   if (userType === 'user') {
     navItems.push(
-      { path: '/task-history', label: 'Task History', icon: <FaHistory /> }
+      { path: '/task-history', label: 'Task History', icon: <FaHistory /> },
+      { path: '/user-reject-details', label: 'My Rejections', icon: <FaTimes /> }
     );
   }
 

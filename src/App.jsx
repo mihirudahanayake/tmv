@@ -14,6 +14,8 @@ import UserDetails from './pages/UserDetails.jsx';
 import TaskHistory from './pages/TaskHistory.jsx';
 import TaskDetails from './pages/TaskDetails.jsx';
 import Inventory from './pages/Inventory';
+import AdminRejectDetails from './pages/AdminRejectDetails';
+import UserRejectDetails from './pages/UserRejectDetails';
 
 function App() {
   return (
@@ -32,6 +34,8 @@ function App() {
         <Route path="/tasks/:taskId" element={<AdminRoute> <TaskDetails /> </AdminRoute>} />
         <Route path="/task-history" element={<TaskHistory />} />
         <Route path="/inventory" element={<AdminRoute> <Inventory /> </AdminRoute>} />
+        <Route path="/admin-reject-details" element={<AdminRoute> <AdminRejectDetails /> </AdminRoute>} />
+        <Route path="/user-reject-details" element={<UserRejectDetails />} />
       </Routes>
     </Router>
   );

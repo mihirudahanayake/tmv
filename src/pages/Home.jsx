@@ -11,16 +11,20 @@ import {
 import { onAuthStateChanged } from 'firebase/auth';
 import { db, auth } from '../firebase/config';
 import Header from '../components/Header';
-import { FaCalendarAlt, FaSpinner, FaCheck } from 'react-icons/fa';
+import { FaCalendarAlt, FaSpinner, FaCheck, FaTimes, FaCheckCircle, FaHourglassHalf, FaUndo } from 'react-icons/fa';
 
 const Home = () => {
-  const [user, setUser] = useState(null);
-  const [tasks, setTasks] = useState([]);
-  const [loadingUser, setLoadingUser] = useState(true);
-  const [loadingTasks, setLoadingTasks] = useState(false);
-  const [toast, setToast] = useState('');
+const [user, setUser] = useState(null);
+const [tasks, setTasks] = useState([]);
+const [loadingUser, setLoadingUser] = useState(true);
+const [loadingTasks, setLoadingTasks] = useState(false);
+const [toast, setToast] = useState('');
+const [showRejectModal, setShowRejectModal] = useState(false);
+const [rejectReason, setRejectReason] = useState('');
+const [selectedTask, setSelectedTask] = useState(null);
+const [showRejectedTasks, setShowRejectedTasks] = useState(true); // ADD THIS LINE
 
-  const userType = 'user';
+const userType = 'user';
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
@@ -30,7 +34,6 @@ const Home = () => {
     return () => unsub();
   }, []);
 
-  // load tasks for user
   useEffect(() => {
     if (!user) return;
 
@@ -63,13 +66,11 @@ const Home = () => {
     loadTasks();
   }, [user]);
 
-  // toast helper
   const showToast = (msg) => {
     setToast(msg);
     setTimeout(() => setToast(''), 4000);
   };
 
-  // real-time notification when new task assigned
   useEffect(() => {
     if (!user) return;
 
@@ -82,7 +83,6 @@ const Home = () => {
       snap.docChanges().forEach((change) => {
         if (change.type === 'added') {
           const data = change.doc.data();
-          showToast(`New task assigned: ${data.title || 'Task'}`);
           setTasks((prev) => {
             const exists = prev.some((t) => t.id === change.doc.id);
             if (exists) return prev;
@@ -101,6 +101,69 @@ const Home = () => {
   }, [user]);
 
   const statusOf = (task) => task.status || 'incomplete';
+
+  const getUserAcceptance = (task) => {
+    const acceptance = task.userAcceptance || {};
+    return acceptance[user.uid] || 'pending';
+  };
+
+  const handleAccept = async (task) => {
+    try {
+      const acceptance = task.userAcceptance || {};
+      acceptance[user.uid] = 'accepted';
+
+      const ref = doc(db, 'works', task.id);
+      await updateDoc(ref, { userAcceptance: acceptance });
+      setTasks((prev) =>
+        prev.map((t) =>
+          t.id === task.id ? { ...t, userAcceptance: acceptance } : t
+        )
+      );
+      showToast('Work accepted successfully!');
+    } catch (err) {
+      console.error('Failed to accept:', err);
+    }
+  };
+
+  const openRejectModal = (task) => {
+    setSelectedTask(task);
+    setRejectReason('');
+    setShowRejectModal(true);
+  };
+
+  const handleReject = async () => {
+    if (!rejectReason.trim()) {
+      showToast('Please provide a reason for rejection.');
+      return;
+    }
+
+    try {
+      const acceptance = selectedTask.userAcceptance || {};
+      acceptance[user.uid] = 'rejected';
+
+      const rejections = selectedTask.rejections || {};
+      rejections[user.uid] = {
+        reason: rejectReason.trim(),
+        timestamp: new Date().toISOString(),
+        approved: false
+      };
+
+      const ref = doc(db, 'works', selectedTask.id);
+      await updateDoc(ref, { userAcceptance: acceptance, rejections });
+      setTasks((prev) =>
+        prev.map((t) =>
+          t.id === selectedTask.id
+            ? { ...t, userAcceptance: acceptance, rejections }
+            : t
+        )
+      );
+      showToast('Work rejected.');
+      setShowRejectModal(false);
+      setSelectedTask(null);
+    } catch (err) {
+      console.error('Failed to reject:', err);
+    }
+  };
 
   const handleToggleRole = async (task, role) => {
     if (statusOf(task) === 'complete') return;
@@ -148,72 +211,263 @@ const Home = () => {
   };
 
   const visibleTasks = tasks.filter((t) => statusOf(t) !== 'complete');
-  const currentTasks = visibleTasks.filter((t) => !allRolesDone(t));
-  const doneTasks = visibleTasks.filter((t) => allRolesDone(t));
+  const pendingTasks = visibleTasks.filter(
+    (t) => getUserAcceptance(t) === 'pending'
+  );
+  const rejectedTasks = visibleTasks.filter(
+    (t) => getUserAcceptance(t) === 'rejected'
+  );
+  const acceptedTasks = visibleTasks.filter(
+    (t) => getUserAcceptance(t) === 'accepted' && !allRolesDone(t)
+  );
+  const completedTasks = visibleTasks.filter(
+    (t) => getUserAcceptance(t) === 'accepted' && allRolesDone(t)
+  );
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
       <Header userType={userType} />
 
       {toast && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-blue-600 text-white text-xs sm:text-sm px-4 py-2 rounded shadow">
+        <div className="fixed top-20 right-4 z-50 bg-gradient-to-r from-blue-600 to-purple-600 text-white text-sm px-5 py-3 rounded-lg shadow-2xl animate-slide-in">
           {toast}
         </div>
       )}
 
-      <main className="container mx-auto px-4 py-8">
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-4">
-          Welcome
-        </h1>
-        <p className="text-gray-600 text-sm sm:text-base mb-6">
-          Here are your tasks. Mark each work type as done when you finish. You can undo until admin marks the task as complete.
-        </p>
+      {/* Reject Modal */}
+      {showRejectModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+            <h3 className="text-xl font-bold text-gray-800 mb-4">
+              Reject Work
+            </h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Please provide a reason for rejecting this work:
+            </p>
+            <textarea
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              rows="4"
+              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 text-sm"
+              placeholder="Enter your reason..."
+            />
+            <div className="flex gap-3 mt-4">
+              <button
+                onClick={handleReject}
+                className="flex-1 bg-gradient-to-r from-red-500 to-rose-600 text-white py-2.5 px-4 rounded-xl font-semibold hover:from-red-600 hover:to-rose-700 transition-all"
+              >
+                Submit Rejection
+              </button>
+              <button
+                onClick={() => {
+                  setShowRejectModal(false);
+                  setSelectedTask(null);
+                }}
+                className="flex-1 bg-gray-200 text-gray-800 py-2.5 px-4 rounded-xl font-semibold hover:bg-gray-300 transition-all"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <main className="container mx-auto px-4 py-8 max-w-5xl">
+        <div className="mb-8">
+          <h1 className="text-3xl sm:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600 mb-2">
+            Welcome Back
+          </h1>
+          <p className="text-gray-600 text-sm sm:text-base">
+            Manage your tasks efficiently. Accept new assignments and track your progress.
+          </p>
+        </div>
 
         {loadingUser || loadingTasks ? (
-          <div className="flex items-center gap-2 text-gray-600">
-            <FaSpinner className="animate-spin text-xl text-blue-600" />
-            <span>Loading tasks...</span>
+          <div className="flex flex-col items-center justify-center py-20">
+            <FaSpinner className="animate-spin text-5xl text-blue-600 mb-4" />
+            <p className="text-gray-600">Loading your tasks...</p>
           </div>
         ) : visibleTasks.length === 0 ? (
-          <p className="text-gray-600 text-sm sm:text-base">
-            You do not have any active tasks.
-          </p>
+          <div className="bg-white rounded-2xl shadow-lg p-12 text-center border border-gray-100">
+            <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <FaCheckCircle className="text-4xl text-blue-600" />
+            </div>
+            <h3 className="text-xl font-bold text-gray-800 mb-2">All Clear!</h3>
+            <p className="text-gray-600">You have no active tasks at the moment.</p>
+          </div>
         ) : (
           <>
-            {currentTasks.length > 0 && (
-              <section className="mb-6">
-                <h2 className="text-lg sm:text-xl font-semibold text-gray-800 mb-3">
-                  Current tasks
-                </h2>
-                <div className="space-y-3">
-                  {currentTasks.map((task) => {
+            {/* Pending Acceptance */}
+            {pendingTasks.length > 0 && (
+              <section className="mb-8">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-1 h-6 bg-gradient-to-b from-yellow-400 to-orange-500 rounded-full"></div>
+                  <h2 className="text-xl sm:text-2xl font-bold text-gray-800">
+                    Pending Acceptance
+                  </h2>
+                  <span className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white text-xs font-bold px-3 py-1 rounded-full">
+                    {pendingTasks.length}
+                  </span>
+                </div>
+                <div className="space-y-4">
+                  {pendingTasks.map((task) => (
+                    <div
+                      key={task.id}
+                      className="bg-white rounded-2xl shadow-md hover:shadow-xl transition-all p-5 sm:p-6 border border-yellow-100"
+                    >
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex-1">
+                          <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-1">
+                            {task.title || 'Task'}
+                          </h3>
+                          {task.date && (
+                            <p className="flex items-center gap-2 text-xs sm:text-sm text-gray-500">
+                              <FaCalendarAlt />
+                              {new Date(task.date).toLocaleDateString()}
+                            </p>
+                          )}
+                        </div>
+                        <span className="bg-yellow-100 text-yellow-800 text-xs font-semibold px-3 py-1.5 rounded-full flex items-center gap-1">
+                          <FaHourglassHalf />
+                          Pending
+                        </span>
+                      </div>
+
+                      {task.description && (
+                        <p className="text-gray-700 text-sm mb-4">
+                          {task.description}
+                        </p>
+                      )}
+
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => handleAccept(task)}
+                          className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 text-white py-2.5 px-4 rounded-xl font-semibold hover:from-green-600 hover:to-emerald-700 transition-all shadow-md flex items-center justify-center gap-2"
+                        >
+                          <FaCheck />
+                          Accept
+                        </button>
+                        <button
+                          onClick={() => openRejectModal(task)}
+                          className="flex-1 bg-gradient-to-r from-red-500 to-rose-600 text-white py-2.5 px-4 rounded-xl font-semibold hover:from-red-600 hover:to-rose-700 transition-all shadow-md flex items-center justify-center gap-2"
+                        >
+                          <FaTimes />
+                          Reject
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+{/* Pending Rejection Tasks with Hide/Show */}
+{rejectedTasks.length > 0 && (
+  <section className="mb-8">
+    <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center gap-2">
+        <div className="w-1 h-6 bg-gradient-to-b from-orange-500 to-red-500 rounded-full"></div>
+        <h2 className="text-xl sm:text-2xl font-bold text-gray-800">
+          Pending Rejection Approval
+        </h2>
+        <span className="bg-gradient-to-r from-orange-500 to-red-500 text-white text-xs font-bold px-3 py-1 rounded-full">
+          {rejectedTasks.length}
+        </span>
+      </div>
+      <button
+        onClick={() => setShowRejectedTasks(!showRejectedTasks)}
+        className="text-sm font-semibold text-gray-600 hover:text-gray-800 transition px-3 py-1.5 rounded-lg hover:bg-gray-100"
+      >
+        {showRejectedTasks ? 'Hide' : 'Show'}
+      </button>
+    </div>
+
+    {showRejectedTasks && (
+      <div className="space-y-4">
+        {rejectedTasks.map((task) => {
+          const rejection = (task.rejections || {})[user.uid] || {};
+
+          return (
+            <div
+              key={task.id}
+              className="bg-white rounded-2xl shadow-md p-5 sm:p-6 border border-orange-100"
+            >
+              <div className="flex items-start justify-between mb-3">
+                <div>
+                  <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-1">
+                    {task.title || 'Task'}
+                  </h3>
+                  {task.date && (
+                    <p className="flex items-center gap-2 text-xs sm:text-sm text-gray-500">
+                      <FaCalendarAlt />
+                      {new Date(task.date).toLocaleDateString()}
+                    </p>
+                  )}
+                </div>
+                <span className="bg-orange-100 text-orange-800 text-xs font-semibold px-3 py-1.5 rounded-full flex items-center gap-1">
+                  <FaHourglassHalf />
+                  Pending Approval
+                </span>
+              </div>
+
+              <div className="bg-orange-50 rounded-xl p-4">
+                <p className="text-xs font-semibold text-orange-800 mb-1">
+                  Your Rejection Reason:
+                </p>
+                <p className="text-sm text-gray-700">
+                  {rejection.reason || '-'}
+                </p>
+                <p className="text-xs text-gray-500 mt-2">
+                  Waiting for admin to approve your rejection request
+                </p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    )}
+  </section>
+)}
+
+            {/* Active Tasks */}
+            {acceptedTasks.length > 0 && (
+              <section className="mb-8">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-1 h-6 bg-gradient-to-b from-blue-500 to-purple-600 rounded-full"></div>
+                  <h2 className="text-xl sm:text-2xl font-bold text-gray-800">
+                    Active Tasks
+                  </h2>
+                  <span className="bg-gradient-to-r from-blue-500 to-purple-600 text-white text-xs font-bold px-3 py-1 rounded-full">
+                    {acceptedTasks.length}
+                  </span>
+                </div>
+                <div className="space-y-4">
+                  {acceptedTasks.map((task) => {
                     const roles = getUserRoles(task);
 
                     return (
                       <div
                         key={task.id}
-                        className="bg-white rounded-lg shadow p-4 sm:p-5"
+                        className="bg-white rounded-2xl shadow-md hover:shadow-xl transition-all p-5 sm:p-6 border border-blue-100"
                       >
-                        <h3 className="font-semibold text-gray-800 text-sm sm:text-base mb-1">
+                        <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-1">
                           {task.title || 'Task'}
                         </h3>
                         {task.date && (
-                          <p className="flex items-center gap-1 text-xs sm:text-sm text-gray-500">
+                          <p className="flex items-center gap-2 text-xs sm:text-sm text-gray-500 mb-3">
                             <FaCalendarAlt />
-                            <span>
-                              {new Date(task.date).toLocaleDateString()}
-                            </span>
+                            {new Date(task.date).toLocaleDateString()}
                           </p>
                         )}
                         {task.description && (
-                          <p className="text-gray-700 text-xs sm:text-sm mt-2">
+                          <p className="text-gray-700 text-sm mb-4">
                             {task.description}
                           </p>
                         )}
 
-                        <div className="mt-3">
-                          <p className="text-xs sm:text-sm font-semibold text-gray-700 mb-2">
-                            Your work types:
+                        <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-4">
+                          <p className="text-sm font-semibold text-gray-700 mb-3">
+                            Your Work Types:
                           </p>
                           <div className="flex flex-wrap gap-2">
                             {roles.map((role) => {
@@ -223,14 +477,23 @@ const Home = () => {
                                   key={role}
                                   type="button"
                                   onClick={() => handleToggleRole(task, role)}
-                                  className={`inline-flex items-center gap-1 px-3 py-1.5 rounded text-xs sm:text-sm font-semibold transition ${
+                                  className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all shadow-sm ${
                                     done
-                                      ? 'bg-green-600 text-white hover:bg-green-700'
-                                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                      ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700'
+                                      : 'bg-white text-gray-700 border-2 border-gray-200 hover:border-blue-400'
                                   }`}
                                 >
-                                  {done && <FaCheck />}
-                                  {role}
+                                  {done ? (
+                                    <>
+                                      <FaUndo />
+                                      Undo {role}
+                                    </>
+                                  ) : (
+                                    <>
+                                      <FaCheck />
+                                      Mark {role} as done
+                                    </>
+                                  )}
                                 </button>
                               );
                             })}
@@ -243,65 +506,57 @@ const Home = () => {
               </section>
             )}
 
-            {doneTasks.length > 0 && (
+            {/* Completed Tasks */}
+            {completedTasks.length > 0 && (
               <section>
-                <h2 className="text-lg sm:text-xl font-semibold text-gray-800 mb-3">
-                  Done tasks (waiting for admin)
-                </h2>
-                <div className="space-y-3">
-                  {doneTasks.map((task) => {
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-1 h-6 bg-gradient-to-b from-green-500 to-emerald-600 rounded-full"></div>
+                  <h2 className="text-xl sm:text-2xl font-bold text-gray-800">
+                    Completed
+                  </h2>
+                  <span className="bg-gradient-to-r from-green-500 to-emerald-600 text-white text-xs font-bold px-3 py-1 rounded-full">
+                    {completedTasks.length}
+                  </span>
+                </div>
+                <div className="space-y-4">
+                  {completedTasks.map((task) => {
                     const roles = getUserRoles(task);
 
                     return (
                       <div
                         key={task.id}
-                        className="bg-white rounded-lg shadow p-4 sm:p-5"
+                        className="bg-white rounded-2xl shadow-md p-5 sm:p-6 border border-green-100"
                       >
-                        <h3 className="font-semibold text-gray-800 text-sm sm:text-base mb-1">
-                          {task.title || 'Task'}
-                        </h3>
-                        {task.date && (
-                          <p className="flex items-center gap-1 text-xs sm:text-sm text-gray-500">
-                            <FaCalendarAlt />
-                            <span>
-                              {new Date(task.date).toLocaleDateString()}
-                            </span>
-                          </p>
-                        )}
-                        {task.description && (
-                          <p className="text-gray-700 text-xs sm:text-sm mt-2">
-                            {task.description}
-                          </p>
-                        )}
-
-                        <div className="mt-3">
-                          <p className="text-xs sm:text-sm font-semibold text-gray-700 mb-2">
-                            Your work types:
-                          </p>
-                          <div className="flex flex-wrap gap-2">
-                            {roles.map((role) => {
-                              const done = isRoleDone(task, role);
-                              return (
-                                <button
-                                  key={role}
-                                  type="button"
-                                  onClick={() => handleToggleRole(task, role)}
-                                  className={`inline-flex items-center gap-1 px-3 py-1.5 rounded text-xs sm:text-sm font-semibold transition ${
-                                    done
-                                      ? 'bg-green-600 text-white hover:bg-green-700'
-                                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                                  }`}
-                                >
-                                  {done && <FaCheck />}
-                                  {role}
-                                </button>
-                              );
-                            })}
+                        <div className="flex items-start justify-between mb-3">
+                          <div>
+                            <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-1">
+                              {task.title || 'Task'}
+                            </h3>
+                            {task.date && (
+                              <p className="flex items-center gap-2 text-xs sm:text-sm text-gray-500">
+                                <FaCalendarAlt />
+                                {new Date(task.date).toLocaleDateString()}
+                              </p>
+                            )}
                           </div>
+                          <FaCheckCircle className="text-3xl text-green-500" />
                         </div>
 
-                        <p className="mt-3 text-xs sm:text-sm text-green-700 font-semibold">
-                          All your work types are marked as done. Waiting for admin to complete.
+                        <div className="flex flex-wrap gap-2 mb-3">
+                          {roles.map((role) => (
+                            <button
+                              key={role}
+                              onClick={() => handleToggleRole(task, role)}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold bg-green-100 text-green-800 hover:bg-green-200 transition"
+                            >
+                              <FaUndo className="text-xs" />
+                              Undo {role}
+                            </button>
+                          ))}
+                        </div>
+
+                        <p className="text-sm text-green-700 font-semibold bg-green-50 px-4 py-2 rounded-lg">
+                          ✓ All work completed. Waiting for admin review.
                         </p>
                       </div>
                     );
