@@ -8,7 +8,8 @@ import {
   FaTimes,
   FaUser,
   FaHistory,
-  FaBox
+  FaBox,
+  FaBell
 } from 'react-icons/fa';
 import { useState } from 'react';
 
@@ -39,7 +40,7 @@ const Header = ({ userType }) => {
       { path: '/work-list', label: 'Work List', icon: <FaList /> },
       { path: '/inventory', label: 'Inventory', icon: <FaBox /> },
       // NEW: notification history
-      { path: '/notifications', label: 'Notifications', icon: <FaHistory /> }
+      { path: '/notifications', label: 'Notifications', icon: <FaBell /> }
     );
   }
 

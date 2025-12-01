@@ -165,8 +165,17 @@ const handleSubmit = async (e) => {
           <p><b>Title:</b> ${formData.title}</p> 
           <p><b>Date:</b> ${formData.date}</p> 
           <p>Kindly review and confirm the work by visiting the <a href="https://mihirudahanayake.github.io/tmv/">Videography Manager</a> Website</p> 
-          <p>If you encounter any issues or need further assistance, feel free to contact me through <a href="https://wa.me/qr/Y7ZZI47KSLRTN1">Whatsapp</a> or <b>070 342 6554</b>.</p> 
-          <p>Thank you.</p>`
+          <p>If you encounter any issues or need further assistance, feel free to contact me.</p> 
+          <p>Thank you.</p> 
+          
+          <p>Best regards,</p>
+
+          <p>
+            <strong>Mihiru Dahanayake</strong><br>
+            <i></i>Acting Videography Department Head<br>FOT Media<br>Faculty Of Technology<br>Rajarata University of Sri Lanka<br>
+            <a href="tel:+94703426554" style="color:#0066cc; text-decoration:none;">070 342 6554</a><br>
+            <a href="mailto:mihirudahanayake@gmail.com" style="color:#0066cc; text-decoration:none;">mihiru.online@gmail.com</a></i><br>
+          </p>`
         }
       });
     }
