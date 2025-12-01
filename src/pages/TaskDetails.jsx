@@ -149,12 +149,14 @@ const handleSave = async (e) => {
         await addDoc(collection(db, 'mail'), {
           to: emails,
           message: {
-            subject: `You were added to a task: ${task.title}`,
-            text: `You have been added to the work "${task.title}".\n\nDescription: ${task.description}\nDate: ${task.date}`,
-            html: `<p>You have been added to the work <b>${task.title}</b>.</p>
-                   <p>${task.description}</p>
-                   <p><b>Date:</b> ${task.date}</p>
-                   <p>Confirm your work go through https://mihirudahanayake.github.io/tmv/</p>`
+            subject: `You were assigned to a work: ${task.title}`,
+            text: `You have been assigned to the work "${task.title}".\n\nDescription: ${task.description}\nDate: ${task.date}`,
+            html: `<p>Hello,</p> <p>You have been assigned a work. Please find the details below:</p> 
+          <p><b>Title:</b> ${task.title}</p> 
+          <p><b>Date:</b> ${task.date}</p> 
+          <p>Kindly review and confirm the work by visiting the <a href="https://mihirudahanayake.github.io/tmv/">Videography Manager</a> Website</p> 
+          <p>If you encounter any issues or need further assistance, feel free to contact me through <a href="https://wa.me/qr/Y7ZZI47KSLRTN1">Whatsapp</a> or <b>070 342 6554</b>.</p> 
+          <p>Thank you.</p>`
           }
         });
       }

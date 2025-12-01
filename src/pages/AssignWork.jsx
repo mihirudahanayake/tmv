@@ -161,11 +161,12 @@ const handleSubmit = async (e) => {
         message: {
           subject: `New work assigned: ${formData.title}`,
           text: `You have been assigned to a new work:\n\nTitle: ${formData.title}\nDescription: ${formData.description}\nDate: ${formData.date}`,
-          html: `<p>You have been assigned to a new work.</p>
-                 <p><b>Title:</b> ${formData.title}</p>
-                 <p><b>Description:</b> ${formData.description}</p>
-                 <p><b>Date:</b> ${formData.date}</p>
-                 <p>Confirm your work go through https://mihirudahanayake.github.io/tmv/</p>`
+          html: `<p>Hello,</p> <p>You have been assigned a new work. Please find the details below:</p> 
+          <p><b>Title:</b> ${formData.title}</p> 
+          <p><b>Date:</b> ${formData.date}</p> 
+          <p>Kindly review and confirm the work by visiting the <a href="https://mihirudahanayake.github.io/tmv/">Videography Manager</a> Website</p> 
+          <p>If you encounter any issues or need further assistance, feel free to contact me through <a href="https://wa.me/qr/Y7ZZI47KSLRTN1">Whatsapp</a> or <b>070 342 6554</b>.</p> 
+          <p>Thank you.</p>`
         }
       });
     }
