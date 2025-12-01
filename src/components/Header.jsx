@@ -1,7 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
-import { FaHome, FaUserPlus, FaTasks, FaList, FaBars, FaTimes, FaUser } from 'react-icons/fa';
+import { FaHome, FaUserPlus, FaTasks, FaList, FaBars, FaTimes, FaUser, FaHistory, FaBox } from 'react-icons/fa';
 import { useState } from 'react';
-import { FaHistory } from 'react-icons/fa';
 
 const Header = ({ userType }) => {
   const location = useLocation();
@@ -11,12 +10,12 @@ const Header = ({ userType }) => {
 
   const homePath = userType === 'admin' ? '/admin-home' : '/home';
 
-const navItems = [
-  { path: homePath, label: 'Home', icon: <FaHome /> },
-  { path: '/profile', label: 'Profile', icon: <FaUser /> },
-];
+  const navItems = [
+    { path: homePath, label: 'Home', icon: <FaHome /> },
+    { path: '/profile', label: 'Profile', icon: <FaUser /> },
+  ];
 
-    if (userType === 'user') {
+  if (userType === 'user') {
     navItems.push(
       { path: '/task-history', label: 'Task History', icon: <FaHistory /> }
     );
@@ -26,7 +25,8 @@ const navItems = [
     navItems.push(
       { path: '/manage-users', label: 'Manage Users', icon: <FaUserPlus /> },
       { path: '/assign-work', label: 'Assign Work', icon: <FaTasks /> },
-      { path: '/work-list', label: 'Work List', icon: <FaList /> }
+      { path: '/work-list', label: 'Work List', icon: <FaList /> },
+      { path: '/inventory', label: 'Inventory', icon: <FaBox /> }
     );
   }
 

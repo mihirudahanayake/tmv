@@ -7,7 +7,8 @@ import {
   FaCalendarAlt,
   FaExclamationCircle,
   FaUsers,
-  FaSearch
+  FaSearch,
+  FaBox
 } from 'react-icons/fa';
 import Header from '../components/Header';
 
@@ -15,19 +16,23 @@ const WORK_ROLES = ['videography', 'editing'];
 
 const AssignWork = () => {
   const [users, setUsers] = useState([]);
+  const [items, setItems] = useState([]);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
     date: '',
     priority: 'medium',
-    assignedUsers: [] // [{ userId, roles: ['videography'] }]
+    assignedUsers: [], // [{ userId, roles: ['videography'] }]
+    assignedItems: [] // [itemId, itemId, ...]
   });
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
   const [userSearch, setUserSearch] = useState('');
+  const [itemSearch, setItemSearch] = useState('');
 
   useEffect(() => {
     fetchUsers();
+    fetchItems();
   }, []);
 
   const fetchUsers = async () => {
@@ -43,6 +48,24 @@ const AssignWork = () => {
     }
   };
 
+  const fetchItems = async () => {
+    try {
+      const snapshot = await getDocs(collection(db, 'inventory'));
+      const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      
+      // sort alphabetically by itemName
+      data.sort((a, b) => {
+        const nameA = (a.itemName || '').toLowerCase();
+        const nameB = (b.itemName || '').toLowerCase();
+        return nameA.localeCompare(nameB);
+      });
+
+      setItems(data);
+    } catch (error) {
+      console.error('Error fetching inventory:', error);
+    }
+  };
+
   const handleChange = (e) => {
     setFormData((prev) => ({
       ...prev,
@@ -50,7 +73,7 @@ const AssignWork = () => {
     }));
   };
 
-  // toggle user selection, default roles: ['videography']
+  // toggle user selection
   const handleUserSelection = (userId) => {
     setFormData((prev) => {
       const existing = prev.assignedUsers.find((u) => u.userId === userId);
@@ -70,7 +93,7 @@ const AssignWork = () => {
     });
   };
 
-  // toggle role for a given user
+  // toggle role for a user
   const handleUserRoleToggle = (userId, role) => {
     setFormData((prev) => {
       const next = prev.assignedUsers.map((item) => {
@@ -80,11 +103,20 @@ const AssignWork = () => {
           ? item.roles.filter((r) => r !== role)
           : [...item.roles, role];
 
-        // ensure at least one role
         return { ...item, roles: roles.length ? roles : [role] };
       });
       return { ...prev, assignedUsers: next };
     });
+  };
+
+  // toggle item selection
+  const handleItemSelection = (itemId) => {
+    setFormData((prev) => ({
+      ...prev,
+      assignedItems: prev.assignedItems.includes(itemId)
+        ? prev.assignedItems.filter((id) => id !== itemId)
+        : [...prev.assignedItems, itemId]
+    }));
   };
 
   const handleSubmit = async (e) => {
@@ -98,10 +130,9 @@ const AssignWork = () => {
         description: formData.description,
         date: formData.date,
         priority: formData.priority,
-        // simple userId list for existing code
         assignedUsers: formData.assignedUsers.map((u) => u.userId),
-        // detailed roles per user
         assignedUserDetails: formData.assignedUsers,
+        assignedItems: formData.assignedItems,
         createdAt: new Date().toISOString(),
         status: 'pending'
       });
@@ -112,7 +143,8 @@ const AssignWork = () => {
         description: '',
         date: '',
         priority: 'medium',
-        assignedUsers: []
+        assignedUsers: [],
+        assignedItems: []
       });
     } catch (error) {
       setMessage({ type: 'error', text: error.message });
@@ -127,14 +159,20 @@ const AssignWork = () => {
   const getUserRoles = (userId) =>
     formData.assignedUsers.find((u) => u.userId === userId)?.roles || [];
 
-  const normalizedSearch = userSearch.trim().toLowerCase();
+  const normalizedUserSearch = userSearch.trim().toLowerCase();
   const filteredUsers = users.filter((u) => {
-    if (!normalizedSearch) return true;
+    if (!normalizedUserSearch) return true;
     const name = (u.name || '').toLowerCase();
     const card = (u.cardNumber || '').toLowerCase();
-    return (
-      name.includes(normalizedSearch) || card.includes(normalizedSearch)
-    );
+    return name.includes(normalizedUserSearch) || card.includes(normalizedUserSearch);
+  });
+
+  const normalizedItemSearch = itemSearch.trim().toLowerCase();
+  const filteredItems = items.filter((item) => {
+    if (!normalizedItemSearch) return true;
+    const name = (item.itemName || '').toLowerCase();
+    const no = (item.itemNo || '').toLowerCase();
+    return name.includes(normalizedItemSearch) || no.includes(normalizedItemSearch);
   });
 
   return (
@@ -231,7 +269,6 @@ const AssignWork = () => {
                 <span>Assign Team Members</span>
               </label>
 
-              {/* Search users */}
               <div className="relative mb-2">
                 <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs" />
                 <input
@@ -303,6 +340,64 @@ const AssignWork = () => {
 
               <p className="text-xs sm:text-sm text-gray-500 mt-2">
                 Selected: {formData.assignedUsers.length} member(s)
+              </p>
+            </div>
+
+            {/* Inventory items selector */}
+            <div>
+              <label className="flex items-center gap-2 text-gray-700 font-semibold mb-2 text-sm sm:text-base">
+                <FaBox />
+                <span>Assign Inventory Items (Optional)</span>
+              </label>
+
+              <div className="relative mb-2">
+                <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs" />
+                <input
+                  type="text"
+                  placeholder="Search by item name or number..."
+                  value={itemSearch}
+                  onChange={(e) => setItemSearch(e.target.value)}
+                  className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+
+              <div className="border border-gray-300 rounded p-3 sm:p-4 max-h-60 overflow-y-auto">
+                {filteredItems.length === 0 ? (
+                  <p className="text-gray-500 text-sm sm:text-base">
+                    No items found
+                  </p>
+                ) : (
+                  filteredItems.map((item) => (
+                    <label
+                      key={item.id}
+                      className="flex items-center mb-2 cursor-pointer hover:bg-gray-50 p-2 rounded"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={formData.assignedItems.includes(item.id)}
+                        onChange={() => handleItemSelection(item.id)}
+                        className="mr-3 w-4 h-4"
+                      />
+                      <div className="flex-1">
+                        <p className="text-gray-700 text-sm sm:text-base">
+                          {item.itemName}{' '}
+                          <span className="text-xs text-gray-500">
+                            ({item.itemNo})
+                          </span>
+                        </p>
+                        {item.details && (
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            {item.details}
+                          </p>
+                        )}
+                      </div>
+                    </label>
+                  ))
+                )}
+              </div>
+
+              <p className="text-xs sm:text-sm text-gray-500 mt-2">
+                Selected: {formData.assignedItems.length} item(s)
               </p>
             </div>
 

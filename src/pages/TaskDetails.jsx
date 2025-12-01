@@ -10,7 +10,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import Header from '../components/Header';
-import { FaCalendarAlt, FaSpinner, FaTrash } from 'react-icons/fa';
+import { FaCalendarAlt, FaSpinner, FaTrash, FaBox, FaSearch } from 'react-icons/fa';
 
 const WORK_ROLES = ['videography', 'editing'];
 
@@ -20,13 +20,16 @@ const TaskDetails = () => {
 
   const [task, setTask] = useState(null);
   const [users, setUsers] = useState([]);
+  const [items, setItems] = useState([]);
   const [assignedUserDetails, setAssignedUserDetails] = useState([]);
+  const [assignedItems, setAssignedItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [itemSearch, setItemSearch] = useState('');
 
   useEffect(() => {
     const load = async () => {
@@ -36,11 +39,21 @@ const TaskDetails = () => {
         const usersData = usersSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
         setUsers(usersData);
 
+        const itemsSnap = await getDocs(collection(db, 'inventory'));
+        const itemsData = itemsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        itemsData.sort((a, b) => {
+          const nameA = (a.itemName || '').toLowerCase();
+          const nameB = (b.itemName || '').toLowerCase();
+          return nameA.localeCompare(nameB);
+        });
+        setItems(itemsData);
+
         const taskSnap = await getDoc(doc(db, 'works', taskId));
         if (taskSnap.exists()) {
           const data = { id: taskSnap.id, ...taskSnap.data() };
           setTask(data);
           setAssignedUserDetails(data.assignedUserDetails || []);
+          setAssignedItems(data.assignedItems || []);
         } else {
           setError('Task not found.');
         }
@@ -82,6 +95,15 @@ const TaskDetails = () => {
     );
   };
 
+  const handleToggleItem = (itemId) => {
+    if (!editing) return;
+    setAssignedItems((prev) =>
+      prev.includes(itemId)
+        ? prev.filter((id) => id !== itemId)
+        : [...prev, itemId]
+    );
+  };
+
   const handleFieldChange = (e) => {
     if (!editing) return;
     const { name, value } = e.target;
@@ -100,7 +122,8 @@ const TaskDetails = () => {
       await updateDoc(doc(db, 'works', task.id), {
         ...rest,
         assignedUsers: assignedUserDetails.map((u) => u.userId),
-        assignedUserDetails
+        assignedUserDetails,
+        assignedItems
       });
       setSuccess('Task updated successfully.');
       setEditing(false);
@@ -165,6 +188,14 @@ const TaskDetails = () => {
   const getUserRoles = (uid) =>
     assignedUserDetails.find((u) => u.userId === uid)?.roles || [];
 
+  const normalizedItemSearch = itemSearch.trim().toLowerCase();
+  const filteredItems = items.filter((item) => {
+    if (!normalizedItemSearch) return true;
+    const name = (item.itemName || '').toLowerCase();
+    const no = (item.itemNo || '').toLowerCase();
+    return name.includes(normalizedItemSearch) || no.includes(normalizedItemSearch);
+  });
+
   return (
     <div className="min-h-screen bg-gray-100">
       <Header userType="admin" />
@@ -209,8 +240,8 @@ const TaskDetails = () => {
                     setEditing(false);
                     setSuccess('');
                     setError('');
-                    // reload original data
                     setAssignedUserDetails(task.assignedUserDetails || []);
+                    setAssignedItems(task.assignedItems || []);
                   }}
                   className="px-3 py-1 rounded bg-gray-300 text-gray-800 text-sm hover:bg-gray-400"
                 >
@@ -363,6 +394,64 @@ const TaskDetails = () => {
                 <p className="text-xs text-gray-500">No users found.</p>
               )}
             </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <FaBox className="inline mr-2" />
+              Assigned inventory items
+            </label>
+
+            {editing && (
+              <div className="relative mb-2">
+                <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs" />
+                <input
+                  type="text"
+                  placeholder="Search by item name or number..."
+                  value={itemSearch}
+                  onChange={(e) => setItemSearch(e.target.value)}
+                  className="w-full pl-8 pr-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            )}
+
+            <div className="bg-white rounded border p-3 max-h-60 overflow-y-auto">
+              {filteredItems.length === 0 ? (
+                <p className="text-xs text-gray-500">No items available.</p>
+              ) : (
+                filteredItems.map((item) => (
+                  <label
+                    key={item.id}
+                    className="flex items-center mb-2 cursor-pointer hover:bg-gray-50 p-2 rounded"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={assignedItems.includes(item.id)}
+                      onChange={() => handleToggleItem(item.id)}
+                      disabled={!editing}
+                      className="mr-3 w-4 h-4"
+                    />
+                    <div className="flex-1">
+                      <p className="text-sm">
+                        {item.itemName}{' '}
+                        <span className="text-xs text-gray-500">
+                          ({item.itemNo})
+                        </span>
+                      </p>
+                      {item.details && (
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          {item.details}
+                        </p>
+                      )}
+                    </div>
+                  </label>
+                ))
+              )}
+            </div>
+
+            <p className="text-xs text-gray-500 mt-2">
+              Selected: {assignedItems.length} item(s)
+            </p>
           </div>
         </form>
       </main>

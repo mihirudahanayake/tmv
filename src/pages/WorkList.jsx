@@ -2,12 +2,13 @@ import { useState, useEffect } from 'react';
 import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../firebase/config';
-import { FaCalendarAlt, FaUsers, FaSpinner, FaSearch, FaCheck } from 'react-icons/fa';
+import { FaCalendarAlt, FaUsers, FaSpinner, FaSearch, FaCheck, FaBox } from 'react-icons/fa';
 import Header from '../components/Header';
 
 const WorkList = () => {
   const [tasks, setTasks] = useState([]);
   const [users, setUsers] = useState({});
+  const [items, setItems] = useState({});
   const [loading, setLoading] = useState(true);
 
   const [searchText, setSearchText] = useState('');
@@ -29,6 +30,13 @@ const WorkList = () => {
         usersMap[d.id] = d.data();
       });
       setUsers(usersMap);
+
+      const itemsSnapshot = await getDocs(collection(db, 'inventory'));
+      const itemsMap = {};
+      itemsSnapshot.docs.forEach((d) => {
+        itemsMap[d.id] = d.data();
+      });
+      setItems(itemsMap);
 
       const worksSnapshot = await getDocs(collection(db, 'works'));
       const worksData = worksSnapshot.docs.map((d) => ({
@@ -122,8 +130,8 @@ const WorkList = () => {
   const renderTaskCard = (task, isCompleteSection = false) => {
     const status = task.status || 'incomplete';
     const userDetails = task.assignedUserDetails || [];
-    // roleCompletion: { userId_role: 'done' }
     const roleCompletion = task.roleCompletion || {};
+    const assignedItems = task.assignedItems || [];
 
     return (
       <div
@@ -214,6 +222,28 @@ const WorkList = () => {
               ))}
           </div>
         </div>
+
+        {assignedItems.length > 0 && (
+          <div className="mb-3">
+            <div className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-gray-700 mb-2">
+              <FaBox />
+              <span>Items:</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {assignedItems.map((itemId) => {
+                const item = items[itemId];
+                return (
+                  <span
+                    key={itemId}
+                    className="bg-blue-50 px-2 py-1 rounded text-xs sm:text-sm text-blue-800"
+                  >
+                    {item ? `${item.itemName} (${item.itemNo})` : 'Unknown item'}
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {!isCompleteSection && (
           <button
