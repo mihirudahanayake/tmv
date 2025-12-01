@@ -6,7 +6,9 @@ import {
   updateDoc,
   query,
   where,
-  onSnapshot
+  onSnapshot,
+  addDoc,
+  serverTimestamp
 } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { db, auth } from '../firebase/config';
@@ -49,7 +51,6 @@ const Home = () => {
     const loadTasks = async () => {
       setLoadingTasks(true);
       try {
-        // works for this user
         const snap = await getDocs(collection(db, 'works'));
         const all = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
@@ -67,7 +68,6 @@ const Home = () => {
 
         setTasks(mine);
 
-        // inventory items map
         const invSnap = await getDocs(collection(db, 'inventory'));
         const itemsMap = {};
         invSnap.docs.forEach((docSnap) => {
@@ -125,6 +125,7 @@ const Home = () => {
     return acceptance[user.uid] || 'pending';
   };
 
+  // ACCEPT + notification
   const handleAccept = async (task) => {
     try {
       const acceptance = task.userAcceptance || {};
@@ -138,6 +139,15 @@ const Home = () => {
         )
       );
       showToast('Work accepted successfully!');
+
+      await addDoc(collection(db, 'notifications'), {
+        type: 'accept',
+        workId: task.id,
+        userId: user.uid,
+        userName: user.displayName || '',
+        createdAt: serverTimestamp(),
+        read: false
+      });
     } catch (err) {
       console.error('Failed to accept:', err);
     }
@@ -149,6 +159,7 @@ const Home = () => {
     setShowRejectModal(true);
   };
 
+  // REJECT + notification
   const handleReject = async () => {
     if (!rejectReason.trim()) {
       showToast('Please provide a reason for rejection.');
@@ -178,38 +189,21 @@ const Home = () => {
       showToast('Work rejected.');
       setShowRejectModal(false);
       setSelectedTask(null);
+
+      await addDoc(collection(db, 'notifications'), {
+        type: 'reject',
+        workId: selectedTask.id,
+        userId: user.uid,
+        userName: user.displayName || '',
+        createdAt: serverTimestamp(),
+        read: false
+      });
     } catch (err) {
       console.error('Failed to reject:', err);
     }
   };
 
-  const handleToggleRole = async (task, role) => {
-    if (statusOf(task) === 'complete') return;
-
-    const key = `${user.uid}_${role}`;
-    const roleCompletion = task.roleCompletion || {};
-    const isDone = roleCompletion[key] === 'done';
-
-    const nextCompletion = { ...roleCompletion };
-    if (isDone) {
-      delete nextCompletion[key];
-    } else {
-      nextCompletion[key] = 'done';
-    }
-
-    try {
-      const ref = doc(db, 'works', task.id);
-      await updateDoc(ref, { roleCompletion: nextCompletion });
-      setTasks((prev) =>
-        prev.map((t) =>
-          t.id === task.id ? { ...t, roleCompletion: nextCompletion } : t
-        )
-      );
-    } catch (err) {
-      console.error('Failed to update role status:', err);
-    }
-  };
-
+  // roles helpers
   const getUserRoles = (task) => {
     if (!user) return [];
     const details = task.assignedUserDetails || [];
@@ -226,6 +220,65 @@ const Home = () => {
     const roles = getUserRoles(task);
     if (!roles.length) return false;
     return roles.every((r) => isRoleDone(task, r));
+  };
+
+  // TOGGLE ROLE + done / undo-done notifications
+  const handleToggleRole = async (task, role) => {
+    if (statusOf(task) === 'complete') return;
+
+    const key = `${user.uid}_${role}`;
+    const roleCompletion = task.roleCompletion || {};
+    const isDone = roleCompletion[key] === 'done';
+
+    const nextCompletion = { ...roleCompletion };
+    if (isDone) {
+      delete nextCompletion[key];
+    } else {
+      nextCompletion[key] = 'done';
+    }
+
+    const roles = getUserRoles(task);
+    const allDoneNow =
+      roles.length > 0 &&
+      roles.every((r) => nextCompletion[`${user.uid}_${r}`] === 'done');
+
+    const allDoneBefore =
+      roles.length > 0 &&
+      roles.every(
+        (r) => (task.roleCompletion || {})[`${user.uid}_${r}`] === 'done'
+      );
+
+    try {
+      if (allDoneNow && !allDoneBefore) {
+        await addDoc(collection(db, 'notifications'), {
+          type: 'done',
+          workId: task.id,
+          userId: user.uid,
+          userName: user.displayName || '',
+          createdAt: serverTimestamp(),
+          read: false
+        });
+      } else if (!allDoneNow && allDoneBefore) {
+        await addDoc(collection(db, 'notifications'), {
+          type: 'undo-done',
+          workId: task.id,
+          userId: user.uid,
+          userName: user.displayName || '',
+          createdAt: serverTimestamp(),
+          read: false
+        });
+      }
+
+      const ref = doc(db, 'works', task.id);
+      await updateDoc(ref, { roleCompletion: nextCompletion });
+      setTasks((prev) =>
+        prev.map((t) =>
+          t.id === task.id ? { ...t, roleCompletion: nextCompletion } : t
+        )
+      );
+    } catch (err) {
+      console.error('Failed to update role status:', err);
+    }
   };
 
   // render assigned items for a task
@@ -279,6 +332,8 @@ const Home = () => {
   const completedTasks = visibleTasks.filter(
     (t) => getUserAcceptance(t) === 'accepted' && allRolesDone(t)
   );
+
+  /* ------- UI from here down is your existing JSX (unchanged) ------- */
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
