@@ -16,6 +16,7 @@ import TaskDetails from './pages/TaskDetails.jsx';
 import Inventory from './pages/Inventory';
 import AdminRejectDetails from './pages/AdminRejectDetails';
 import UserRejectDetails from './pages/UserRejectDetails';
+import NotificationHistory from './pages/NotificationHistory';
 
 function App() {
   return (
@@ -36,6 +37,7 @@ function App() {
         <Route path="/inventory" element={<AdminRoute> <Inventory /> </AdminRoute>} />
         <Route path="/admin-reject-details" element={<AdminRoute> <AdminRejectDetails /> </AdminRoute>} />
         <Route path="/user-reject-details" element={<UserRejectDetails />} />
+        <Route path="/notifications" element={<AdminRoute> <NotificationHistory /> </AdminRoute>} />
       </Routes>
     </Router>
   );

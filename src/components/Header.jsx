@@ -1,5 +1,15 @@
 import { Link, useLocation } from 'react-router-dom';
-import { FaHome, FaUserPlus, FaTasks, FaList, FaBars, FaTimes, FaUser, FaHistory, FaBox } from 'react-icons/fa';
+import {
+  FaHome,
+  FaUserPlus,
+  FaTasks,
+  FaList,
+  FaBars,
+  FaTimes,
+  FaUser,
+  FaHistory,
+  FaBox
+} from 'react-icons/fa';
 import { useState } from 'react';
 
 const Header = ({ userType }) => {
@@ -12,7 +22,7 @@ const Header = ({ userType }) => {
 
   const navItems = [
     { path: homePath, label: 'Home', icon: <FaHome /> },
-    { path: '/profile', label: 'Profile', icon: <FaUser /> },
+    { path: '/profile', label: 'Profile', icon: <FaUser /> }
   ];
 
   if (userType === 'user') {
@@ -27,7 +37,9 @@ const Header = ({ userType }) => {
       { path: '/manage-users', label: 'Manage Users', icon: <FaUserPlus /> },
       { path: '/assign-work', label: 'Assign Work', icon: <FaTasks /> },
       { path: '/work-list', label: 'Work List', icon: <FaList /> },
-      { path: '/inventory', label: 'Inventory', icon: <FaBox /> }
+      { path: '/inventory', label: 'Inventory', icon: <FaBox /> },
+      // NEW: notification history
+      { path: '/notifications', label: 'Notifications', icon: <FaHistory /> }
     );
   }
 
@@ -53,7 +65,9 @@ const Header = ({ userType }) => {
                 <Link
                   to={item.path}
                   className={`flex items-center gap-2 hover:text-blue-200 transition ${
-                    isActive(item.path) ? 'font-bold border-b-2 border-white pb-1' : ''
+                    isActive(item.path)
+                      ? 'font-bold border-b-2 border-white pb-1'
+                      : ''
                   }`}
                 >
                   {item.icon}
