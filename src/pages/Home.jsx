@@ -385,7 +385,7 @@ const Home = () => {
 
       <main className="container mx-auto px-4 py-8 max-w-5xl">
         <div className="mb-8">
-          <h1 className="text-3xl sm:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600 mb-2">
+          <h1 className="text-3xl sm:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600 mb-2">
             Welcome Back
           </h1>
           <p className="text-gray-600 text-sm sm:text-base">

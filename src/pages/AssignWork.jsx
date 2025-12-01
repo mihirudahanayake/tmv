@@ -1,5 +1,12 @@
 import { useState, useEffect } from 'react';
-import { collection, addDoc, getDocs } from 'firebase/firestore';
+import {
+  collection,
+  addDoc,
+  getDocs,
+  getDoc,
+  doc
+} from 'firebase/firestore';
+
 import { db } from '../firebase/config';
 import {
   FaFileAlt,
@@ -119,39 +126,65 @@ const AssignWork = () => {
     }));
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setMessage({ type: '', text: '' });
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  setLoading(true);
+  setMessage({ type: '', text: '' });
 
-    try {
-      await addDoc(collection(db, 'works'), {
-        title: formData.title,
-        description: formData.description,
-        date: formData.date,
-        priority: formData.priority,
-        assignedUsers: formData.assignedUsers.map((u) => u.userId),
-        assignedUserDetails: formData.assignedUsers,
-        assignedItems: formData.assignedItems,
-        createdAt: new Date().toISOString(),
-        status: 'pending'
-      });
+  try {
+    // 1) Create work document
+    await addDoc(collection(db, 'works'), {
+      title: formData.title,
+      description: formData.description,
+      date: formData.date,
+      priority: formData.priority,
+      assignedUsers: formData.assignedUsers.map((u) => u.userId),
+      assignedUserDetails: formData.assignedUsers,
+      assignedItems: formData.assignedItems,
+      createdAt: new Date().toISOString(),
+      status: 'pending'
+    });
 
-      setMessage({ type: 'success', text: 'Work assigned successfully!' });
-      setFormData({
-        title: '',
-        description: '',
-        date: '',
-        priority: 'medium',
-        assignedUsers: [],
-        assignedItems: []
+    // 2) Get emails of assigned users from `users` collection
+    const emailPromises = formData.assignedUsers.map(async ({ userId }) => {
+      const snap = await getDoc(doc(db, 'users', userId));
+      const data = snap.data();
+      return data?.email || null; // assumes each user doc has `email`
+    });
+
+    const emails = (await Promise.all(emailPromises)).filter(Boolean);
+
+    // 3) Write `mail` document so Trigger Email extension sends emails
+    if (emails.length > 0) {
+      await addDoc(collection(db, 'mail'), {
+        to: emails,
+        message: {
+          subject: `New work assigned: ${formData.title}`,
+          text: `You have been assigned to a new work:\n\nTitle: ${formData.title}\nDescription: ${formData.description}\nDate: ${formData.date}`,
+          html: `<p>You have been assigned to a new work.</p>
+                 <p><b>Title:</b> ${formData.title}</p>
+                 <p><b>Description:</b> ${formData.description}</p>
+                 <p><b>Date:</b> ${formData.date}</p>`
+        }
       });
-    } catch (error) {
-      setMessage({ type: 'error', text: error.message });
-    } finally {
-      setLoading(false);
     }
-  };
+
+    setMessage({ type: 'success', text: 'Work assigned successfully!' });
+    setFormData({
+      title: '',
+      description: '',
+      date: '',
+      priority: 'medium',
+      assignedUsers: [],
+      assignedItems: []
+    });
+  } catch (error) {
+    setMessage({ type: 'error', text: error.message });
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   const isUserSelected = (userId) =>
     formData.assignedUsers.some((u) => u.userId === userId);
