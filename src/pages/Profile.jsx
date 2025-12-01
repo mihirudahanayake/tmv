@@ -37,7 +37,11 @@ const Profile = () => {
       try {
         const snap = await getDoc(doc(db, 'users', user.uid));
         if (snap.exists()) {
-          const data = { id: user.uid, ...snap.data() };
+          const data = {
+            id: user.uid,
+            ...snap.data(),
+            email: user.email || ''
+          };
           setUserData(data);
           setOriginalData(data);
         }
@@ -59,7 +63,7 @@ const Profile = () => {
   const handleFieldChange = (e) => {
     if (!isEditingProfile) return;
     const { name, value } = e.target;
-    setUserData(prev => ({ ...prev, [name]: value }));
+    setUserData((prev) => ({ ...prev, [name]: value }));
   };
 
   const startEditProfile = () => {
@@ -85,7 +89,7 @@ const Profile = () => {
 
     try {
       const userRef = doc(db, 'users', userData.id);
-      const { id, userType, createdAt, ...editable } = userData;
+      const { id, userType, createdAt, email, ...editable } = userData;
       await updateDoc(userRef, editable);
       setSuccessMsg('Profile updated successfully.');
       setIsEditingProfile(false);
@@ -169,7 +173,9 @@ const Profile = () => {
         </div>
 
         {status === 'loading' && (
-          <p className="text-gray-600 text-sm sm:text-base">Loading profile...</p>
+          <p className="text-gray-600 text-sm sm:text-base">
+            Loading profile...
+          </p>
         )}
 
         {status === 'no-auth' && (
@@ -246,6 +252,20 @@ const Profile = () => {
                     onChange={handleFieldChange}
                     className={inputClass}
                     disabled={!isEditingProfile}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    name="email"
+                    value={userData.email || ''}
+                    onChange={handleFieldChange}
+                    className={inputClass}
+                    disabled // read-only email from Auth
                   />
                 </div>
 
@@ -442,7 +462,7 @@ const Profile = () => {
                       name="newPassword"
                       value={passwordForm.newPassword}
                       onChange={(e) =>
-                        setPasswordForm(prev => ({
+                        setPasswordForm((prev) => ({
                           ...prev,
                           newPassword: e.target.value
                         }))
@@ -462,7 +482,7 @@ const Profile = () => {
                       name="confirmPassword"
                       value={passwordForm.confirmPassword}
                       onChange={(e) =>
-                        setPasswordForm(prev => ({
+                        setPasswordForm((prev) => ({
                           ...prev,
                           confirmPassword: e.target.value
                         }))

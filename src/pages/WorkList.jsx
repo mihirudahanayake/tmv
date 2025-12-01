@@ -2,7 +2,16 @@ import { useState, useEffect } from 'react';
 import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../firebase/config';
-import { FaCalendarAlt, FaUsers, FaSpinner, FaSearch, FaCheck, FaBox } from 'react-icons/fa';
+import {
+  FaCalendarAlt,
+  FaUsers,
+  FaSpinner,
+  FaSearch,
+  FaCheck,
+  FaBox,
+  FaHourglassHalf,
+  FaTimes
+} from 'react-icons/fa';
 import Header from '../components/Header';
 
 const WorkList = () => {
@@ -118,17 +127,79 @@ const WorkList = () => {
     );
   }
 
-  const getStatusColor = (status) => {
-    const colors = {
-      incomplete: 'bg-gray-100 text-gray-800',
-      done: 'bg-yellow-100 text-yellow-800',
-      complete: 'bg-green-100 text-green-800'
-    };
-    return colors[status] || colors.incomplete;
+  // color for the rounded chip
+const getStatusColor = (status) => {
+  const colors = {
+    pending: 'bg-red-100 text-red-800',
+    accepted: 'bg-orange-100 text-orange-800',
+    done: 'bg-blue-100 text-blue-800',
+    completed: 'bg-green-100 text-green-800'
+  };
+  return colors[status] || colors.pending;
+};
+
+
+  // derive single label shown in the rounded chip
+const getDerivedStatus = (task) => {
+  // if admin already marked complete, always show completed
+  if ((task.status || '').toLowerCase() === 'complete') {
+    return 'completed';
+  }
+
+  const userDetails = task.assignedUserDetails || [];
+  const roleCompletion = task.roleCompletion || {};
+  const acceptance = task.userAcceptance || {};
+
+  if (!userDetails.length) return 'pending';
+
+  const allAccepted = userDetails.every(
+    (d) => acceptance[d.userId] === 'accepted'
+  );
+  if (!allAccepted) return 'pending';       // red
+
+  const allRolesDone = userDetails.every((d) =>
+    (d.roles || []).every(
+      (role) => roleCompletion[`${d.userId}_${role}`] === 'done'
+    )
+  );
+
+  if (!allRolesDone) return 'accepted';     // orange
+  return 'done';                            // blue
+};
+
+
+  const renderAcceptanceBadge = (task, userId) => {
+    const acceptance = task.userAcceptance || {};
+    const state = acceptance[userId] || 'pending';
+
+    if (state === 'accepted') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-100 text-green-800 text-[11px] font-semibold">
+          <FaCheck className="text-[10px]" />
+          Accepted
+        </span>
+      );
+    }
+
+    if (state === 'rejected') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-100 text-red-800 text-[11px] font-semibold">
+          <FaTimes className="text-[10px]" />
+          Rejected
+        </span>
+      );
+    }
+
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800 text-[11px] font-semibold">
+        <FaHourglassHalf className="text-[10px]" />
+        Pending
+      </span>
+    );
   };
 
   const renderTaskCard = (task, isCompleteSection = false) => {
-    const status = task.status || 'incomplete';
+    const status = getDerivedStatus(task); // what shows in the rounded chip
     const userDetails = task.assignedUserDetails || [];
     const roleCompletion = task.roleCompletion || {};
     const assignedItems = task.assignedItems || [];
@@ -149,7 +220,7 @@ const WorkList = () => {
             </p>
           </div>
           <span
-            className={`px-2 sm:px-3 py-1 rounded-full text-xs font-semibold capitalize ${getStatusColor(
+            className={`px-2 sm:px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(
               status
             )}`}
           >
@@ -173,9 +244,11 @@ const WorkList = () => {
         )}
 
         <div className="mb-3">
-          <div className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-gray-700 mb-2">
-            <FaUsers />
-            <span>Assigned to:</span>
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-gray-700">
+              <FaUsers />
+              <span>Assigned to:</span>
+            </div>
           </div>
           <div className="space-y-2">
             {userDetails.map((detail) => {
@@ -188,7 +261,12 @@ const WorkList = () => {
                   key={userId}
                   className="bg-gray-50 px-2 py-1 rounded text-xs sm:text-sm"
                 >
-                  <p className="font-semibold text-gray-800">{userName}</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-semibold text-gray-800">
+                      {userName}
+                    </p>
+                    {renderAcceptanceBadge(task, userId)}
+                  </div>
                   <div className="flex flex-wrap gap-1 mt-1">
                     {roles.map((role) => {
                       const key = `${userId}_${role}`;
@@ -213,12 +291,15 @@ const WorkList = () => {
             })}
             {userDetails.length === 0 &&
               task.assignedUsers?.map((userId) => (
-                <span
+                <div
                   key={userId}
-                  className="bg-gray-100 px-2 py-1 rounded text-xs sm:text-sm text-gray-700"
+                  className="bg-gray-50 px-2 py-1 rounded text-xs sm:text-sm flex items-center justify-between"
                 >
-                  {users[userId]?.name || 'Unknown'}
-                </span>
+                  <span className="text-gray-700">
+                    {users[userId]?.name || 'Unknown'}
+                  </span>
+                  {renderAcceptanceBadge(task, userId)}
+                </div>
               ))}
           </div>
         </div>
