@@ -1,6 +1,6 @@
 {
   "name": "tmv",
-  "homepage": "https://mihirudahanayake.github.io/tmv",
+  "homepage": "https://tmv.fotmv.online",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
