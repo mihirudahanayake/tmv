@@ -14,10 +14,10 @@ const messaging = firebase.messaging();
 messaging.onBackgroundMessage((payload) => {
   console.log('[firebase-messaging-sw.js] background message ', payload);
 
-  const notificationTitle = payload.notification?.title || 'New notification';
+  const notificationTitle = payload.notification?.title || 'Task update';
   const notificationOptions = {
     body: payload.notification?.body || '',
-    icon: '/icon-192.png'
+    icon: '/icon-192.png'   // put an icon image in public/
   };
 
   self.registration.showNotification(notificationTitle, notificationOptions);

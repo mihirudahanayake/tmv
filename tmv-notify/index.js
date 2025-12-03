@@ -1,4 +1,8 @@
-const functions = require('firebase-functions');
+// tmv-notify/index.js
+
+// v2 import style for firebase-functions
+const { onDocumentCreated } = require('firebase-functions/v2/firestore');
+const logger = require('firebase-functions/logger');
 const admin = require('firebase-admin');
 
 admin.initializeApp();
@@ -14,16 +18,17 @@ async function sendToUser(userId, title, body) {
 
   const message = {
     notification: { title, body },
-    tokens
+    tokens,
   };
 
   await admin.messaging().sendEachForMulticast(message);
 }
 
-exports.onNotificationCreated = functions.firestore
-  .document('notifications/{notificationId}')
-  .onCreate(async (snap, context) => {
-    const data = snap.data();
+// Trigger when a doc is created in `notifications` collection
+exports.onNotificationCreated = onDocumentCreated(
+  'notifications/{notificationId}',
+  async (event) => {
+    const data = event.data.data();
     const { userId, type } = data;
 
     let title = 'Task update';
@@ -44,4 +49,6 @@ exports.onNotificationCreated = functions.firestore
     }
 
     await sendToUser(userId, title, body);
-  });
+    logger.info('Notification sent', { userId, type });
+  }
+);

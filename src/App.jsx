@@ -17,40 +17,27 @@ import Inventory from './pages/Inventory';
 import AdminRejectDetails from './pages/AdminRejectDetails';
 import UserRejectDetails from './pages/UserRejectDetails';
 import NotificationHistory from './pages/NotificationHistory';
-import { useEffect } from 'react';
-import { useAuthState } from 'react-firebase-hooks/auth';
-import { auth } from './firebase/config';
-import { usePushNotifications } from './hooks/usePushNotifications';
 
 function App() {
-    const [user] = useAuthState(auth);
-  const { init } = usePushNotifications(user?.uid);
-
-  useEffect(() => {
-    if (user?.uid) {
-      init();
-    }
-  }, [user, init]);
-  
   return (
     <Router>
       <Routes>
         <Route path="/" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/home" element={<Home />} />
-        <Route path="/admin-home" element={<AdminRoute> <Homepage /> </AdminRoute>} />
-        <Route path="/create-user" element={<AdminRoute> <CreateUser /> </AdminRoute>} />
-        <Route path="/assign-work" element={<AdminRoute> <AssignWork /> </AdminRoute>} />
-        <Route path="/work-list" element={<AdminRoute> <WorkList /> </AdminRoute>} />
+        <Route path="/admin-home" element={<AdminRoute><Homepage /></AdminRoute>} />
+        <Route path="/create-user" element={<AdminRoute><CreateUser /></AdminRoute>} />
+        <Route path="/assign-work" element={<AdminRoute><AssignWork /></AdminRoute>} />
+        <Route path="/work-list" element={<AdminRoute><WorkList /></AdminRoute>} />
         <Route path="/profile" element={<Profile />} />
-        <Route path="/manage-users" element={<AdminRoute> <ManageUsers /> </AdminRoute>} />
-        <Route path="/users/:userId" element={<AdminRoute> <UserDetails /> </AdminRoute>} />
-        <Route path="/tasks/:taskId" element={<AdminRoute> <TaskDetails /> </AdminRoute>} />
+        <Route path="/manage-users" element={<AdminRoute><ManageUsers /></AdminRoute>} />
+        <Route path="/users/:userId" element={<AdminRoute><UserDetails /></AdminRoute>} />
+        <Route path="/tasks/:taskId" element={<AdminRoute><TaskDetails /></AdminRoute>} />
         <Route path="/task-history" element={<TaskHistory />} />
-        <Route path="/inventory" element={<AdminRoute> <Inventory /> </AdminRoute>} />
-        <Route path="/admin-reject-details" element={<AdminRoute> <AdminRejectDetails /> </AdminRoute>} />
+        <Route path="/inventory" element={<AdminRoute><Inventory /></AdminRoute>} />
+        <Route path="/admin-reject-details" element={<AdminRoute><AdminRejectDetails /></AdminRoute>} />
         <Route path="/user-reject-details" element={<UserRejectDetails />} />
-        <Route path="/notifications" element={<AdminRoute> <NotificationHistory /> </AdminRoute>} />
+        <Route path="/notifications" element={<AdminRoute><NotificationHistory /></AdminRoute>} />
       </Routes>
     </Router>
   );

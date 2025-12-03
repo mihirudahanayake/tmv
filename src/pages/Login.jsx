@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase/config';
+import { initPushForUser } from '../hooks/usePushNotifications';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -30,6 +31,10 @@ const Login = () => {
       );
 
       const user = userCredential.user;
+
+      // Setup push for this user
+      await initPushForUser(user.uid);
+
       const profileRef = doc(db, 'users', user.uid);
       const profileSnap = await getDoc(profileRef);
 
