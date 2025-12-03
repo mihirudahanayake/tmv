@@ -17,8 +17,21 @@ import Inventory from './pages/Inventory';
 import AdminRejectDetails from './pages/AdminRejectDetails';
 import UserRejectDetails from './pages/UserRejectDetails';
 import NotificationHistory from './pages/NotificationHistory';
+import { useEffect } from 'react';
+import { useAuthState } from 'react-firebase-hooks/auth';
+import { auth } from './firebase/config';
+import { usePushNotifications } from './hooks/usePushNotifications';
 
 function App() {
+    const [user] = useAuthState(auth);
+  const { init } = usePushNotifications(user?.uid);
+
+  useEffect(() => {
+    if (user?.uid) {
+      init();
+    }
+  }, [user, init]);
+  
   return (
     <Router>
       <Routes>
