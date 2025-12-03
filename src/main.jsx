@@ -7,29 +7,33 @@ import { messaging, db, auth } from './firebase/config';
 import { getToken } from 'firebase/messaging';
 import { doc, updateDoc } from 'firebase/firestore';
 
-const VAPID_KEY = 'YOUR_PUBLIC_VAPID_KEY_FROM_FIREBASE';
+// Replace this with your real Web Push VAPID key (Project Settings → Cloud Messaging → Web configuration)
+const VAPID_KEY = 'BCDW2bDpR51kOUCYdebGFw4pHEU_h2159MHvkSEslEdrV0yI0AVUiQikAbClmXfS9EGHHQblUlKTC_To4SaQ7Hg';
 
 function AppWithFCM() {
   useEffect(() => {
     const init = async () => {
-      if (!('serviceWorker' in navigator)) return;
+      // Check support
+      if (!('serviceWorker' in navigator) || !('Notification' in window)) return;
 
-      const reg = await navigator.serviceWorker.register(
-        '/firebase-messaging-sw.js'
-      );
+      // Register the Firebase Messaging service worker
+      const reg = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
 
+      // Ask for notification permission
       const permission = await Notification.requestPermission();
       if (permission !== 'granted') return;
 
+      // Get FCM token
       const token = await getToken(messaging, {
         vapidKey: VAPID_KEY,
-        serviceWorkerRegistration: reg
+        serviceWorkerRegistration: reg,
       });
 
+      // Save token to Firestore for the logged-in user
       const user = auth.currentUser;
       if (user && token) {
         await updateDoc(doc(db, 'users', user.uid), {
-          fcmToken: token
+          fcmToken: token,
         });
       }
     };
@@ -45,14 +49,3 @@ createRoot(document.getElementById('root')).render(
     <AppWithFCM />
   </StrictMode>
 );
-
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker
-    .register('/sw.js')
-    .then((registration) => {
-      console.log('Service Worker registered', registration);
-    })
-    .catch((error) => {
-      console.error('Service Worker registration failed', error);
-    });
-}

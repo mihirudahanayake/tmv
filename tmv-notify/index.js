@@ -1,6 +1,3 @@
-// tmv-notify/index.js
-
-// v2 import style for firebase-functions
 const { onDocumentCreated } = require('firebase-functions/v2/firestore');
 const logger = require('firebase-functions/logger');
 const admin = require('firebase-admin');
@@ -10,21 +7,34 @@ const db = admin.firestore();
 
 async function sendToUser(userId, title, body) {
   const snap = await db.collection('users').doc(userId).get();
-  if (!snap.exists) return;
+  if (!snap.exists) {
+    logger.warn('User doc not found', { userId });
+    return;
+  }
 
   const data = snap.data();
-  const tokens = Array.isArray(data.fcmTokens) ? data.fcmTokens : [];
-  if (!tokens.length) return;
+
+  let tokens = [];
+  if (Array.isArray(data.fcmTokens) && data.fcmTokens.length) {
+    tokens = data.fcmTokens;
+  } else if (typeof data.fcmToken === 'string' && data.fcmToken) {
+    tokens = [data.fcmToken];
+  }
+
+  if (!tokens.length) {
+    logger.warn('No FCM tokens for user', { userId });
+    return;
+  }
 
   const message = {
     notification: { title, body },
     tokens,
   };
 
-  await admin.messaging().sendEachForMulticast(message);
+  const res = await admin.messaging().sendEachForMulticast(message);
+  logger.info('FCM send result', { userId, successCount: res.successCount, failureCount: res.failureCount });
 }
 
-// Trigger when a doc is created in `notifications` collection
 exports.onNotificationCreated = onDocumentCreated(
   'notifications/{notificationId}',
   async (event) => {
@@ -49,6 +59,6 @@ exports.onNotificationCreated = onDocumentCreated(
     }
 
     await sendToUser(userId, title, body);
-    logger.info('Notification sent', { userId, type });
+    logger.info('Notification sent trigger', { userId, type });
   }
 );
