@@ -170,9 +170,9 @@ const handleSubmit = async (e) => {
           
           <p>Best regards,</p>
 
-          <p>
+          <p style="color:#A3A9AD">
             <strong>Mihiru Dahanayake</strong><br>
-            <i></i>Acting Videography Department Head<br>FOT Media<br>Faculty Of Technology<br>Rajarata University of Sri Lanka<br>
+            <i>Acting Videography Department Head<br>FOT Media<br>Faculty Of Technology<br>Rajarata University of Sri Lanka<br>
             <a href="tel:+94703426554" style="color:#0066cc; text-decoration:none;">070 342 6554</a><br>
             <a href="mailto:mihirudahanayake@gmail.com" style="color:#0066cc; text-decoration:none;">mihiru.online@gmail.com</a></i><br>
           </p>`
