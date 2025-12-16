@@ -17,6 +17,7 @@ import Inventory from './pages/Inventory';
 import AdminRejectDetails from './pages/AdminRejectDetails';
 import UserRejectDetails from './pages/UserRejectDetails';
 import NotificationHistory from './pages/NotificationHistory';
+import PostingDates from './pages/PostingDates';
 
 function App() {
   return (
@@ -38,6 +39,7 @@ function App() {
         <Route path="/admin-reject-details" element={<AdminRoute><AdminRejectDetails /></AdminRoute>} />
         <Route path="/user-reject-details" element={<UserRejectDetails />} />
         <Route path="/notifications" element={<AdminRoute><NotificationHistory /></AdminRoute>} />
+        <Route path="/posting-dates" element={<AdminRoute><PostingDates /></AdminRoute>} />
       </Routes>
     </Router>
   );
