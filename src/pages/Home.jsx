@@ -27,6 +27,7 @@ const Home = () => {
   const [user, setUser] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [items, setItems] = useState({}); // itemId -> item data
+  const [userDetails, setUserDetails] = useState({}); // userId -> user data
   const [loadingUser, setLoadingUser] = useState(true);
   const [loadingTasks, setLoadingTasks] = useState(false);
   const [toast, setToast] = useState('');
@@ -84,11 +85,30 @@ const Home = () => {
     loadTasks();
   }, [user]);
 
+  // Load all users
+  useEffect(() => {
+    const loadUsers = async () => {
+      try {
+        const usersSnap = await getDocs(collection(db, 'users'));
+        const usersMap = {};
+        usersSnap.docs.forEach((docSnap) => {
+          usersMap[docSnap.id] = docSnap.data();
+        });
+        setUserDetails(usersMap);
+      } catch (err) {
+        console.error('Error loading users:', err);
+      }
+    };
+
+    loadUsers();
+  }, []);
+
   const showToast = (msg) => {
     setToast(msg);
     setTimeout(() => setToast(''), 4000);
   };
 
+  // Real-time listener for task changes
   useEffect(() => {
     if (!user) return;
 
@@ -111,6 +131,23 @@ const Home = () => {
               return dbt - da;
             });
           });
+        } else if (change.type === 'modified') {
+          // Handle updates to existing tasks
+          const data = change.doc.data();
+          setTasks((prev) =>
+            prev.map((t) =>
+              t.id === change.doc.id
+                ? { ...t, ...data }
+                : t
+            ).sort((a, b) => {
+              const da = a.date ? new Date(a.date).getTime() : 0;
+              const dbt = b.date ? new Date(b.date).getTime() : 0;
+              return dbt - da;
+            })
+          );
+        } else if (change.type === 'removed') {
+          // Remove task if user is no longer assigned
+          setTasks((prev) => prev.filter((t) => t.id !== change.doc.id));
         }
       });
     });
@@ -319,6 +356,74 @@ const Home = () => {
     );
   };
 
+  // render team members
+  const renderTeamMembers = (task) => {
+    const assignedUsers = task.assignedUsers || [];
+    const otherMembers = assignedUsers.filter((uid) => uid !== user.uid);
+    
+    if (otherMembers.length === 0) {
+      return (
+        <div className="mt-3">
+          <p className="text-xs text-gray-500 italic">
+            You are working on this alone
+          </p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="mt-3">
+        <p className="text-xs sm:text-sm font-semibold text-gray-700 mb-2">
+          Working with:
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {otherMembers.map((uid) => {
+            const member = userDetails[uid];
+            if (!member) {
+              return (
+                <span
+                  key={uid}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-100 text-xs text-gray-500"
+                >
+                  <div className="w-6 h-6 rounded-full bg-gray-300 flex items-center justify-center text-xs font-bold text-white">
+                    ?
+                  </div>
+                  Unknown User
+                </span>
+              );
+            }
+
+            // Get roles for this member
+            const details = task.assignedUserDetails || [];
+            const memberDetail = details.find((d) => d.userId === uid);
+            const roles = memberDetail?.roles || [];
+
+            return (
+              <div
+                key={uid}
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-100"
+              >
+                <div className="w-6 h-6 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center text-xs font-bold text-white">
+                  {(member.name || 'U').charAt(0).toUpperCase()}
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xs sm:text-sm font-semibold text-gray-800">
+                    {member.name || 'User'}
+                  </span>
+                  {/* {roles.length > 0 && (
+                    <span className="text-xs text-gray-600">
+                      {roles.join(', ')}
+                    </span>
+                  )} */}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   const visibleTasks = tasks.filter((t) => statusOf(t) !== 'complete');
   const pendingTasks = visibleTasks.filter(
     (t) => getUserAcceptance(t) === 'pending'
@@ -332,8 +437,6 @@ const Home = () => {
   const completedTasks = visibleTasks.filter(
     (t) => getUserAcceptance(t) === 'accepted' && allRolesDone(t)
   );
-
-  /* ------- UI from here down is your existing JSX (unchanged) ------- */
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
@@ -456,6 +559,7 @@ const Home = () => {
                       )}
 
                       {renderAssignedItems(task)}
+                      {renderTeamMembers(task)}
 
                       <div className="flex gap-3 mt-4">
                         <button
@@ -534,6 +638,7 @@ const Home = () => {
                           </div>
 
                           {renderAssignedItems(task)}
+                          {renderTeamMembers(task)}
 
                           <div className="bg-orange-50 rounded-xl p-4 mt-3">
                             <p className="text-xs font-semibold text-orange-800 mb-1">
@@ -592,6 +697,7 @@ const Home = () => {
                         )}
 
                         {renderAssignedItems(task)}
+                        {renderTeamMembers(task)}
 
                         <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-4 mt-3">
                           <p className="text-sm font-semibold text-gray-700 mb-3">
@@ -679,6 +785,7 @@ const Home = () => {
                         )}
 
                         {renderAssignedItems(task)}
+                        {renderTeamMembers(task)}
 
                         <div className="flex flex-wrap gap-2 mb-3 mt-3">
                           {roles.map((role) => (
