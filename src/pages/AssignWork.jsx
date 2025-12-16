@@ -164,6 +164,7 @@ const handleSubmit = async (e) => {
           html: `<p>Hello,</p> <p>You have been assigned a new work. Please find the details below:</p> 
           <p><b>Title:</b> ${formData.title}</p> 
           <p><b>Date:</b> ${formData.date}</p> 
+          <p><b>Description :</b> ${formData.description}</p>
           <p>Kindly review and confirm the work by visiting the <a href="https://mihirudahanayake.github.io/tmv/">Videography Manager</a> Website</p> 
           <p>If you encounter any issues or need further assistance, feel free to contact me.</p> 
           <p>Thank you.</p> 

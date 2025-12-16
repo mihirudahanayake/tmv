@@ -153,8 +153,9 @@ const handleSave = async (e) => {
             text: `You have been assigned to the work "${task.title}".\n\nDescription: ${task.description}\nDate: ${task.date}`,
             html: `<p>Hello,</p> <p>You have been assigned a work. Please find the details below:</p> 
           <p><b>Title:</b> ${task.title}</p> 
-          <p><b>Date:</b> ${task.date}</p> 
-          <p>Kindly review and confirm the work by visiting the <a href="https://mihirudahanayake.github.io/tmv/">Videography Manager</a> Website</p> 
+          <p><b>Date:</b> ${task.date}</p>
+          <p><b>Description:</b> ${task.description}</p> 
+          <p>Kindly review and confirm the work by visiting the <a href="https://tmv.fotmv.online/">Videography Manager</a> Website</p> 
           <p>If you encounter any issues or need further assistance, feel free to contact me.</p> 
           <p>Thank you.</p> 
           
