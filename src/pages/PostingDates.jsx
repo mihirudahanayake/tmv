@@ -8,14 +8,17 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import Header from '../components/Header';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 const PostingDates = () => {
   const [tasks, setTasks] = useState([]);
   const [savingId, setSavingId] = useState(null);
   const [filter, setFilter] = useState('');
   const [userDetails, setUserDetails] = useState({}); // userId -> user data
+  const [selectedIds, setSelectedIds] = useState(new Set());
 
-  // Load users for editor names
+  // Load users
   useEffect(() => {
     const loadUsers = async () => {
       try {
@@ -100,48 +103,61 @@ const PostingDates = () => {
     }
   };
 
-const getEditors = (task) => {
-  const details = task.assignedUserDetails || [];
-  if (!details.length) return [];
+  // Users + work types (roles)
+  const getEditors = (task) => {
+    const details = task.assignedUserDetails || [];
+    if (!details.length) return [];
 
-  return details.map((d) => {
-    const name = userDetails[d.userId]?.name || 'Unknown';
-    const roles = Array.isArray(d.roles) ? d.roles : [];
-    const rolesText = roles.length ? roles.join(' & ') : '';
-    return { name, rolesText };
-  });
-};
+    return details.map((d) => {
+      const name = userDetails[d.userId]?.name || 'Unknown';
+      const roles = Array.isArray(d.roles) ? d.roles : [];
+      const rolesText = roles.length ? roles.join(' & ') : '';
+      return { name, rolesText };
+    });
+  };
 
+  // selection helpers
+  const toggleSelect = (id) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
-  // Order:
-  // 1) postingDate set & posted === false (nearest date first)
-  // 2) postingDate null
-  // 3) posted === true (nearest date first)
+  const clearSelectionForMissingTasks = () => {
+    setSelectedIds((prev) => {
+      const ids = new Set(tasks.map((t) => t.id));
+      const next = new Set();
+      prev.forEach((id) => {
+        if (ids.has(id)) next.add(id);
+      });
+      return next;
+    });
+  };
+
+  // Ordering
   const sorted = [...tasks].sort((a, b) => {
     const aHasDate = !!a.postingDate;
     const bHasDate = !!b.postingDate;
 
-    // 1) date set & not posted
     const aIsDateNotPosted = aHasDate && !a.posted;
     const bIsDateNotPosted = bHasDate && !b.posted;
 
     if (aIsDateNotPosted && !bIsDateNotPosted) return -1;
     if (!aIsDateNotPosted && bIsDateNotPosted) return 1;
 
-    // 2) no date set
     const aNoDate = !aHasDate;
     const bNoDate = !bHasDate;
 
-    if (aNoDate && !bNoDate) return -1;   // a in middle, b in bottom group
+    if (aNoDate && !bNoDate) return -1;
     if (!aNoDate && bNoDate) return 1;
 
-    // 3) posted (has date & posted === true) OR same group
-    // if both are in same group, sort by postingDate ascending when available
     if (aHasDate && bHasDate) {
       return a.postingDate.getTime() - b.postingDate.getTime();
     }
 
-    // both no date: keep original order
     return 0;
   });
 
@@ -152,6 +168,63 @@ const getEditors = (task) => {
   const formatDate = (d) =>
     d ? d.toLocaleDateString() : 'Not set';
 
+  const selectedTasks = filtered.filter((t) => selectedIds.has(t.id));
+
+  const handleDownloadPdf = () => {
+    const items = selectedTasks.length ? selectedTasks : filtered;
+    if (!items.length) return;
+
+    const doc = new jsPDF();
+
+    doc.setFontSize(14);
+    doc.text('Video schedule', 14, 16);
+
+    const rows = items.map((task) => {
+      const editorsArr = getEditors(task).map((e) =>
+        e.rolesText ? `${e.name} [${e.rolesText}]` : e.name
+      );
+
+      const editors = editorsArr.length
+        ? editorsArr.join('\n') // each user on its own line
+        : 'No users found';
+
+      return [
+        task.title,
+        task.description || '',
+        formatDate(task.workDate),
+        formatDate(task.postingDate),
+        task.posted ? 'Posted' : 'Not posted',
+        editors,
+      ];
+    });
+
+    autoTable(doc, {
+      startY: 22,
+      head: [['Title', 'Description', 'Work Date', 'Posting Date', 'Status', 'Member(s)']],
+      body: rows,
+      styles: { fontSize: 8 },
+      headStyles: {
+        fillColor: [33, 150, 243],
+        halign: 'center',
+        valign: 'middle'
+      },
+      columnStyles: {
+        0: { cellWidth: 50 },                   // Title
+        1: { cellWidth: 30 },                   // Description
+        2: { cellWidth: 20, halign: 'center' }, // Work Date
+        3: { cellWidth: 23, halign: 'center' }, // Posting Date
+        4: { cellWidth: 20, halign: 'center' }, // Status
+        5: { cellWidth: 'auto' }                // Users
+      }
+    });
+
+    doc.save('video-schedule.pdf');
+  };
+
+  useEffect(() => {
+    clearSelectionForMissingTasks();
+  }, [tasks]);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
       <Header userType="admin" />
@@ -160,19 +233,31 @@ const getEditors = (task) => {
         <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">
-              Posting Schedule
+              Video schedule
             </h1>
             <p className="text-sm text-gray-600">
               Manage posting dates for videos / tasks.
             </p>
           </div>
-          <input
-            type="text"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            placeholder="Search video"
-            className="w-full sm:w-64 px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+
+          <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+            <input
+              type="text"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              placeholder="Search video"
+              className="w-full sm:w-64 px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <button
+              onClick={handleDownloadPdf}
+              disabled={filtered.length === 0}
+              className="px-4 py-2 text-sm font-semibold rounded-lg bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {selectedTasks.length
+                ? 'Download selected as PDF'
+                : 'Download all as PDF'}
+            </button>
+          </div>
         </div>
 
         {filtered.length === 0 ? (
@@ -186,9 +271,18 @@ const getEditors = (task) => {
               >
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                   <div className="max-w-xl">
-                    <h2 className="text-sm sm:text-base font-semibold text-gray-800">
-                      {task.title}
-                    </h2>
+                    <div className="flex items-center gap-2 mb-1">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(task.id)}
+                        onChange={() => toggleSelect(task.id)}
+                        className="h-4 w-4"
+                      />
+                      <h2 className="text-sm sm:text-base font-semibold text-gray-800">
+                        {task.title}
+                      </h2>
+                    </div>
+
                     <p className="text-xs text-gray-600">
                       Work date: {formatDate(task.workDate)}
                     </p>
@@ -204,21 +298,22 @@ const getEditors = (task) => {
                       </div>
                     )}
 
-<div className="mt-1">
-  <p className="text-xs font-semibold text-gray-600"></p>
-  {getEditors(task).length === 0 ? (
-    <p className="text-xs text-gray-500">No editors</p>
-  ) : (
-    <ul className="mt-0.5 space-y-0.5">
-      {getEditors(task).map((e, idx) => (
-        <li key={idx} className="text-xs text-gray-700">
-          {e.rolesText ? `${e.name} - ${e.rolesText}` : e.name}
-        </li>
-      ))}
-    </ul>
-  )}
-</div>
-
+                    <div className="mt-1">
+                      <p className="text-xs font-semibold text-gray-600">
+                        Users
+                      </p>
+                      {getEditors(task).length === 0 ? (
+                        <p className="text-xs text-gray-500">No users found</p>
+                      ) : (
+                        <ul className="mt-0.5 space-y-0.5">
+                          {getEditors(task).map((e, idx) => (
+                            <li key={idx} className="text-xs text-gray-700">
+                              {e.rolesText ? `${e.name} [${e.rolesText}]` : e.name}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
                   </div>
 
                   <div className="text-xs font-semibold">
