@@ -3895,7 +3895,8 @@ Description: ${s.description}
 Date: ${s.date}`,html:`<p>Hello,</p> <p>You have been assigned a new work. Please find the details below:</p> 
           <p><b>Title:</b> ${s.title}</p> 
           <p><b>Date:</b> ${s.date}</p> 
-          <p>Kindly review and confirm the work by visiting the <a href="https://mihirudahanayake.github.io/tmv/">Videography Manager</a> Website</p> 
+          <p><b>Description :</b> ${s.description}</p>
+          <p>Kindly review and confirm the work by visiting the <a href="https://tmv.fotmv.online/">Videography Manager</a> Website</p> 
           <p>If you encounter any issues or need further assistance, feel free to contact me.</p> 
           <p>Thank you.</p> 
           
@@ -3911,8 +3912,9 @@ Date: ${s.date}`,html:`<p>Hello,</p> <p>You have been assigned a new work. Pleas
 Description: ${n.description}
 Date: ${n.date}`,html:`<p>Hello,</p> <p>You have been assigned a work. Please find the details below:</p> 
           <p><b>Title:</b> ${n.title}</p> 
-          <p><b>Date:</b> ${n.date}</p> 
-          <p>Kindly review and confirm the work by visiting the <a href="https://mihirudahanayake.github.io/tmv/">Videography Manager</a> Website</p> 
+          <p><b>Date:</b> ${n.date}</p>
+          <p><b>Description:</b> ${n.description}</p> 
+          <p>Kindly review and confirm the work by visiting the <a href="https://tmv.fotmv.online/">Videography Manager</a> Website</p> 
           <p>If you encounter any issues or need further assistance, feel free to contact me.</p> 
           <p>Thank you.</p> 
           
