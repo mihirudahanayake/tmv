@@ -165,8 +165,16 @@ const PostingDates = () => {
     t.title.toLowerCase().includes(filter.toLowerCase())
   );
 
-  const formatDate = (d) =>
-    d ? d.toLocaleDateString() : 'Not set';
+const formatDate = (d) => {
+  if (!d) return 'Not set';
+  const day = String(d.getDate()).padStart(2, '0');
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const month = monthNames[d.getMonth()];
+  const year = d.getFullYear();
+  return `${day} ${month} ${year}`;
+};
+
 
   const selectedTasks = filtered.filter((t) => selectedIds.has(t.id));
 
