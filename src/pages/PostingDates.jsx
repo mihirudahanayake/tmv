@@ -179,44 +179,44 @@ const PostingDates = () => {
     doc.setFontSize(14);
     doc.text('Video schedule', 14, 16);
 
-    const rows = items.map((task) => {
-      const editorsArr = getEditors(task).map((e) =>
-        e.rolesText ? `${e.name} [${e.rolesText}]` : e.name
-      );
+const rows = items.map((task) => {
+  const editorsArr = getEditors(task).map((e) =>
+    e.rolesText ? `${e.name} [${e.rolesText}]` : e.name
+  );
 
-      const editors = editorsArr.length
-        ? editorsArr.join('\n') // each user on its own line
-        : 'No users found';
+  const editors = editorsArr.length
+    ? editorsArr.join('\n')
+    : 'No users found';
 
-      return [
-        task.title,
-        task.description || '',
-        formatDate(task.workDate),
-        formatDate(task.postingDate),
-        task.posted ? 'Posted' : 'Not posted',
-        editors,
-      ];
-    });
+  return [
+    task.title,
+    task.description || '',
+    formatDate(task.postingDate),
+    task.posted ? 'Posted' : 'Not posted',
+    editors,
+  ];
+});
 
-    autoTable(doc, {
-      startY: 22,
-      head: [['Title', 'Description', 'Work Date', 'Posting Date', 'Status', 'Member(s)']],
-      body: rows,
-      styles: { fontSize: 8 },
-      headStyles: {
-        fillColor: [33, 150, 243],
-        halign: 'center',
-        valign: 'middle'
-      },
-      columnStyles: {
-        0: { cellWidth: 50 },                   // Title
-        1: { cellWidth: 30 },                   // Description
-        2: { cellWidth: 20, halign: 'center' }, // Work Date
-        3: { cellWidth: 23, halign: 'center' }, // Posting Date
-        4: { cellWidth: 20, halign: 'center' }, // Status
-        5: { cellWidth: 'auto' }                // Users
-      }
-    });
+
+autoTable(doc, {
+  startY: 22,
+  head: [['Title', 'Description', 'Posting Date', 'Status', 'Member(s)']],
+  body: rows,
+  styles: { fontSize: 8 },
+  headStyles: {
+    fillColor: [33, 150, 243],
+    halign: 'center',
+    valign: 'middle'
+  },
+  columnStyles: {
+    0: { cellWidth: 50 },                  // Title
+    1: { cellWidth: 40 },                  // Description
+    2: { cellWidth: 23, halign: 'center' },// Posting Date
+    3: { cellWidth: 20, halign: 'center' },// Status
+    4: { cellWidth: 'auto' }               // Users
+  }
+});
+
 
     doc.save('video-schedule.pdf');
   };
