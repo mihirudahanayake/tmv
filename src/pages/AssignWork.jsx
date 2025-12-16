@@ -160,7 +160,7 @@ const handleSubmit = async (e) => {
         to: emails,
         message: {
           subject: `New work assigned: ${formData.title}`,
-          text: `You have been assigned to a new work:\n\nTitle: ${formData.title}\nDescription: ${formData.description}\nDate: ${formData.date}`,
+          text: `You have been assigned to a new work:\n\nTitle: ${formData.title}\nDate: ${formData.date}\nDescription: ${formData.description}`,
           html: `<p>Hello,</p> <p>You have been assigned a new work. Please find the details below:</p> 
           <p><b>Title:</b> ${formData.title}</p> 
           <p><b>Date:</b> ${formData.date}</p> 

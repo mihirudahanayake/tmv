@@ -150,7 +150,7 @@ const handleSave = async (e) => {
           to: emails,
           message: {
             subject: `You were assigned to a work: ${task.title}`,
-            text: `You have been assigned to the work "${task.title}".\n\nDescription: ${task.description}\nDate: ${task.date}`,
+            text: `You have been assigned to the work "${task.title}".\n\nDate: ${task.date}\nDescription: ${task.description}`,
             html: `<p>Hello,</p> <p>You have been assigned a work. Please find the details below:</p> 
           <p><b>Title:</b> ${task.title}</p> 
           <p><b>Date:</b> ${task.date}</p>
