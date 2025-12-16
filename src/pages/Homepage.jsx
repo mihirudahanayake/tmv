@@ -10,7 +10,7 @@ import {
   updateDoc,
   getDocs
 } from 'firebase/firestore';
-import { FaUserPlus, FaTasks } from 'react-icons/fa';
+import { FaUserPlus, FaTasks, FaCalendarAlt } from 'react-icons/fa';
 import Header from '../components/Header';
 import { db } from '../firebase/config';
 
@@ -152,6 +152,24 @@ const Homepage = () => {
                 Go to Assign Work
               </button>
             </div>
+              {/* Schedule Posting */}
+  <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-xl transition">
+    <div className="flex items-center gap-3 mb-4">
+      <FaCalendarAlt className="text-3xl sm:text-4xl text-purple-600" />
+      <h3 className="text-lg sm:text-xl font-semibold text-purple-600">
+        Schedule Posting
+      </h3>
+    </div>
+    <p className="text-gray-600 mb-4 text-sm sm:text-base">
+      Set posting dates, mark videos as posted, and view the posting queue.
+    </p>
+    <button
+      onClick={() => navigate('/posting-dates')}
+      className="w-full bg-purple-600 text-white py-2 sm:py-3 px-4 rounded hover:bg-purple-700 transition font-medium"
+    >
+      Go to Schedule Posting
+    </button>
+  </div>
           </div>
         </div>
       </main>
