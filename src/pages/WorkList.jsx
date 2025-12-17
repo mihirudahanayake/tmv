@@ -238,14 +238,22 @@ const WorkList = () => {
           </p>
         )}
 
-        {task.date && (
-          <div className="mb-3">
-            <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-500">
-              <FaCalendarAlt />
-              <span>Date: {new Date(task.date).toLocaleDateString()}</span>
-            </div>
-          </div>
-        )}
+{task.date && (
+  <div className="mb-3">
+    <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-500">
+      <FaCalendarAlt />
+      <span>
+        Date:{' '}
+        {new Date(task.date).toLocaleDateString('en-GB', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric'
+        })}
+      </span>
+    </div>
+  </div>
+)}
+
 
         <div className="mb-3">
           <div className="flex items-center justify-between mb-2">
