@@ -420,62 +420,73 @@ useEffect(() => {
   };
 
   // render team members
-  const renderTeamMembers = (task) => {
-    const assignedUsers = task.assignedUsers || [];
-    const otherMembers = assignedUsers.filter((uid) => uid !== user?.uid);
+const renderTeamMembers = (task) => {
+  const assignedUsers = task.assignedUsers || [];
+  const otherMembers = assignedUsers.filter((uid) => uid !== user?.uid);
 
-    if (otherMembers.length === 0) {
-      return (
-        <div className="mt-3">
-          <p className="text-xs text-gray-500 italic">
-            You are working on this alone
-          </p>
-        </div>
-      );
-    }
-
+  if (otherMembers.length === 0) {
     return (
       <div className="mt-3">
-        <p className="text-xs sm:text-sm font-semibold text-gray-700 mb-2">
-          Working with:
+        <p className="text-xs text-gray-500 italic">
+          You are working on this alone
         </p>
-        <div className="flex flex-wrap gap-2">
-          {otherMembers.map((uid) => {
-            const member = userDetails[uid];
-            if (!member) {
-              return (
-                <span
-                  key={uid}
-                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-100 text-xs text-gray-500"
-                >
-                  <div className="w-6 h-6 rounded-full bg-gray-300 flex items-center justify-center text-xs font-bold text-white">
-                    ?
-                  </div>
-                  Unknown User
-                </span>
-              );
-            }
-
-            return (
-              <div
-                key={uid}
-                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-100"
-              >
-                <div className="w-6 h-6 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center text-xs font-bold text-white">
-                  {(member.name || 'U').charAt(0).toUpperCase()}
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-xs sm:text-sm font-semibold text-gray-800">
-                    {member.name || 'User'}
-                  </span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
       </div>
     );
-  };
+  }
+
+  return (
+    <div className="mt-3">
+      <p className="text-xs sm:text-sm font-semibold text-gray-700 mb-2">
+        Working with:
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {otherMembers.map((uid) => {
+          const member = userDetails[uid];
+          if (!member) {
+            return (
+              <span
+                key={uid}
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-100 text-xs text-gray-500"
+              >
+                <div className="w-6 h-6 rounded-full bg-gray-300 flex items-center justify-center text-xs font-bold text-white">
+                  ?
+                </div>
+                Unknown User
+              </span>
+            );
+          }
+
+          const avatarUrl = member.photoURL || member.avatarUrl || null;
+
+          return (
+            <div
+              key={uid}
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-100"
+            >
+              {avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt={member.name || 'User'}
+                  className="w-7 h-7 rounded-full object-cover border border-white shadow-sm"
+                />
+              ) : (
+                <div className="w-7 h-7 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center text-xs font-bold text-white">
+                  {(member.name || 'U').charAt(0).toUpperCase()}
+                </div>
+              )}
+              <div className="flex flex-col">
+                <span className="text-xs sm:text-sm font-semibold text-gray-800">
+                  {member.name || 'User'}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 
   const visibleTasks = tasks.filter((t) => statusOf(t) !== 'complete');
   const pendingTasks = visibleTasks.filter(

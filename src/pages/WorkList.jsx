@@ -255,56 +255,92 @@ const WorkList = () => {
             </div>
           </div>
           <div className="space-y-2">
-            {userDetailsLocal.map((detail) => {
-              const userId = detail.userId;
-              const roles = detail.roles || [];
-              const userName = users[userId]?.name || 'Unknown';
+{userDetailsLocal.map((detail) => {
+  const userId = detail.userId;
+  const roles = detail.roles || [];
+  const userData = users[userId] || {};
+  const userName = userData.name || 'Unknown';
+  const avatarUrl = userData.photoURL || userData.avatarUrl || null;
 
-              return (
-                <div
-                  key={userId}
-                  className="bg-gray-50 px-2 py-1 rounded text-xs sm:text-sm"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="font-semibold text-gray-800">
-                      {userName}
-                    </p>
-                    {renderAcceptanceBadge(task, userId)}
-                  </div>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {roles.map((role) => {
-                      const key = `${userId}_${role}`;
-                      const isDone = roleCompletion[key] === 'done';
-                      return (
-                        <span
-                          key={role}
-                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs ${
-                            isDone
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-gray-200 text-gray-700'
-                          }`}
-                        >
-                          {isDone && <FaCheck className="text-xs" />}
-                          {role}
-                        </span>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-            {userDetailsLocal.length === 0 &&
-              task.assignedUsers?.map((userId) => (
-                <div
-                  key={userId}
-                  className="bg-gray-50 px-2 py-1 rounded text-xs sm:text-sm flex items-center justify-between"
-                >
-                  <span className="text-gray-700">
-                    {users[userId]?.name || 'Unknown'}
-                  </span>
-                  {renderAcceptanceBadge(task, userId)}
-                </div>
-              ))}
+  return (
+    <div
+      key={userId}
+      className="bg-gray-50 px-2 py-1 rounded text-xs sm:text-sm"
+    >
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          {avatarUrl ? (
+            <img
+              src={avatarUrl}
+              alt={userName}
+              className="w-7 h-7 rounded-full object-cover border border-white shadow-sm"
+            />
+          ) : (
+            <div className="w-7 h-7 rounded-full bg-blue-500 flex items-center justify-center text-xs font-bold text-white">
+              {userName.charAt(0).toUpperCase()}
+            </div>
+          )}
+          <p className="font-semibold text-gray-800">
+            {userName}
+          </p>
+        </div>
+        {renderAcceptanceBadge(task, userId)}
+      </div>
+      <div className="flex flex-wrap gap-1 mt-1">
+        {roles.map((role) => {
+          const key = `${userId}_${role}`;
+          const isDone = roleCompletion[key] === 'done';
+          return (
+            <span
+              key={role}
+              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs ${
+                isDone
+                  ? 'bg-green-100 text-green-800'
+                  : 'bg-gray-200 text-gray-700'
+              }`}
+            >
+              {isDone && <FaCheck className="text-xs" />}
+              {role}
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
+})}
+
+{userDetailsLocal.length === 0 &&
+  task.assignedUsers?.map((userId) => {
+    const userData = users[userId] || {};
+    const userName = userData.name || 'Unknown';
+    const avatarUrl = userData.photoURL || userData.avatarUrl || null;
+
+    return (
+      <div
+        key={userId}
+        className="bg-gray-50 px-2 py-1 rounded text-xs sm:text-sm flex items-center justify-between"
+      >
+        <div className="flex items-center gap-2">
+          {avatarUrl ? (
+            <img
+              src={avatarUrl}
+              alt={userName}
+              className="w-7 h-7 rounded-full object-cover border border-white shadow-sm"
+            />
+          ) : (
+            <div className="w-7 h-7 rounded-full bg-blue-500 flex items-center justify-center text-xs font-bold text-white">
+              {userName.charAt(0).toUpperCase()}
+            </div>
+          )}
+          <span className="text-gray-700">
+            {userName}
+          </span>
+        </div>
+        {renderAcceptanceBadge(task, userId)}
+      </div>
+    );
+  })}
+
           </div>
         </div>
 
