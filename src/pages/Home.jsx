@@ -111,48 +111,46 @@ const Home = () => {
     setTimeout(() => setToast(''), 4000);
   };
 
-  // Real-time listener for task changes
-  useEffect(() => {
-    if (!user) return;
+// real-time listener for this user's notifications (subcollection) with auto-hide
+useEffect(() => {
+  if (!user) return;
 
-    const q = query(
-      collection(db, 'works'),
-      where('assignedUsers', 'array-contains', user.uid)
-    );
+  const q = query(
+    collection(db, 'users', user.uid, 'notifications'),
+    where('read', '==', false)
+  );
 
-    const unsub = onSnapshot(q, (snap) => {
-      snap.docChanges().forEach((change) => {
-        if (change.type === 'added') {
-          const data = change.doc.data();
-          setTasks((prev) => {
-            const exists = prev.some((t) => t.id === change.doc.id);
-            if (exists) return prev;
-            const newTask = { id: change.doc.id, ...data };
-            return [newTask, ...prev].sort((a, b) => {
-              const da = a.date ? new Date(a.date).getTime() : 0;
-              const dbt = b.date ? new Date(b.date).getTime() : 0;
-              return dbt - da;
-            });
-          });
-        } else if (change.type === 'modified') {
-          const data = change.doc.data();
-          setTasks((prev) =>
-            prev
-              .map((t) => (t.id === change.doc.id ? { ...t, ...data } : t))
-              .sort((a, b) => {
-                const da = a.date ? new Date(a.date).getTime() : 0;
-                const dbt = b.date ? new Date(b.date).getTime() : 0;
-                return dbt - da;
-              })
+  const unsub = onSnapshot(q, (snap) => {
+    snap.docChanges().forEach((change) => {
+      if (change.type === 'added') {
+        const data = change.doc.data();
+        const notif = {
+          id: change.doc.id,
+          ...data,
+        };
+        setPopup(notif);
+
+        // auto-hide after 5s and mark as read
+        setTimeout(async () => {
+          try {
+            await updateDoc(
+              doc(db, 'users', user.uid, 'notifications', notif.id),
+              { read: true }
+            );
+          } catch (e) {
+            console.error('Failed to mark user notification read', e);
+          }
+          setPopup((current) =>
+            current && current.id === notif.id ? null : current
           );
-        } else if (change.type === 'removed') {
-          setTasks((prev) => prev.filter((t) => t.id !== change.doc.id));
-        }
-      });
+        }, 5000);
+      }
     });
+  });
 
-    return () => unsub();
-  }, [user]);
+  return () => unsub();
+}, [user]);
+
 
   // NEW: real-time listener for this user's notifications (subcollection)
   useEffect(() => {
@@ -493,23 +491,6 @@ const Home = () => {
     (t) => getUserAcceptance(t) === 'accepted' && allRolesDone(t)
   );
 
-  // popup click handler + text
-  const handleClickUserNotification = async () => {
-    if (!popup || !user) return;
-    try {
-      await updateDoc(
-        doc(db, 'users', user.uid, 'notifications', popup.id),
-        { read: true }
-      );
-    } catch (e) {
-      console.error('Failed to mark user notification read', e);
-    }
-    const notifId = popup.id;
-    setPopup(null);
-    // open notification details page
-    window.location.href = `/notifications/${notifId}`;
-  };
-
   const renderUserPopupText = () => {
     if (!popup) return '';
     if (popup.title) return popup.title;
@@ -525,21 +506,21 @@ const Home = () => {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
       <Header userType={userType} />
 
-      {/* User popup notification */}
-      {popup && (
-        <button
-          onClick={handleClickUserNotification}
-          className="fixed bottom-4 right-4 z-50 max-w-xs text-left bg-white shadow-xl rounded-xl border border-gray-200 px-4 py-3 text-sm hover:bg-gray-50"
-        >
-          <p className="font-semibold text-gray-800 mb-1">
-            {renderUserPopupText()}
-          </p>
-          {popup.message && (
-            <p className="text-gray-600 text-xs mb-1">{popup.message}</p>
-          )}
-          <p className="text-gray-500 text-xs">Tap to view details</p>
-        </button>
-      )}
+{/* User popup notification */}
+{popup && (
+  <div
+    className="fixed bottom-4 right-4 z-50 max-w-xs text-left bg-white shadow-xl rounded-xl border border-gray-200 px-4 py-3 text-sm"
+  >
+    <p className="font-semibold text-gray-800 mb-1">
+      {renderUserPopupText()}
+    </p>
+    {popup.message && (
+      <p className="text-gray-600 text-xs mb-1">{popup.message}</p>
+    )}
+    <p className="text-gray-500 text-xs">Notification</p>
+  </div>
+)}
+
 
       {toast && (
         <div className="fixed top-20 right-4 z-40 bg-gradient-to-r from-blue-600 to-purple-600 text-white text-sm px-5 py-3 rounded-lg shadow-2xl animate-slide-in">
