@@ -12,7 +12,7 @@ import {
 
 import { db } from '../firebase/config';
 import Header from '../components/Header';
-import { FaCalendarAlt, FaSpinner, FaTrash, FaBox, FaSearch } from 'react-icons/fa';
+import { FaCalendarAlt, FaSpinner, FaTrash, FaBox, FaSearch, FaUsers } from 'react-icons/fa';
 
 const WORK_ROLES = ['videography', 'editing'];
 
@@ -32,6 +32,7 @@ const TaskDetails = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [itemSearch, setItemSearch] = useState('');
+  const [userSearch, setUserSearch] = useState(''); // New user search state
 
   useEffect(() => {
     const load = async () => {
@@ -39,6 +40,13 @@ const TaskDetails = () => {
       try {
         const usersSnap = await getDocs(collection(db, 'users'));
         const usersData = usersSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        
+        // Sort users alphabetically by name
+        usersData.sort((a, b) => {
+          const nameA = (a.name || '').toLowerCase();
+          const nameB = (b.name || '').toLowerCase();
+          return nameA.localeCompare(nameB);
+        });
         setUsers(usersData);
 
         const itemsSnap = await getDocs(collection(db, 'inventory'));
@@ -112,76 +120,75 @@ const TaskDetails = () => {
     setTask((prev) => ({ ...prev, [name]: value }));
   };
 
-const handleSave = async (e) => {
-  e.preventDefault();
-  if (!task) return;
-  setSaving(true);
-  setError('');
-  setSuccess('');
+  const handleSave = async (e) => {
+    e.preventDefault();
+    if (!task) return;
+    setSaving(true);
+    setError('');
+    setSuccess('');
 
-  try {
-    const { id, ...rest } = task;
+    try {
+      const { id, ...rest } = task;
 
-    // old assigned users before edit
-    const oldUserIds = task.assignedUsers || [];
-    // new assigned users after edit
-    const newUserIds = assignedUserDetails.map((u) => u.userId);
+      // old assigned users before edit
+      const oldUserIds = task.assignedUsers || [];
+      // new assigned users after edit
+      const newUserIds = assignedUserDetails.map((u) => u.userId);
 
-    await updateDoc(doc(db, 'works', task.id), {
-      ...rest,
-      assignedUsers: newUserIds,
-      assignedUserDetails,
-      assignedItems
-    });
-
-    // users that were newly added
-    const newlyAddedIds = newUserIds.filter((uid) => !oldUserIds.includes(uid));
-
-    if (newlyAddedIds.length > 0) {
-      const emailPromises = newlyAddedIds.map(async (uid) => {
-        const snap = await getDoc(doc(db, 'users', uid));
-        const data = snap.data();
-        return data?.email || null;
+      await updateDoc(doc(db, 'works', task.id), {
+        ...rest,
+        assignedUsers: newUserIds,
+        assignedUserDetails,
+        assignedItems
       });
-      const emails = (await Promise.all(emailPromises)).filter(Boolean);
 
-      if (emails.length > 0) {
-        await addDoc(collection(db, 'mail'), {
-          to: emails,
-          message: {
-            subject: `You were assigned to a work: ${task.title}`,
-            text: `You have been assigned to the work "${task.title}".\n\nDate: ${task.date}\nDescription: ${task.description}`,
-            html: `<p>Hello,</p> <p>You have been assigned a work. Please find the details below:</p> 
-          <p><b>Title:</b> ${task.title}</p> 
-          <p><b>Date:</b> ${task.date}</p>
-          <p><b>Description:</b> ${task.description}</p> 
-          <p>Kindly review and confirm the work by visiting the <a href="https://tmv.fotmv.online/">Videography Manager</a> Website</p> 
-          <p>If you encounter any issues or need further assistance, feel free to contact me.</p> 
-          <p>Thank you.</p> 
-          
-          <p>Best regards,</p>
+      // users that were newly added
+      const newlyAddedIds = newUserIds.filter((uid) => !oldUserIds.includes(uid));
 
-          <p style="color:#A3A9AD">
-            <strong>Mihiru Dahanayake</strong><br>
-            <i>Acting Videography Department Head<br>FOT Media<br>Faculty Of Technology<br>Rajarata University of Sri Lanka<br>
-            <a href="tel:+94703426554" style="color:#0066cc; text-decoration:none;">070 342 6554</a><br>
-            <a href="mailto:mihirudahanayake@gmail.com" style="color:#0066cc; text-decoration:none;">mihiru.online@gmail.com</a></i><br>
-          </p>`
-          }
+      if (newlyAddedIds.length > 0) {
+        const emailPromises = newlyAddedIds.map(async (uid) => {
+          const snap = await getDoc(doc(db, 'users', uid));
+          const data = snap.data();
+          return data?.email || null;
         });
+        const emails = (await Promise.all(emailPromises)).filter(Boolean);
+
+        if (emails.length > 0) {
+          await addDoc(collection(db, 'mail'), {
+            to: emails,
+            message: {
+              subject: `You were assigned to a work: ${task.title}`,
+              text: `You have been assigned to the work "${task.title}".\n\nDate: ${task.date}\nDescription: ${task.description}`,
+              html: `<p>Hello,</p> <p>You have been assigned a work. Please find the details below:</p> 
+            <p><b>Title:</b> ${task.title}</p> 
+            <p><b>Date:</b> ${task.date}</p>
+            <p><b>Description:</b> ${task.description}</p> 
+            <p>Kindly review and confirm the work by visiting the <a href="https://tmv.fotmv.online/">Videography Manager</a> Website</p> 
+            <p>If you encounter any issues or need further assistance, feel free to contact me.</p> 
+            <p>Thank you.</p> 
+            
+            <p>Best regards,</p>
+
+            <p style="color:#A3A9AD">
+              <strong>Mihiru Dahanayake</strong><br>
+              <i>Acting Videography Department Head<br>FOT Media<br>Faculty Of Technology<br>Rajarata University of Sri Lanka<br>
+              <a href="tel:+94703426554" style="color:#0066cc; text-decoration:none;">070 342 6554</a><br>
+              <a href="mailto:mihirudahanayake@gmail.com" style="color:#0066cc; text-decoration:none;">mihiru.online@gmail.com</a></i><br>
+            </p>`
+            }
+          });
+        }
       }
+
+      setSuccess('Task updated successfully.');
+      setEditing(false);
+    } catch (err) {
+      console.error(err);
+      setError('Failed to update task.');
+    } finally {
+      setSaving(false);
     }
-
-    setSuccess('Task updated successfully.');
-    setEditing(false);
-  } catch (err) {
-    console.error(err);
-    setError('Failed to update task.');
-  } finally {
-    setSaving(false);
-  }
-};
-
+  };
 
   const handleDelete = async () => {
     if (!window.confirm('Are you sure you want to delete this task?')) return;
@@ -235,6 +242,14 @@ const handleSave = async (e) => {
     assignedUserDetails.some((u) => u.userId === uid);
   const getUserRoles = (uid) =>
     assignedUserDetails.find((u) => u.userId === uid)?.roles || [];
+
+  const normalizedUserSearch = userSearch.trim().toLowerCase();
+  const filteredUsers = users.filter((u) => {
+    if (!normalizedUserSearch) return true;
+    const name = (u.name || '').toLowerCase();
+    const card = (u.cardNumber || '').toLowerCase();
+    return name.includes(normalizedUserSearch) || card.includes(normalizedUserSearch);
+  });
 
   const normalizedItemSearch = itemSearch.trim().toLowerCase();
   const filteredItems = items.filter((item) => {
@@ -389,57 +404,73 @@ const handleSave = async (e) => {
 
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <FaUsers className="inline mr-2" />
               Assigned users and work types
             </label>
+            
+            {editing && (
+              <div className="relative mb-3">
+                <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs" />
+                <input
+                  type="text"
+                  placeholder="Search users by name or card..."
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                  className="w-full pl-8 pr-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            )}
+
             <div className="bg-white rounded border p-3 max-h-80 overflow-y-auto">
-              {users.map((u) => {
-                const assigned = isUserAssigned(u.id);
-                const roles = getUserRoles(u.id);
-
-                return (
-                  <div key={u.id} className="mb-2 p-2 rounded hover:bg-gray-50">
-                    <label className="flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={assigned}
-                        onChange={() => handleToggleUser(u.id)}
-                        disabled={!editing}
-                        className="mr-3 w-4 h-4"
-                      />
-                      <div className="flex-1">
-                        <p className="text-sm">
-                          {u.name || 'No name'}{' '}
-                          <span className="text-xs text-gray-500">
-                            ({u.cardNumber || '-'})
-                          </span>
-                        </p>
-                      </div>
-                    </label>
-
-                    {assigned && (
-                      <div className="mt-1 ml-7 flex flex-wrap gap-2 text-xs sm:text-sm">
-                        {WORK_ROLES.map((role) => (
-                          <button
-                            key={role}
-                            type="button"
-                            onClick={() => handleToggleRole(u.id, role)}
-                            disabled={!editing}
-                            className={`px-2 py-1 rounded border ${
-                              roles.includes(role)
-                                ? 'bg-green-600 text-white border-green-600'
-                                : 'bg-white text-gray-700 border-gray-300'
-                            } ${!editing ? 'cursor-default' : 'cursor-pointer'}`}
-                          >
-                            {role}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-              {users.length === 0 && (
+              {filteredUsers.length === 0 ? (
                 <p className="text-xs text-gray-500">No users found.</p>
+              ) : (
+                filteredUsers.map((u) => {
+                  const assigned = isUserAssigned(u.id);
+                  const roles = getUserRoles(u.id);
+
+                  return (
+                    <div key={u.id} className="mb-2 p-2 rounded hover:bg-gray-50">
+                      <label className="flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={assigned}
+                          onChange={() => handleToggleUser(u.id)}
+                          disabled={!editing}
+                          className="mr-3 w-4 h-4"
+                        />
+                        <div className="flex-1">
+                          <p className="text-sm">
+                            {u.name || 'No name'}{' '}
+                            <span className="text-xs text-gray-500">
+                              ({u.cardNumber || '-'})
+                            </span>
+                          </p>
+                        </div>
+                      </label>
+
+                      {assigned && (
+                        <div className="mt-1 ml-7 flex flex-wrap gap-2 text-xs sm:text-sm">
+                          {WORK_ROLES.map((role) => (
+                            <button
+                              key={role}
+                              type="button"
+                              onClick={() => handleToggleRole(u.id, role)}
+                              disabled={!editing}
+                              className={`px-2 py-1 rounded border ${
+                                roles.includes(role)
+                                  ? 'bg-green-600 text-white border-green-600'
+                                  : 'bg-white text-gray-700 border-gray-300'
+                              } ${!editing ? 'cursor-default' : 'cursor-pointer'}`}
+                            >
+                              {role}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
               )}
             </div>
           </div>
