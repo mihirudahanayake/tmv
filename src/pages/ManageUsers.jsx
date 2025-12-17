@@ -17,7 +17,7 @@ const ManageUsers = () => {
     const fetchUsers = async () => {
       try {
         const snap = await getDocs(collection(db, 'users'));
-        const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const data = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
         setUsers(data);
       } catch (err) {
         console.error('Error loading users:', err);
@@ -31,7 +31,7 @@ const ManageUsers = () => {
 
   const normalizedSearch = searchText.trim().toLowerCase();
 
-  const filteredUsers = users.filter(u => {
+  const filteredUsers = users.filter((u) => {
     // batch filter
     if (batchFilter !== 'all' && (u.batch || '') !== batchFilter) return false;
 
@@ -98,9 +98,19 @@ const ManageUsers = () => {
                 className="w-full text-left px-4 py-3 flex items-center justify-between hover:bg-gray-50"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
-                    <FaUser />
-                  </div>
+                  {/* Avatar: show photoURL if exists, otherwise icon */}
+                  {u.photoURL ? (
+                    <img
+                      src={u.photoURL}
+                      alt={u.name || 'User'}
+                      className="w-10 h-10 rounded-full object-cover border border-gray-200 bg-gray-100"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
+                      <FaUser />
+                    </div>
+                  )}
+
                   <div>
                     <p className="font-semibold text-gray-800 text-sm sm:text-base">
                       {u.name || 'No name'}

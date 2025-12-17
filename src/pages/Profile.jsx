@@ -2,8 +2,11 @@ import { useEffect, useState } from 'react';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { onAuthStateChanged, updatePassword, signOut } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { auth, db } from '../firebase/config';
 import Header from '../components/Header';
+
+const storage = getStorage();
 
 const Profile = () => {
   const [userData, setUserData] = useState(null);
@@ -21,8 +24,11 @@ const Profile = () => {
   const [passSuccess, setPassSuccess] = useState('');
   const [passwordForm, setPasswordForm] = useState({
     newPassword: '',
-    confirmPassword: ''
+    confirmPassword: '',
   });
+
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadError, setUploadError] = useState('');
 
   const navigate = useNavigate();
 
@@ -40,7 +46,7 @@ const Profile = () => {
           const data = {
             id: user.uid,
             ...snap.data(),
-            email: user.email || ''
+            email: user.email || '',
           };
           setUserData(data);
           setOriginalData(data);
@@ -57,7 +63,7 @@ const Profile = () => {
 
   const handleLogout = async () => {
     await signOut(auth);
-    navigate('/'); // login route
+    navigate('/');
   };
 
   const handleFieldChange = (e) => {
@@ -69,6 +75,7 @@ const Profile = () => {
   const startEditProfile = () => {
     setError('');
     setSuccessMsg('');
+    setUploadError('');
     setOriginalData(userData);
     setIsEditingProfile(true);
   };
@@ -76,6 +83,7 @@ const Profile = () => {
   const cancelEditProfile = () => {
     setError('');
     setSuccessMsg('');
+    setUploadError('');
     setUserData(originalData);
     setIsEditingProfile(false);
   };
@@ -150,6 +158,44 @@ const Profile = () => {
     }
   };
 
+  // Upload profile image to Firebase Storage and update Firestore
+  const handleProfileImageChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const user = auth.currentUser;
+    if (!user) {
+      setUploadError('You are not logged in.');
+      return;
+    }
+
+    setUploadError('');
+    setUploadingImage(true);
+
+    try {
+      const path = `memberProfileImage/${user.uid}/${Date.now()}-${file.name}`;
+      const storageRef = ref(storage, path);
+
+      const snapshot = await uploadBytes(storageRef, file); // upload file [web:62][web:144]
+      const downloadURL = await getDownloadURL(snapshot.ref); // get public URL [web:61][web:148]
+
+      // update Firestore user doc
+      const userRef = doc(db, 'users', user.uid);
+      await updateDoc(userRef, { photoURL: downloadURL });
+
+      // update local state so avatar changes immediately
+      setUserData((prev) => (prev ? { ...prev, photoURL: downloadURL } : prev));
+      setSuccessMsg('Profile picture updated.');
+    } catch (err) {
+      console.error(err);
+      setUploadError('Failed to upload profile picture.');
+    } finally {
+      setUploadingImage(false);
+      // reset file input value so same file can be chosen again if needed
+      e.target.value = '';
+    }
+  };
+
   const userType = userData?.userType === 'admin' ? 'admin' : 'user';
 
   const inputClass =
@@ -192,6 +238,69 @@ const Profile = () => {
 
         {status === 'ready' && userData && (
           <>
+            {/* Profile picture + basic info */}
+            <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 flex items-center gap-4 mb-6">
+              <div className="flex-shrink-0">
+                {userData.photoURL ? (
+                  <img
+                    src={userData.photoURL}
+                    alt={userData.name || 'Profile'}
+                    style={{
+                      width: 80,
+                      height: 80,
+                      borderRadius: '50%',
+                      objectFit: 'cover',
+                      border: '2px solid #e5e7eb',
+                      display: 'block',
+                      backgroundColor: '#f3f4f6',
+                    }}
+                  />
+                ) : (
+                  <div className="w-20 h-20 rounded-full bg-gray-300 flex items-center justify-center text-xl font-semibold text-white">
+                    {(userData.name || 'U').charAt(0).toUpperCase()}
+                  </div>
+                )}
+              </div>
+              <div className="flex-1">
+                <p className="text-lg font-semibold text-gray-800">
+                  {userData.name || 'Unnamed user'}
+                </p>
+                <p className="text-sm text-gray-600">{userData.email}</p>
+                <p className="text-xs text-gray-500 mt-1 capitalize">
+                  {userData.userType || 'user'}
+                </p>
+
+                {/* Upload button (only visible while editing) */}
+                {isEditingProfile && (
+                  <div className="mt-3">
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">
+                      Change profile picture
+                    </label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleProfileImageChange}
+                      className="text-xs text-stone-500
+                        file:mr-3 file:py-1 file:px-3 file:border file:border-gray-300
+                        file:text-xs file:font-medium
+                        file:bg-stone-50 file:text-stone-700
+                        hover:file:cursor-pointer hover:file:bg-blue-50 hover:file:text-blue-700"
+                    />
+                    {uploadingImage && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Uploading image...
+                      </p>
+                    )}
+                    {uploadError && (
+                      <p className="text-xs text-red-600 mt-1">
+                        {uploadError}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* Profile details + Edit toggle */}
             <form
               onSubmit={handleSaveProfile}
@@ -241,6 +350,7 @@ const Profile = () => {
               )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* existing fields unchanged */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">
                     Name
@@ -265,7 +375,7 @@ const Profile = () => {
                     value={userData.email || ''}
                     onChange={handleFieldChange}
                     className={inputClass}
-                    disabled // read-only email from Auth
+                    disabled
                   />
                 </div>
 
@@ -412,7 +522,7 @@ const Profile = () => {
               </div>
             </form>
 
-            {/* Change password section */}
+            {/* Change password section (unchanged) */}
             <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 space-y-3">
               <div className="flex justify-between items-center mb-1">
                 <h2 className="text-lg font-semibold text-gray-800">
@@ -464,7 +574,7 @@ const Profile = () => {
                       onChange={(e) =>
                         setPasswordForm((prev) => ({
                           ...prev,
-                          newPassword: e.target.value
+                          newPassword: e.target.value,
                         }))
                       }
                       className={inputClass}
@@ -484,7 +594,7 @@ const Profile = () => {
                       onChange={(e) =>
                         setPasswordForm((prev) => ({
                           ...prev,
-                          confirmPassword: e.target.value
+                          confirmPassword: e.target.value,
                         }))
                       }
                       className={inputClass}

@@ -18,6 +18,9 @@ import AdminRejectDetails from './pages/AdminRejectDetails';
 import UserRejectDetails from './pages/UserRejectDetails';
 import NotificationHistory from './pages/NotificationHistory';
 import PostingDates from './pages/PostingDates';
+import AdminNotifications from './pages/AdminNotifications';
+import UserNotifications from './pages/UserNotifications';
+import UserNotificationDetail from './pages/UserNotificationDetail';
 
 function App() {
   return (
@@ -40,6 +43,9 @@ function App() {
         <Route path="/user-reject-details" element={<UserRejectDetails />} />
         <Route path="/notifications" element={<AdminRoute><NotificationHistory /></AdminRoute>} />
         <Route path="/posting-dates" element={<AdminRoute><PostingDates /></AdminRoute>} />
+        <Route path="/admin/notifications" element={<AdminRoute><AdminNotifications /></AdminRoute>} />
+        <Route path="/notifications" element={<UserNotifications />} />
+        <Route path="/notifications/:notifId" element={<UserNotificationDetail />} />
       </Routes>
     </Router>
   );

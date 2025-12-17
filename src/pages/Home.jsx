@@ -8,7 +8,7 @@ import {
   where,
   onSnapshot,
   addDoc,
-  serverTimestamp
+  serverTimestamp,
 } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { db, auth } from '../firebase/config';
@@ -20,7 +20,7 @@ import {
   FaTimes,
   FaCheckCircle,
   FaHourglassHalf,
-  FaUndo
+  FaUndo,
 } from 'react-icons/fa';
 
 const Home = () => {
@@ -35,6 +35,9 @@ const Home = () => {
   const [rejectReason, setRejectReason] = useState('');
   const [selectedTask, setSelectedTask] = useState(null);
   const [showRejectedTasks, setShowRejectedTasks] = useState(true);
+
+  // NEW: popup notification for this user
+  const [popup, setPopup] = useState(null); // { id, title, message, type, workId, createdAt }
 
   const userType = 'user';
 
@@ -132,22 +135,42 @@ const Home = () => {
             });
           });
         } else if (change.type === 'modified') {
-          // Handle updates to existing tasks
           const data = change.doc.data();
           setTasks((prev) =>
-            prev.map((t) =>
-              t.id === change.doc.id
-                ? { ...t, ...data }
-                : t
-            ).sort((a, b) => {
-              const da = a.date ? new Date(a.date).getTime() : 0;
-              const dbt = b.date ? new Date(b.date).getTime() : 0;
-              return dbt - da;
-            })
+            prev
+              .map((t) => (t.id === change.doc.id ? { ...t, ...data } : t))
+              .sort((a, b) => {
+                const da = a.date ? new Date(a.date).getTime() : 0;
+                const dbt = b.date ? new Date(b.date).getTime() : 0;
+                return dbt - da;
+              })
           );
         } else if (change.type === 'removed') {
-          // Remove task if user is no longer assigned
           setTasks((prev) => prev.filter((t) => t.id !== change.doc.id));
+        }
+      });
+    });
+
+    return () => unsub();
+  }, [user]);
+
+  // NEW: real-time listener for this user's notifications (subcollection)
+  useEffect(() => {
+    if (!user) return;
+
+    const q = query(
+      collection(db, 'users', user.uid, 'notifications'),
+      where('read', '==', false)
+    );
+
+    const unsub = onSnapshot(q, (snap) => {
+      snap.docChanges().forEach((change) => {
+        if (change.type === 'added') {
+          const data = change.doc.data();
+          setPopup({
+            id: change.doc.id,
+            ...data,
+          });
         }
       });
     });
@@ -159,7 +182,7 @@ const Home = () => {
 
   const getUserAcceptance = (task) => {
     const acceptance = task.userAcceptance || {};
-    return acceptance[user.uid] || 'pending';
+    return acceptance[user?.uid] || 'pending';
   };
 
   // ACCEPT + notification
@@ -177,13 +200,24 @@ const Home = () => {
       );
       showToast('Work accepted successfully!');
 
+      // global admin notification
       await addDoc(collection(db, 'notifications'), {
         type: 'accept',
         workId: task.id,
         userId: user.uid,
         userName: user.displayName || '',
         createdAt: serverTimestamp(),
-        read: false
+        read: false,
+      });
+
+      // user history notification
+      await addDoc(collection(db, 'users', user.uid, 'notifications'), {
+        type: 'accept',
+        workId: task.id,
+        title: task.title || 'Work accepted',
+        message: 'You accepted this work.',
+        createdAt: serverTimestamp(),
+        read: false,
       });
     } catch (err) {
       console.error('Failed to accept:', err);
@@ -211,7 +245,7 @@ const Home = () => {
       rejections[user.uid] = {
         reason: rejectReason.trim(),
         timestamp: new Date().toISOString(),
-        approved: false
+        approved: false,
       };
 
       const ref = doc(db, 'works', selectedTask.id);
@@ -227,13 +261,24 @@ const Home = () => {
       setShowRejectModal(false);
       setSelectedTask(null);
 
+      // global admin notification
       await addDoc(collection(db, 'notifications'), {
         type: 'reject',
         workId: selectedTask.id,
         userId: user.uid,
         userName: user.displayName || '',
         createdAt: serverTimestamp(),
-        read: false
+        read: false,
+      });
+
+      // user history notification
+      await addDoc(collection(db, 'users', user.uid, 'notifications'), {
+        type: 'reject',
+        workId: selectedTask.id,
+        title: selectedTask.title || 'Work rejected',
+        message: 'You rejected this work.',
+        createdAt: serverTimestamp(),
+        read: false,
       });
     } catch (err) {
       console.error('Failed to reject:', err);
@@ -287,22 +332,42 @@ const Home = () => {
 
     try {
       if (allDoneNow && !allDoneBefore) {
+        // global admin notification
         await addDoc(collection(db, 'notifications'), {
           type: 'done',
           workId: task.id,
           userId: user.uid,
           userName: user.displayName || '',
           createdAt: serverTimestamp(),
-          read: false
+          read: false,
+        });
+        // user history
+        await addDoc(collection(db, 'users', user.uid, 'notifications'), {
+          type: 'done',
+          workId: task.id,
+          title: task.title || 'Work done',
+          message: 'All your roles for this work are marked done.',
+          createdAt: serverTimestamp(),
+          read: false,
         });
       } else if (!allDoneNow && allDoneBefore) {
+        // global admin notification
         await addDoc(collection(db, 'notifications'), {
           type: 'undo-done',
           workId: task.id,
           userId: user.uid,
           userName: user.displayName || '',
           createdAt: serverTimestamp(),
-          read: false
+          read: false,
+        });
+        // user history
+        await addDoc(collection(db, 'users', user.uid, 'notifications'), {
+          type: 'undo-done',
+          workId: task.id,
+          title: task.title || 'Work status changed',
+          message: 'You undid a previously completed work status.',
+          createdAt: serverTimestamp(),
+          read: false,
         });
       }
 
@@ -359,8 +424,8 @@ const Home = () => {
   // render team members
   const renderTeamMembers = (task) => {
     const assignedUsers = task.assignedUsers || [];
-    const otherMembers = assignedUsers.filter((uid) => uid !== user.uid);
-    
+    const otherMembers = assignedUsers.filter((uid) => uid !== user?.uid);
+
     if (otherMembers.length === 0) {
       return (
         <div className="mt-3">
@@ -393,11 +458,6 @@ const Home = () => {
               );
             }
 
-            // Get roles for this member
-            const details = task.assignedUserDetails || [];
-            const memberDetail = details.find((d) => d.userId === uid);
-            const roles = memberDetail?.roles || [];
-
             return (
               <div
                 key={uid}
@@ -410,11 +470,6 @@ const Home = () => {
                   <span className="text-xs sm:text-sm font-semibold text-gray-800">
                     {member.name || 'User'}
                   </span>
-                  {/* {roles.length > 0 && (
-                    <span className="text-xs text-gray-600">
-                      {roles.join(', ')}
-                    </span>
-                  )} */}
                 </div>
               </div>
             );
@@ -438,12 +493,56 @@ const Home = () => {
     (t) => getUserAcceptance(t) === 'accepted' && allRolesDone(t)
   );
 
+  // popup click handler + text
+  const handleClickUserNotification = async () => {
+    if (!popup || !user) return;
+    try {
+      await updateDoc(
+        doc(db, 'users', user.uid, 'notifications', popup.id),
+        { read: true }
+      );
+    } catch (e) {
+      console.error('Failed to mark user notification read', e);
+    }
+    const notifId = popup.id;
+    setPopup(null);
+    // open notification details page
+    window.location.href = `/notifications/${notifId}`;
+  };
+
+  const renderUserPopupText = () => {
+    if (!popup) return '';
+    if (popup.title) return popup.title;
+    if (popup.type === 'accept') return 'You accepted a work.';
+    if (popup.type === 'reject') return 'You rejected a work.';
+    if (popup.type === 'done') return 'All your roles for a work are done.';
+    if (popup.type === 'undo-done')
+      return 'You changed a previously completed work.';
+    return 'New notification.';
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
       <Header userType={userType} />
 
+      {/* User popup notification */}
+      {popup && (
+        <button
+          onClick={handleClickUserNotification}
+          className="fixed bottom-4 right-4 z-50 max-w-xs text-left bg-white shadow-xl rounded-xl border border-gray-200 px-4 py-3 text-sm hover:bg-gray-50"
+        >
+          <p className="font-semibold text-gray-800 mb-1">
+            {renderUserPopupText()}
+          </p>
+          {popup.message && (
+            <p className="text-gray-600 text-xs mb-1">{popup.message}</p>
+          )}
+          <p className="text-gray-500 text-xs">Tap to view details</p>
+        </button>
+      )}
+
       {toast && (
-        <div className="fixed top-20 right-4 z-50 bg-gradient-to-r from-blue-600 to-purple-600 text-white text-sm px-5 py-3 rounded-lg shadow-2xl animate-slide-in">
+        <div className="fixed top-20 right-4 z-40 bg-gradient-to-r from-blue-600 to-purple-600 text-white text-sm px-5 py-3 rounded-lg shadow-2xl animate-slide-in">
           {toast}
         </div>
       )}

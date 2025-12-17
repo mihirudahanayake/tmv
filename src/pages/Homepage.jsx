@@ -8,7 +8,7 @@ import {
   onSnapshot,
   doc,
   updateDoc,
-  getDocs
+  getDocs,
 } from 'firebase/firestore';
 import { FaUserPlus, FaTasks, FaCalendarAlt } from 'react-icons/fa';
 import Header from '../components/Header';
@@ -52,7 +52,7 @@ const Homepage = () => {
             const data = change.doc.data();
             setPopup({
               id: change.doc.id,
-              ...data
+              ...data,
             });
           }
         });
@@ -115,7 +115,7 @@ const Homepage = () => {
           </h2>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-            {/* Work list instead of Create User */}
+            {/* Work list */}
             <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-xl transition">
               <div className="flex items-center gap-3 mb-4">
                 <FaTasks className="text-3xl sm:text-4xl text-blue-600" />
@@ -124,7 +124,8 @@ const Homepage = () => {
                 </h3>
               </div>
               <p className="text-gray-600 mb-4 text-sm sm:text-base">
-                View all works, see user acceptance and progress, and manage task status.
+                View all works, see user acceptance and progress, and manage
+                task status.
               </p>
               <button
                 onClick={() => navigate('/work-list')}
@@ -134,7 +135,7 @@ const Homepage = () => {
               </button>
             </div>
 
-            {/* Assign work card */}
+            {/* Work Assignment */}
             <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-xl transition">
               <div className="flex items-center gap-3 mb-4">
                 <FaUserPlus className="text-3xl sm:text-4xl text-green-600" />
@@ -149,27 +150,49 @@ const Homepage = () => {
                 onClick={() => navigate('/assign-work')}
                 className="w-full bg-green-600 text-white py-2 sm:py-3 px-4 rounded hover:bg-green-700 transition font-medium"
               >
-                Go to Assign Work
+                Go to Work Assignment
               </button>
             </div>
-              {/* Schedule Posting */}
-  <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-xl transition">
-    <div className="flex items-center gap-3 mb-4">
-      <FaCalendarAlt className="text-3xl sm:text-4xl text-purple-600" />
-      <h3 className="text-lg sm:text-xl font-semibold text-purple-600">
-        Schedule Posting
-      </h3>
-    </div>
-    <p className="text-gray-600 mb-4 text-sm sm:text-base">
-      Set posting dates, mark videos as posted, and view the posting queue.
-    </p>
-    <button
-      onClick={() => navigate('/posting-dates')}
-      className="w-full bg-purple-600 text-white py-2 sm:py-3 px-4 rounded hover:bg-purple-700 transition font-medium"
-    >
-      Go to Schedule Posting
-    </button>
-  </div>
+
+            {/* Schedule Posting */}
+            <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-xl transition">
+              <div className="flex items-center gap-3 mb-4">
+                <FaCalendarAlt className="text-3xl sm:text-4xl text-purple-600" />
+                <h3 className="text-lg sm:text-xl font-semibold text-purple-600">
+                  Schedule Posting
+                </h3>
+              </div>
+              <p className="text-gray-600 mb-4 text-sm sm:text-base">
+                Set posting dates, mark videos as posted, and view the posting
+                queue.
+              </p>
+              <button
+                onClick={() => navigate('/posting-dates')}
+                className="w-full bg-purple-600 text-white py-2 sm:py-3 px-4 rounded hover:bg-purple-700 transition font-medium"
+              >
+                Go to Schedule Posting
+              </button>
+            </div>
+
+            {/* Send Notifications */}
+            <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-xl transition">
+              <div className="flex items-center gap-3 mb-4">
+                {/* reuse an icon or add a new one if you like */}
+                <FaTasks className="text-3xl sm:text-4xl text-orange-500" />
+                <h3 className="text-lg sm:text-xl font-semibold text-orange-500">
+                  Send Notifications
+                </h3>
+              </div>
+              <p className="text-gray-600 mb-4 text-sm sm:text-base">
+                Send announcements or messages to all members or selected users.
+              </p>
+              <button
+                onClick={() => navigate('/admin/notifications')}
+                className="w-full bg-orange-500 text-white py-2 sm:py-3 px-4 rounded hover:bg-orange-600 transition font-medium"
+              >
+                Go to Send Notifications
+              </button>
+            </div>
           </div>
         </div>
       </main>

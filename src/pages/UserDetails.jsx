@@ -76,12 +76,28 @@ const UserDetails = () => {
 
         {!loading && user && (
           <>
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-2">
-              {user.name || 'User details'}
-            </h1>
-            <p className="text-sm sm:text-base text-gray-600 mb-4">
-              {user.email}
-            </p>
+            {/* Header with avatar */}
+            <div className="flex items-center gap-4 mb-4">
+              {user.photoURL ? (
+                <img
+                  src={user.photoURL}
+                  alt={user.name || 'User'}
+                  className="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover border border-gray-200 bg-gray-100"
+                />
+              ) : (
+                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gray-300 flex items-center justify-center text-2xl font-semibold text-white">
+                  {(user.name || 'U').charAt(0).toUpperCase()}
+                </div>
+              )}
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">
+                  {user.name || 'User details'}
+                </h1>
+                <p className="text-sm sm:text-base text-gray-600">
+                  {user.email}
+                </p>
+              </div>
+            </div>
 
             <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-6 text-sm sm:text-base space-y-2">
               <p>
@@ -191,7 +207,9 @@ const UserDetails = () => {
                                       : 'bg-gray-100 text-gray-700'
                                   }`}
                                 >
-                                  {done && <FaCheck className="text-xs" />}
+                                  {done && (
+                                    <FaCheck className="text-xs" />
+                                  )}
                                   {role}
                                 </span>
                               );
