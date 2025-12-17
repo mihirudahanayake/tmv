@@ -27,9 +27,12 @@ function App() {
   return (
     <Router>
       <Routes>
+        {/* auth / common */}
         <Route path="/" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/home" element={<Home />} />
+
+        {/* admin core */}
         <Route path="/admin-home" element={<AdminRoute><Homepage /></AdminRoute>} />
         <Route path="/create-user" element={<AdminRoute><CreateUser /></AdminRoute>} />
         <Route path="/assign-work" element={<AdminRoute><AssignWork /></AdminRoute>} />
@@ -42,12 +45,16 @@ function App() {
         <Route path="/inventory" element={<AdminRoute><Inventory /></AdminRoute>} />
         <Route path="/admin-reject-details" element={<AdminRoute><AdminRejectDetails /></AdminRoute>} />
         <Route path="/user-reject-details" element={<UserRejectDetails />} />
-        <Route path="/notifications" element={<AdminRoute><NotificationHistory /></AdminRoute>} />
         <Route path="/posting-dates" element={<AdminRoute><PostingDates /></AdminRoute>} />
+
+        {/* ADMIN notifications list + details */}
+        <Route path="/notifications" element={<AdminRoute><NotificationHistory /></AdminRoute>} />
         <Route path="/admin/notifications" element={<AdminRoute><AdminNotifications /></AdminRoute>} />
-        <Route path="/notifications" element={<UserNotifications />} />
-        <Route path="/notifications/:notifId" element={<UserNotificationDetail />} />
-        <Route path="/notifications/:notifId" element={<AdminRoute><NotificationDetails /></AdminRoute>} />
+        <Route path="/admin/notifications/:notifId" element={<AdminRoute><NotificationDetails /></AdminRoute>} />
+
+        {/* USER notifications list + details – this is the structure you meant */}
+        <Route path="/user/notifications" element={<UserNotifications />} />
+        <Route path="/user/notifications/:notifId" element={<UserNotificationDetail />} />
       </Routes>
     </Router>
   );

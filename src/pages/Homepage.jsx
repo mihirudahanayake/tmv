@@ -51,7 +51,7 @@ const Homepage = () => {
           if (change.type === 'added') {
             const data = change.doc.data();
             setPopup({
-              id: change.doc.id,
+              id: change.doc.id, // Firestore doc id
               ...data,
             });
           }
@@ -68,7 +68,7 @@ const Homepage = () => {
     };
   }, []);
 
-  // CLICK: mark read + open NEW PAGE for this notification
+  // CLICK: mark read + open details page for this notification
   const handleClickNotification = async () => {
     if (!popup) return;
     try {
@@ -77,14 +77,11 @@ const Homepage = () => {
       console.error('Failed to mark notification read', e);
     }
 
-    const notifId = popup.id;
+    const notifId = popup.id; // Firestore doc id
     setPopup(null);
 
-    // If using HashRouter (looks like you are, with # in URL)
-    const url = `${window.location.origin}/#/notifications/${notifId}`;
-
-    // open notification details page in new tab
-    window.open(url, '_blank');
+    // Go to admin notification details (matches App.jsx route)
+    navigate(`/admin/notifications/${notifId}`);
   };
 
   const renderPopupText = () => {

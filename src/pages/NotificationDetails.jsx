@@ -1,14 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import {
-  doc,
-  getDoc,
-  collection,
-  getDocs,
-} from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
+import { FaCalendarAlt } from 'react-icons/fa';
 import { db } from '../firebase/config';
 import Header from '../components/Header';
-import { FaCalendarAlt } from 'react-icons/fa';
 
 const NotificationDetails = () => {
   const { notifId } = useParams();
@@ -16,7 +11,7 @@ const NotificationDetails = () => {
 
   const [notification, setNotification] = useState(null);
   const [task, setTask] = useState(null);
-  const [user, setUser] = useState(null); // user who triggered notification
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -25,7 +20,6 @@ const NotificationDetails = () => {
       setLoading(true);
       setError('');
       try {
-        // 1) notification
         const notifRef = doc(db, 'notifications', notifId);
         const notifSnap = await getDoc(notifRef);
         if (!notifSnap.exists()) {
@@ -36,7 +30,6 @@ const NotificationDetails = () => {
         const notifData = { id: notifSnap.id, ...notifSnap.data() };
         setNotification(notifData);
 
-        // 2) work (task)
         if (notifData.workId) {
           const workSnap = await getDoc(doc(db, 'works', notifData.workId));
           if (workSnap.exists()) {
@@ -44,7 +37,6 @@ const NotificationDetails = () => {
           }
         }
 
-        // 3) user who triggered notification
         if (notifData.userId) {
           const userSnap = await getDoc(doc(db, 'users', notifData.userId));
           if (userSnap.exists()) {
@@ -205,7 +197,6 @@ const NotificationDetails = () => {
           )}
         </section>
 
-        {/* Optional message field if you add it later */}
         {notification.message && (
           <section className="mb-4 bg-white rounded-lg shadow p-4">
             <h2 className="text-sm font-semibold text-gray-800 mb-2">
