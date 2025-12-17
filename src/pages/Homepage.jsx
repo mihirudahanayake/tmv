@@ -68,6 +68,7 @@ const Homepage = () => {
     };
   }, []);
 
+  // CLICK: mark read + open NEW PAGE for this notification
   const handleClickNotification = async () => {
     if (!popup) return;
     try {
@@ -75,10 +76,15 @@ const Homepage = () => {
     } catch (e) {
       console.error('Failed to mark notification read', e);
     }
-    const workId = popup.workId;
+
+    const notifId = popup.id;
     setPopup(null);
-    // open task details from notification
-    navigate(`/tasks/${workId}`);
+
+    // If using HashRouter (looks like you are, with # in URL)
+    const url = `${window.location.origin}/#/notifications/${notifId}`;
+
+    // open notification details page in new tab
+    window.open(url, '_blank');
   };
 
   const renderPopupText = () => {
@@ -177,7 +183,6 @@ const Homepage = () => {
             {/* Send Notifications */}
             <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-xl transition">
               <div className="flex items-center gap-3 mb-4">
-                {/* reuse an icon or add a new one if you like */}
                 <FaTasks className="text-3xl sm:text-4xl text-orange-500" />
                 <h3 className="text-lg sm:text-xl font-semibold text-orange-500">
                   Send Notifications

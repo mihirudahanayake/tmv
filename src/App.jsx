@@ -21,6 +21,7 @@ import PostingDates from './pages/PostingDates';
 import AdminNotifications from './pages/AdminNotifications';
 import UserNotifications from './pages/UserNotifications';
 import UserNotificationDetail from './pages/UserNotificationDetail';
+import NotificationDetails from './pages/NotificationDetails';
 
 function App() {
   return (
@@ -46,6 +47,7 @@ function App() {
         <Route path="/admin/notifications" element={<AdminRoute><AdminNotifications /></AdminRoute>} />
         <Route path="/notifications" element={<UserNotifications />} />
         <Route path="/notifications/:notifId" element={<UserNotificationDetail />} />
+        <Route path="/notifications/:notifId" element={<AdminRoute><NotificationDetails /></AdminRoute>} />
       </Routes>
     </Router>
   );
