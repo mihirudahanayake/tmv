@@ -23,6 +23,7 @@ const WorkList = () => {
   const [searchText, setSearchText] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [statusFilter, setStatusFilter] = useState('accepted'); // NEW: default accepted
 
   const navigate = useNavigate();
 
@@ -74,8 +75,47 @@ const WorkList = () => {
 
   const normalizedSearch = searchText.trim().toLowerCase();
 
+  // chip color
+  const getStatusColor = (status) => {
+    const colors = {
+      pending: 'bg-red-100 text-red-800',
+      accepted: 'bg-orange-100 text-orange-800',
+      done: 'bg-blue-100 text-blue-800',
+      completed: 'bg-green-100 text-green-800'
+    };
+    return colors[status] || colors.pending;
+  };
+
+  // derived status for chip + filter
+  const getDerivedStatus = (task) => {
+    if ((task.status || '').toLowerCase() === 'complete') {
+      return 'completed';
+    }
+
+    const userDetails = task.assignedUserDetails || [];
+    const roleCompletion = task.roleCompletion || {};
+    const acceptance = task.userAcceptance || {};
+
+    if (!userDetails.length) return 'pending';
+
+    const allAccepted = userDetails.every(
+      (d) => acceptance[d.userId] === 'accepted'
+    );
+    if (!allAccepted) return 'pending';
+
+    const allRolesDone = userDetails.every((d) =>
+      (d.roles || []).every(
+        (role) => roleCompletion[`${d.userId}_${role}`] === 'done'
+      )
+    );
+
+    if (!allRolesDone) return 'accepted';
+    return 'done';
+  };
+
   const filteredAndSorted = tasks
     .filter((task) => {
+      // date filter
       if (startDate || endDate) {
         if (!task.date) return false;
         const d = new Date(task.date);
@@ -86,6 +126,11 @@ const WorkList = () => {
         if (endDate && iso > endDate) return false;
       }
 
+      // NEW: status filter
+      const derived = getDerivedStatus(task); // 'pending' | 'accepted' | 'done' | 'completed'
+      if (statusFilter !== 'all' && derived !== statusFilter) return false;
+
+      // search filter
       if (!normalizedSearch) return true;
 
       const title = (task.title || '').toLowerCase();
@@ -127,47 +172,6 @@ const WorkList = () => {
     );
   }
 
-  // color for the rounded chip
-const getStatusColor = (status) => {
-  const colors = {
-    pending: 'bg-red-100 text-red-800',
-    accepted: 'bg-orange-100 text-orange-800',
-    done: 'bg-blue-100 text-blue-800',
-    completed: 'bg-green-100 text-green-800'
-  };
-  return colors[status] || colors.pending;
-};
-
-
-  // derive single label shown in the rounded chip
-const getDerivedStatus = (task) => {
-  // if admin already marked complete, always show completed
-  if ((task.status || '').toLowerCase() === 'complete') {
-    return 'completed';
-  }
-
-  const userDetails = task.assignedUserDetails || [];
-  const roleCompletion = task.roleCompletion || {};
-  const acceptance = task.userAcceptance || {};
-
-  if (!userDetails.length) return 'pending';
-
-  const allAccepted = userDetails.every(
-    (d) => acceptance[d.userId] === 'accepted'
-  );
-  if (!allAccepted) return 'pending';       // red
-
-  const allRolesDone = userDetails.every((d) =>
-    (d.roles || []).every(
-      (role) => roleCompletion[`${d.userId}_${role}`] === 'done'
-    )
-  );
-
-  if (!allRolesDone) return 'accepted';     // orange
-  return 'done';                            // blue
-};
-
-
   const renderAcceptanceBadge = (task, userId) => {
     const acceptance = task.userAcceptance || {};
     const state = acceptance[userId] || 'pending';
@@ -199,8 +203,8 @@ const getDerivedStatus = (task) => {
   };
 
   const renderTaskCard = (task, isCompleteSection = false) => {
-    const status = getDerivedStatus(task); // what shows in the rounded chip
-    const userDetails = task.assignedUserDetails || [];
+    const status = getDerivedStatus(task);
+    const userDetailsLocal = task.assignedUserDetails || [];
     const roleCompletion = task.roleCompletion || {};
     const assignedItems = task.assignedItems || [];
 
@@ -251,7 +255,7 @@ const getDerivedStatus = (task) => {
             </div>
           </div>
           <div className="space-y-2">
-            {userDetails.map((detail) => {
+            {userDetailsLocal.map((detail) => {
               const userId = detail.userId;
               const roles = detail.roles || [];
               const userName = users[userId]?.name || 'Unknown';
@@ -289,7 +293,7 @@ const getDerivedStatus = (task) => {
                 </div>
               );
             })}
-            {userDetails.length === 0 &&
+            {userDetailsLocal.length === 0 &&
               task.assignedUsers?.map((userId) => (
                 <div
                   key={userId}
@@ -388,6 +392,17 @@ const getDerivedStatus = (task) => {
                 className="w-full px-2 py-2 border rounded text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 aria-label="End date"
               />
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="w-full px-2 py-2 border rounded text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="accepted">Accepted</option>
+                <option value="pending">Pending</option>
+                <option value="done">Done</option>
+                <option value="completed">Completed</option>
+                <option value="all">All status</option>
+              </select>
             </div>
           </div>
         </div>
