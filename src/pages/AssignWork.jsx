@@ -49,6 +49,14 @@ const AssignWork = () => {
         id: doc.id,
         ...doc.data()
       }));
+      
+      // Sort alphabetically by name
+      usersData.sort((a, b) => {
+        const nameA = (a.name || '').toLowerCase();
+        const nameB = (b.name || '').toLowerCase();
+        return nameA.localeCompare(nameB);
+      });
+      
       setUsers(usersData);
     } catch (error) {
       console.error('Error fetching users:', error);
@@ -126,77 +134,76 @@ const AssignWork = () => {
     }));
   };
 
-const handleSubmit = async (e) => {
-  e.preventDefault();
-  setLoading(true);
-  setMessage({ type: '', text: '' });
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setMessage({ type: '', text: '' });
 
-  try {
-    // 1) Create work document
-    await addDoc(collection(db, 'works'), {
-      title: formData.title,
-      description: formData.description,
-      date: formData.date,
-      priority: formData.priority,
-      assignedUsers: formData.assignedUsers.map((u) => u.userId),
-      assignedUserDetails: formData.assignedUsers,
-      assignedItems: formData.assignedItems,
-      createdAt: new Date().toISOString(),
-      status: 'pending'
-    });
-
-    // 2) Get emails of assigned users from `users` collection
-    const emailPromises = formData.assignedUsers.map(async ({ userId }) => {
-      const snap = await getDoc(doc(db, 'users', userId));
-      const data = snap.data();
-      return data?.email || null; // assumes each user doc has `email`
-    });
-
-    const emails = (await Promise.all(emailPromises)).filter(Boolean);
-
-    // 3) Write `mail` document so Trigger Email extension sends emails
-    if (emails.length > 0) {
-      await addDoc(collection(db, 'mail'), {
-        to: emails,
-        message: {
-          subject: `New work assigned: ${formData.title}`,
-          text: `You have been assigned to a new work:\n\nTitle: ${formData.title}\nDate: ${formData.date}\nDescription: ${formData.description}`,
-          html: `<p>Hello,</p> <p>You have been assigned a new work. Please find the details below:</p> 
-          <p><b>Title:</b> ${formData.title}</p> 
-          <p><b>Date:</b> ${formData.date}</p> 
-          <p><b>Description :</b> ${formData.description}</p>
-          <p>Kindly review and confirm the work by visiting the <a href="https://tmv.fotmv.online/">Videography Manager</a> Website</p> 
-          <p>If you encounter any issues or need further assistance, feel free to contact me.</p> 
-          <p>Thank you.</p> 
-          
-          <p>Best regards,</p>
-
-          <p style="color:#A3A9AD">
-            <strong>Mihiru Dahanayake</strong><br>
-            <i>Acting Videography Department Head<br>FOT Media<br>Faculty Of Technology<br>Rajarata University of Sri Lanka<br>
-            <a href="tel:+94703426554" style="color:#0066cc; text-decoration:none;">070 342 6554</a><br>
-            <a href="mailto:mihirudahanayake@gmail.com" style="color:#0066cc; text-decoration:none;">mihiru.online@gmail.com</a></i><br>
-          </p>`
-        }
+    try {
+      // 1) Create work document
+      await addDoc(collection(db, 'works'), {
+        title: formData.title,
+        description: formData.description,
+        date: formData.date,
+        priority: formData.priority,
+        assignedUsers: formData.assignedUsers.map((u) => u.userId),
+        assignedUserDetails: formData.assignedUsers,
+        assignedItems: formData.assignedItems,
+        createdAt: new Date().toISOString(),
+        status: 'pending'
       });
+
+      // 2) Get emails of assigned users from `users` collection
+      const emailPromises = formData.assignedUsers.map(async ({ userId }) => {
+        const snap = await getDoc(doc(db, 'users', userId));
+        const data = snap.data();
+        return data?.email || null; // assumes each user doc has `email`
+      });
+
+      const emails = (await Promise.all(emailPromises)).filter(Boolean);
+
+      // 3) Write `mail` document so Trigger Email extension sends emails
+      if (emails.length > 0) {
+        await addDoc(collection(db, 'mail'), {
+          to: emails,
+          message: {
+            subject: `New work assigned: ${formData.title}`,
+            text: `You have been assigned to a new work:\n\nTitle: ${formData.title}\nDate: ${formData.date}\nDescription: ${formData.description}`,
+            html: `<p>Hello,</p> <p>You have been assigned a new work. Please find the details below:</p> 
+            <p><b>Title:</b> ${formData.title}</p> 
+            <p><b>Date:</b> ${formData.date}</p> 
+            <p><b>Description :</b> ${formData.description}</p>
+            <p>Kindly review and confirm the work by visiting the <a href="https://tmv.fotmv.online/">Videography Manager</a> Website</p> 
+            <p>If you encounter any issues or need further assistance, feel free to contact me.</p> 
+            <p>Thank you.</p> 
+            
+            <p>Best regards,</p>
+
+            <p style="color:#A3A9AD">
+              <strong>Mihiru Dahanayake</strong><br>
+              <i>Acting Videography Department Head<br>FOT Media<br>Faculty Of Technology<br>Rajarata University of Sri Lanka<br>
+              <a href="tel:+94703426554" style="color:#0066cc; text-decoration:none;">070 342 6554</a><br>
+              <a href="mailto:mihirudahanayake@gmail.com" style="color:#0066cc; text-decoration:none;">mihiru.online@gmail.com</a></i><br>
+            </p>`
+          }
+        });
+      }
+
+      setMessage({ type: 'success', text: 'Work assigned successfully!' });
+      setFormData({
+        title: '',
+        description: '',
+        date: '',
+        priority: 'medium',
+        assignedUsers: [],
+        assignedItems: []
+      });
+    } catch (error) {
+      setMessage({ type: 'error', text: error.message });
+    } finally {
+      setLoading(false);
     }
-
-    setMessage({ type: 'success', text: 'Work assigned successfully!' });
-    setFormData({
-      title: '',
-      description: '',
-      date: '',
-      priority: 'medium',
-      assignedUsers: [],
-      assignedItems: []
-    });
-  } catch (error) {
-    setMessage({ type: 'error', text: error.message });
-  } finally {
-    setLoading(false);
-  }
-};
-
+  };
 
   const isUserSelected = (userId) =>
     formData.assignedUsers.some((u) => u.userId === userId);
