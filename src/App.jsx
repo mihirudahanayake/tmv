@@ -22,8 +22,10 @@ import AdminNotifications from './pages/AdminNotifications';
 import UserNotifications from './pages/UserNotifications';
 import UserNotificationDetail from './pages/UserNotificationDetail';
 import NotificationDetails from './pages/NotificationDetails';
+import { useIdleLogout } from './hooks/useIdleLogout';
 
 function App() {
+  useIdleLogout();
   return (
     <Router>
       <Routes>

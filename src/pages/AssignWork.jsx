@@ -177,31 +177,53 @@ const AssignWork = () => {
       const emails = (await Promise.all(emailPromises)).filter(Boolean);
 
       // 3) Write `mail` document so Trigger Email extension sends emails
-      if (emails.length > 0) {
-        await addDoc(collection(db, 'mail'), {
-          to: emails,
-          message: {
-            subject: `New work assigned: ${formData.title}`,
-            text: `You have been assigned to a new work:\n\nTitle: ${formData.title}\nDate: ${formData.date || '-'}\nDeadline: ${formData.deadline || '-'}\nDescription: ${formData.description}`,
-            html: `<p>Hello,</p> <p>You have been assigned a new work. Please find the details below:</p> 
-            <p><b>Title:</b> ${formData.title}</p> 
-            <p><b>Date:</b> ${formData.date || '-'}</p> 
-            <p><b>Deadline:</b> ${formData.deadline || '-'}</p> 
-            <p><b>Description :</b> ${formData.description}</p>
-            <p>Kindly review and confirm the work by visiting the <a href="https://tmv.fotmv.online/">Videography Manager</a> Website</p> 
-            <p>If you encounter any issues or need further assistance, feel free to contact me.</p> 
-            <p>Thank you.</p> 
-            
-            <p>Best regards,</p>
+// 3) Write `mail` document so Trigger Email extension sends emails
+if (emails.length > 0) {
+  const linesText = [];
+  const linesHtml = [];
 
-            <p style="color:#A3A9AD">
-              <strong>Mihiru Dahanayake</strong><br>
-              <i>Acting Videography Department Head<br>FOT Media<br>Faculty Of Technology<br>Rajarata University of Sri Lanka<br>
-              <a href="tel:+94703426554" style="color:#0066cc; text-decoration:none;">070 342 6554</a><br>
-              <a href="mailto:mihirudahanayake@gmail.com" style="color:#0066cc; text-decoration:none;">mihiru.online@gmail.com</a></i><br>
-            </p>`
-          }
-        });
+  linesText.push(`Title: ${formData.title}`);
+  if (formData.date) {
+    linesText.push(`Date: ${formData.date}`);
+  }
+  if (formData.deadline) {
+    linesText.push(`Deadline: ${formData.deadline}`);
+  }
+  linesText.push(`Description: ${formData.description}`);
+
+  linesHtml.push(`<p><b>Title:</b> ${formData.title}</p>`);
+  if (formData.date) {
+    linesHtml.push(`<p><b>Date:</b> ${formData.date}</p>`);
+  }
+  if (formData.deadline) {
+    linesHtml.push(`<p><b>Deadline:</b> ${formData.deadline}</p>`);
+  }
+  linesHtml.push(`<p><b>Description :</b> ${formData.description}</p>`);
+
+  await addDoc(collection(db, 'mail'), {
+    to: emails,
+    message: {
+      subject: `New work assigned: ${formData.title}`,
+      text:
+        `You have been assigned to a new work:\n\n` +
+        linesText.join('\n') +
+        `\n\nKindly review and confirm the work by visiting the Videography Manager website.`,
+      html: `<p>Hello,</p>
+        <p>You have been assigned a new work. Please find the details below:</p> 
+        ${linesHtml.join('')}
+        <p>Kindly review and confirm the work by visiting the <a href="https://tmv.fotmv.online/">Videography Manager</a> Website</p> 
+        <p>If you encounter any issues or need further assistance, feel free to contact me.</p> 
+        <p>Thank you.</p> 
+        
+        <p>Best regards,</p>
+        <p style="color:#A3A9AD">
+          <strong>Mihiru Dahanayake</strong><br>
+          <i>Acting Videography Department Head<br>FOT Media<br>Faculty Of Technology<br>Rajarata University of Sri Lanka<br>
+          <a href="tel:+94703426554" style="color:#0066cc; text-decoration:none;">070 342 6554</a><br>
+          <a href="mailto:mihirudahanayake@gmail.com" style="color:#0066cc; text-decoration:none;">mihiru.online@gmail.com</a></i><br>
+        </p>`
+    }
+  });
       }
 
       setMessage({ type: 'success', text: 'Work assigned successfully!' });

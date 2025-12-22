@@ -160,31 +160,53 @@ const handleSave = async (e) => {
         });
         const emails = (await Promise.all(emailPromises)).filter(Boolean);
 
-        if (emails.length > 0) {
-          await addDoc(collection(db, 'mail'), {
-            to: emails,
-            message: {
-              subject: `You were assigned to a work: ${task.title}`,
-              text: `You have been assigned to the work "${task.title}".\n\nDate: ${task.date}\nDescription: ${task.description}`,
-              html: `<p>Hello,</p> <p>You have been assigned a work. Please find the details below:</p> 
-            <p><b>Title:</b> ${task.title}</p> 
-            <p><b>Date:</b> ${task.date}</p>
-            <p><b>Description:</b> ${task.description}</p> 
-            <p>Kindly review and confirm the work by visiting the <a href="https://tmv.fotmv.online/">Videography Manager</a> Website</p> 
-            <p>If you encounter any issues or need further assistance, feel free to contact me.</p> 
-            <p>Thank you.</p> 
-            
-            <p>Best regards,</p>
+if (emails.length > 0) {
+  const linesText = [];
+  const linesHtml = [];
 
-            <p style="color:#A3A9AD">
-              <strong>Mihiru Dahanayake</strong><br>
-              <i>Acting Videography Department Head<br>FOT Media<br>Faculty Of Technology<br>Rajarata University of Sri Lanka<br>
-              <a href="tel:+94703426554" style="color:#0066cc; text-decoration:none;">070 342 6554</a><br>
-              <a href="mailto:mihirudahanayake@gmail.com" style="color:#0066cc; text-decoration:none;">mihiru.online@gmail.com</a></i><br>
-            </p>`
-            }
-          });
-        }
+  linesText.push(`Title: ${task.title}`);
+  if (task.date) {
+    linesText.push(`Date: ${task.date}`);
+  }
+  if (task.deadline) {
+    linesText.push(`Deadline: ${task.deadline}`);
+  }
+  linesText.push(`Description: ${task.description}`);
+
+  linesHtml.push(`<p><b>Title:</b> ${task.title}</p>`);
+  if (task.date) {
+    linesHtml.push(`<p><b>Date:</b> ${task.date}</p>`);
+  }
+  if (task.deadline) {
+    linesHtml.push(`<p><b>Deadline:</b> ${task.deadline}</p>`);
+  }
+  linesHtml.push(`<p><b>Description:</b> ${task.description}</p>`);
+
+  await addDoc(collection(db, 'mail'), {
+    to: emails,
+    message: {
+      subject: `You were assigned to a work: ${task.title}`,
+      text:
+        `You have been assigned to the work "${task.title}".\n\n` +
+        linesText.join('\n') +
+        `\n\nKindly review and confirm the work by visiting the Videography Manager website.`,
+      html: `<p>Hello,</p>
+        <p>You have been assigned a work. Please find the details below:</p>
+        ${linesHtml.join('')}
+        <p>Kindly review and confirm the work by visiting the <a href="https://tmv.fotmv.online/">Videography Manager</a> Website</p>
+        <p>If you encounter any issues or need further assistance, feel free to contact me.</p>
+        <p>Thank you.</p>
+        <p>Best regards,</p>
+        <p style="color:#A3A9AD">
+          <strong>Mihiru Dahanayake</strong><br>
+          <i>Acting Videography Department Head<br>FOT Media<br>Faculty Of Technology<br>Rajarata University of Sri Lanka<br>
+          <a href="tel:+94703426554" style="color:#0066cc; text-decoration:none;">070 342 6554</a><br>
+          <a href="mailto:mihirudahanayake@gmail.com" style="color:#0066cc; text-decoration:none;">mihiru.online@gmail.com</a></i><br>
+        </p>`
+    }
+  });
+}
+
       }
 
       setSuccess('Task updated successfully.');
