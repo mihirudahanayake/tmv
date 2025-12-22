@@ -28,10 +28,12 @@ const AssignWork = () => {
     title: '',
     description: '',
     date: '',
+    deadline: '',
     priority: 'medium',
     assignedUsers: [], // [{ userId, roles: ['videography'] }]
     assignedItems: [] // [itemId, itemId, ...]
   });
+  const [dateType, setDateType] = useState('date'); // 'date' | 'deadline'
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
   const [userSearch, setUserSearch] = useState('');
@@ -49,14 +51,14 @@ const AssignWork = () => {
         id: doc.id,
         ...doc.data()
       }));
-      
+
       // Sort alphabetically by name
       usersData.sort((a, b) => {
         const nameA = (a.name || '').toLowerCase();
         const nameB = (b.name || '').toLowerCase();
         return nameA.localeCompare(nameB);
       });
-      
+
       setUsers(usersData);
     } catch (error) {
       console.error('Error fetching users:', error);
@@ -67,7 +69,7 @@ const AssignWork = () => {
     try {
       const snapshot = await getDocs(collection(db, 'inventory'));
       const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-      
+
       // sort alphabetically by itemName
       data.sort((a, b) => {
         const nameA = (a.itemName || '').toLowerCase();
@@ -139,12 +141,24 @@ const AssignWork = () => {
     setLoading(true);
     setMessage({ type: '', text: '' });
 
+    // Require at least one of date / deadline to be filled
+    if (!formData.date && !formData.deadline) {
+      setLoading(false);
+      setMessage({
+        type: 'error',
+        text: 'Please select a date or a deadline.'
+      });
+      return;
+    }
+
     try {
       // 1) Create work document
       await addDoc(collection(db, 'works'), {
         title: formData.title,
         description: formData.description,
-        date: formData.date,
+        date: formData.date || null,
+        deadline: formData.deadline || null,
+        dateType, // to know which one admin intended
         priority: formData.priority,
         assignedUsers: formData.assignedUsers.map((u) => u.userId),
         assignedUserDetails: formData.assignedUsers,
@@ -168,10 +182,11 @@ const AssignWork = () => {
           to: emails,
           message: {
             subject: `New work assigned: ${formData.title}`,
-            text: `You have been assigned to a new work:\n\nTitle: ${formData.title}\nDate: ${formData.date}\nDescription: ${formData.description}`,
+            text: `You have been assigned to a new work:\n\nTitle: ${formData.title}\nDate: ${formData.date || '-'}\nDeadline: ${formData.deadline || '-'}\nDescription: ${formData.description}`,
             html: `<p>Hello,</p> <p>You have been assigned a new work. Please find the details below:</p> 
             <p><b>Title:</b> ${formData.title}</p> 
-            <p><b>Date:</b> ${formData.date}</p> 
+            <p><b>Date:</b> ${formData.date || '-'}</p> 
+            <p><b>Deadline:</b> ${formData.deadline || '-'}</p> 
             <p><b>Description :</b> ${formData.description}</p>
             <p>Kindly review and confirm the work by visiting the <a href="https://tmv.fotmv.online/">Videography Manager</a> Website</p> 
             <p>If you encounter any issues or need further assistance, feel free to contact me.</p> 
@@ -194,10 +209,12 @@ const AssignWork = () => {
         title: '',
         description: '',
         date: '',
+        deadline: '',
         priority: 'medium',
         assignedUsers: [],
         assignedItems: []
       });
+      setDateType('date');
     } catch (error) {
       setMessage({ type: 'error', text: error.message });
     } finally {
@@ -280,20 +297,62 @@ const AssignWork = () => {
               />
             </div>
 
+            {/* Date / Deadline selector */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="flex items-center gap-2 text-gray-700 font-semibold mb-2 text-sm sm:text-base">
                   <FaCalendarAlt />
-                  <span>Date</span>
+                  <span>Date / Deadline</span>
                 </label>
-                <input
-                  type="date"
-                  name="date"
-                  value={formData.date}
-                  onChange={handleChange}
-                  required
-                  className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 text-sm sm:text-base"
-                />
+
+                <div className="flex items-center gap-3 mb-2 text-xs sm:text-sm">
+                  <label className="flex items-center gap-1">
+                    <input
+                      type="radio"
+                      name="dateType"
+                      value="date"
+                      checked={dateType === 'date'}
+                      onChange={(e) => setDateType(e.target.value)}
+                      className="w-4 h-4"
+                    />
+                    <span>Date</span>
+                  </label>
+                  <label className="flex items-center gap-1">
+                    <input
+                      type="radio"
+                      name="dateType"
+                      value="deadline"
+                      checked={dateType === 'deadline'}
+                      onChange={(e) => setDateType(e.target.value)}
+                      className="w-4 h-4"
+                    />
+                    <span>Deadline</span>
+                  </label>
+                </div>
+
+                {dateType === 'date' && (
+                  <input
+                    type="date"
+                    name="date"
+                    value={formData.date}
+                    onChange={handleChange}
+                    className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 text-sm sm:text-base"
+                  />
+                )}
+
+                {dateType === 'deadline' && (
+                  <input
+                    type="date"
+                    name="deadline"
+                    value={formData.deadline}
+                    onChange={handleChange}
+                    className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 text-sm sm:text-base"
+                  />
+                )}
+
+                <p className="mt-1 text-[11px] text-gray-500">
+                  At least one of date or deadline is required, but both are optional individually.
+                </p>
               </div>
 
               <div>
@@ -315,6 +374,7 @@ const AssignWork = () => {
               </div>
             </div>
 
+            {/* Assign users */}
             <div>
               <label className="flex items-center gap-2 text-gray-700 font-semibold mb-2 text-sm sm:text-base">
                 <FaUsers />
