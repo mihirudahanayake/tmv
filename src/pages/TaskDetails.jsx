@@ -120,12 +120,19 @@ const TaskDetails = () => {
     setTask((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSave = async (e) => {
-    e.preventDefault();
-    if (!task) return;
-    setSaving(true);
-    setError('');
-    setSuccess('');
+const handleSave = async (e) => {
+  e.preventDefault();
+  if (!task) return;
+  setSaving(true);
+  setError('');
+  setSuccess('');
+
+  // Require at least one of date or deadline
+  if (!task.date && !task.deadline) {
+    setSaving(false);
+    setError('Please set a date or a deadline.');
+    return;
+  }
 
     try {
       const { id, ...rest } = task;
@@ -361,46 +368,53 @@ const TaskDetails = () => {
             />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Date
-              </label>
-              <div className="flex items-center gap-2">
-                <FaCalendarAlt className="text-gray-500" />
-                <input
-                  type="date"
-                  name="date"
-                  value={
-                    task.date
-                      ? new Date(task.date).toISOString().slice(0, 10)
-                      : ''
-                  }
-                  onChange={handleFieldChange}
-                  disabled={!editing}
-                  className="flex-1 px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            </div>
+<div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+  <div>
+    <label className="block text-sm font-semibold text-gray-700 mb-1">
+      Date
+    </label>
+    <div className="flex items-center gap-2">
+      <FaCalendarAlt className="text-gray-500" />
+      <input
+        type="date"
+        name="date"
+        value={
+          task.date
+            ? new Date(task.date).toISOString().slice(0, 10)
+            : ''
+        }
+        onChange={handleFieldChange}
+        disabled={!editing}
+        className="flex-1 px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+      />
+    </div>
+  </div>
 
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Priority
-              </label>
-              <select
-                name="priority"
-                value={task.priority || 'medium'}
-                onChange={handleFieldChange}
-                disabled={!editing}
-                className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-                <option value="urgent">Urgent</option>
-              </select>
-            </div>
-          </div>
+  <div>
+    <label className="block text-sm font-semibold text-gray-700 mb-1">
+      Deadline
+    </label>
+    <div className="flex items-center gap-2">
+      <FaCalendarAlt className="text-gray-500" />
+      <input
+        type="date"
+        name="deadline"
+        value={
+          task.deadline
+            ? new Date(task.deadline).toISOString().slice(0, 10)
+            : ''
+        }
+        onChange={handleFieldChange}
+        disabled={!editing}
+        className="flex-1 px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+      />
+    </div>
+    <p className="text-[11px] text-gray-500 mt-1">
+      Date or deadline is required, but each is optional on its own.
+    </p>
+  </div>
+</div>
+
 
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">

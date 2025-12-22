@@ -238,21 +238,39 @@ const WorkList = () => {
           </p>
         )}
 
-{task.date && (
+{(task.date || task.deadline) && (
   <div className="mb-3">
-    <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-500">
-      <FaCalendarAlt />
-      <span>
-        Date:{' '}
-        {new Date(task.date).toLocaleDateString('en-GB', {
-          day: '2-digit',
-          month: 'short',
-          year: 'numeric'
-        })}
-      </span>
+    <div className="flex flex-col gap-1 text-xs sm:text-sm text-gray-500">
+      {task.date && (
+        <p className="flex items-center gap-2">
+          <FaCalendarAlt />
+          <span>
+            Date:{' '}
+            {new Date(task.date).toLocaleDateString('en-GB', {
+              day: '2-digit',
+              month: 'short',
+              year: 'numeric'
+            })}
+          </span>
+        </p>
+      )}
+      {task.deadline && (
+        <p className="flex items-center gap-2">
+          <FaCalendarAlt />
+          <span>
+            Deadline:{' '}
+            {new Date(task.deadline).toLocaleDateString('en-GB', {
+              day: '2-digit',
+              month: 'short',
+              year: 'numeric'
+            })}
+          </span>
+        </p>
+      )}
     </div>
   </div>
 )}
+
 
 
         <div className="mb-3">
@@ -271,10 +289,15 @@ const WorkList = () => {
   const avatarUrl = userData.photoURL || userData.avatarUrl || null;
 
   return (
-    <div
-      key={userId}
-      className="bg-gray-50 px-2 py-1 rounded text-xs sm:text-sm"
-    >
+<div
+  key={userId}
+  onClick={(e) => {
+    e.stopPropagation();
+    navigate(`/users/${userId}`);
+  }}
+  className="bg-gray-50 px-2 py-1 rounded text-xs sm:text-sm cursor-pointer hover:bg-blue-50 transition"
+>
+
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           {avatarUrl ? (
@@ -324,10 +347,15 @@ const WorkList = () => {
     const avatarUrl = userData.photoURL || userData.avatarUrl || null;
 
     return (
-      <div
-        key={userId}
-        className="bg-gray-50 px-2 py-1 rounded text-xs sm:text-sm flex items-center justify-between"
-      >
+<div
+  key={userId}
+  onClick={(e) => {
+    e.stopPropagation();
+    navigate(`/users/${userId}`);
+  }}
+  className="bg-gray-50 px-2 py-1 rounded text-xs sm:text-sm flex items-center justify-between cursor-pointer hover:bg-blue-50 transition"
+>
+
         <div className="flex items-center gap-2">
           {avatarUrl ? (
             <img

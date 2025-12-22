@@ -630,12 +630,23 @@ const renderTeamMembers = (task) => {
                           <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-1">
                             {task.title || 'Task'}
                           </h3>
-                          {task.date && (
-                            <p className="flex items-center gap-2 text-xs sm:text-sm text-gray-500">
-                              <FaCalendarAlt />
-                              {new Date(task.date).toLocaleDateString()}
-                            </p>
-                          )}
+{(task.date || task.deadline) && (
+  <div className="flex flex-col gap-1 text-xs sm:text-sm text-gray-500">
+    {task.date && (
+      <p className="flex items-center gap-2">
+        <FaCalendarAlt />
+        <span>Date: {new Date(task.date).toLocaleDateString()}</span>
+      </p>
+    )}
+    {task.deadline && (
+      <p className="flex items-center gap-2">
+        <FaCalendarAlt />
+        <span>Deadline: {new Date(task.deadline).toLocaleDateString()}</span>
+      </p>
+    )}
+  </div>
+)}
+
                         </div>
                         <span className="bg-yellow-100 text-yellow-800 text-xs font-semibold px-3 py-1.5 rounded-full flex items-center gap-1">
                           <FaHourglassHalf />
@@ -713,14 +724,23 @@ const renderTeamMembers = (task) => {
                               <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-1">
                                 {task.title || 'Task'}
                               </h3>
-                              {task.date && (
-                                <p className="flex items-center gap-2 text-xs sm:text-sm text-gray-500">
-                                  <FaCalendarAlt />
-                                  {new Date(
-                                    task.date
-                                  ).toLocaleDateString()}
-                                </p>
-                              )}
+{(task.date || task.deadline) && (
+  <div className="flex flex-col gap-1 text-xs sm:text-sm text-gray-500">
+    {task.date && (
+      <p className="flex items-center gap-2">
+        <FaCalendarAlt />
+        <span>Date: {new Date(task.date).toLocaleDateString()}</span>
+      </p>
+    )}
+    {task.deadline && (
+      <p className="flex items-center gap-2">
+        <FaCalendarAlt />
+        <span>Deadline: {new Date(task.deadline).toLocaleDateString()}</span>
+      </p>
+    )}
+  </div>
+)}
+
                             </div>
                             <span className="bg-orange-100 text-orange-800 text-xs font-semibold px-3 py-1.5 rounded-full flex items-center gap-1">
                               <FaHourglassHalf />
@@ -775,12 +795,23 @@ const renderTeamMembers = (task) => {
                         <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-1">
                           {task.title || 'Task'}
                         </h3>
-                        {task.date && (
-                          <p className="flex items-center gap-2 text-xs sm:text-sm text-gray-500 mb-3">
-                            <FaCalendarAlt />
-                            {new Date(task.date).toLocaleDateString()}
-                          </p>
-                        )}
+{(task.date || task.deadline) && (
+  <div className="flex flex-col gap-1 text-xs sm:text-sm text-gray-500 mb-3">
+    {task.date && (
+      <p className="flex items-center gap-2">
+        <FaCalendarAlt />
+        <span>Date: {new Date(task.date).toLocaleDateString()}</span>
+      </p>
+    )}
+    {task.deadline && (
+      <p className="flex items-center gap-2">
+        <FaCalendarAlt />
+        <span>Deadline: {new Date(task.deadline).toLocaleDateString()}</span>
+      </p>
+    )}
+  </div>
+)}
+
                         {task.description && (
                           <p className="text-gray-700 text-sm mb-2">
                             {task.description}
@@ -859,12 +890,23 @@ const renderTeamMembers = (task) => {
                             <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-1">
                               {task.title || 'Task'}
                             </h3>
-                            {task.date && (
-                              <p className="flex items-center gap-2 text-xs sm:text-sm text-gray-500">
-                                <FaCalendarAlt />
-                                {new Date(task.date).toLocaleDateString()}
-                              </p>
-                            )}
+{(task.date || task.deadline) && (
+  <div className="flex flex-col gap-1 text-xs sm:text-sm text-gray-500">
+    {task.date && (
+      <p className="flex items-center gap-2">
+        <FaCalendarAlt />
+        <span>Date: {new Date(task.date).toLocaleDateString()}</span>
+      </p>
+    )}
+    {task.deadline && (
+      <p className="flex items-center gap-2">
+        <FaCalendarAlt />
+        <span>Deadline: {new Date(task.deadline).toLocaleDateString()}</span>
+      </p>
+    )}
+  </div>
+)}
+
                           </div>
                           <FaCheckCircle className="text-3xl text-green-500" />
                         </div>

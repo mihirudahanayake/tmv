@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import Header from '../components/Header';
 import { FaCalendarAlt, FaSpinner, FaCheck } from 'react-icons/fa';
 
+
 const UserDetails = () => {
   const { userId } = useParams();
+  const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [works, setWorks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -155,10 +157,12 @@ const UserDetails = () => {
                   const status = w.status || 'incomplete';
 
                   return (
-                    <div
-                      key={w.id}
-                      className="bg-white rounded-lg shadow p-3 sm:p-4 text-sm sm:text-base"
-                    >
+<div
+  key={w.id}
+  onClick={() => navigate(`/tasks/${w.id}`)}
+  className="bg-white rounded-lg shadow p-3 sm:p-4 text-sm sm:text-base cursor-pointer hover:shadow-md hover:bg-gray-50 transition"
+>
+
                       <div className="flex justify-between items-start mb-2">
                         <div className="flex-1">
                           <h3 className="font-semibold text-gray-800">
