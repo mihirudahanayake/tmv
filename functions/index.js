@@ -1,8 +1,29 @@
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
+const nodemailer = require('nodemailer');
+const axios = require('axios');
 
 admin.initializeApp();
 const db = admin.firestore();
+
+// ============ EMAIL CONFIGURATION ============
+const GMAIL_USER = process.env.GMAIL_USER;
+const GMAIL_PASS = process.env.GMAIL_PASS;
+
+let emailTransporter = null;
+
+if (GMAIL_USER && GMAIL_PASS) {
+  emailTransporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: GMAIL_USER,
+      pass: GMAIL_PASS
+    }
+  });
+  console.log('Email transporter initialized');
+} else {
+  console.warn('Email not configured: Missing GMAIL_USER or GMAIL_PASS environment variables');
+}
 
 async function sendToUser(userId, title, body) {
   const snap = await db.collection('users').doc(userId).get();
