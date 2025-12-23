@@ -83,6 +83,128 @@ const AssignWork = () => {
     }
   };
 
+  // Generate a PNG image summarizing the task (title, date, description, item thumbnails)
+  const generateAndDownloadTaskImage = async ({ id, title, description, date, items = [] }) => {
+    try {
+      const width = 1200;
+      const height = 630;
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+
+      // background
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, width, height);
+
+      // Title
+      ctx.fillStyle = '#111827';
+      ctx.font = 'bold 48px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+
+      const margin = 60;
+      const maxTextWidth = width - margin * 2;
+
+      // wrap title
+      const drawWrappedText = (text, x, y, font, lineHeight, maxWidth) => {
+        ctx.font = font;
+        const words = (text || '').split(' ');
+        let line = '';
+        let curY = y;
+        for (let n = 0; n < words.length; n++) {
+          const testLine = line + words[n] + ' ';
+          const metrics = ctx.measureText(testLine);
+          if (metrics.width > maxWidth && n > 0) {
+            ctx.fillText(line.trim(), x, curY);
+            line = words[n] + ' ';
+            curY += lineHeight;
+          } else {
+            line = testLine;
+          }
+        }
+        if (line) {
+          ctx.fillText(line.trim(), x, curY);
+          curY += lineHeight;
+        }
+        return curY;
+      };
+
+      let y = margin;
+      y = drawWrappedText(title || 'New Task', margin, y, 'bold 48px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial', 56, maxTextWidth);
+
+      // date
+      if (date) {
+        ctx.fillStyle = '#6b7280';
+        ctx.font = '16px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
+        ctx.fillText(date, margin, y + 8);
+        y += 36;
+      }
+
+      // description
+      ctx.fillStyle = '#374151';
+      y = drawWrappedText(description || '', margin, y + 8, '16px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial', 22, maxTextWidth);
+
+      // load up to 4 thumbnails
+      const thumbs = (items || []).slice(0, 4);
+      const thumbSize = 160;
+      const gap = 20;
+      if (thumbs.length) {
+        const startX = margin;
+        let x = startX;
+        const imgPromises = thumbs.map((it) => new Promise((resolve) => {
+          if (!it || !it.imageUrl) return resolve(null);
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.onload = () => resolve(img);
+          img.onerror = () => resolve(null);
+          img.src = it.imageUrl;
+        }));
+
+        const loaded = await Promise.all(imgPromises);
+        const imgY = height - margin - thumbSize;
+        for (let i = 0; i < loaded.length; i++) {
+          const img = loaded[i];
+          if (img) {
+            // draw clipped thumbnail
+            ctx.save();
+            const dx = x;
+            const dy = imgY;
+            // draw border background
+            ctx.fillStyle = '#f3f4f6';
+            ctx.fillRect(dx - 4, dy - 4, thumbSize + 8, thumbSize + 8);
+            // draw image aspect-fit
+            let iw = img.width;
+            let ih = img.height;
+            const ratio = Math.max(thumbSize / iw, thumbSize / ih);
+            const dw = iw * ratio;
+            const dh = ih * ratio;
+            const ox = dx + (thumbSize - dw) / 2;
+            const oy = dy + (thumbSize - dh) / 2;
+            ctx.drawImage(img, ox, oy, dw, dh);
+            ctx.restore();
+          }
+          x += thumbSize + gap;
+        }
+      }
+
+      // convert to blob and trigger download
+      canvas.toBlob((blob) => {
+        if (!blob) return;
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `task-${id || Date.now()}.png`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 3000);
+      }, 'image/png');
+    } catch (err) {
+      console.warn('generateAndDownloadTaskImage error', err);
+    }
+  };
+
   const handleChange = (e) => {
     setFormData((prev) => ({
       ...prev,
@@ -153,7 +275,7 @@ const AssignWork = () => {
 
     try {
       // 1) Create work document
-      await addDoc(collection(db, 'works'), {
+      const workRef = await addDoc(collection(db, 'works'), {
         title: formData.title,
         description: formData.description,
         date: formData.date || null,
@@ -227,6 +349,20 @@ if (emails.length > 0) {
       }
 
       setMessage({ type: 'success', text: 'Work assigned successfully!' });
+      // Auto-generate and download a task details image for the admin
+      try {
+        generateAndDownloadTaskImage({
+          id: workRef.id,
+          title: formData.title,
+          description: formData.description,
+          date: formData.date || formData.deadline || '',
+          items: formData.assignedItems
+            .map((id) => items.find((it) => it.id === id))
+            .filter(Boolean)
+        });
+      } catch (e) {
+        console.warn('failed to generate task image', e);
+      }
       setFormData({
         title: '',
         description: '',
