@@ -84,7 +84,7 @@ const AssignWork = () => {
   };
 
   // Generate a PNG image summarizing the task (title, date, description, item thumbnails)
-  const generateAndDownloadTaskImage = async ({ id, title, description, date, items = [] }) => {
+  const generateAndDownloadTaskImage = async ({ id, title, description, date, items = [], assignedUsers = [], priority = '' }) => {
     try {
       const width = 1200;
       const height = 630;
@@ -93,60 +93,197 @@ const AssignWork = () => {
       canvas.height = height;
       const ctx = canvas.getContext('2d');
 
-      // background
+      // draw card background
+      const margin = 48;
+      const cardX = margin;
+      const cardY = margin;
+      const cardW = width - margin * 2;
+      const cardH = height - margin * 2;
+
+      // white rounded card
       ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, width, height);
+      const radius = 16;
+      ctx.beginPath();
+      ctx.moveTo(cardX + radius, cardY);
+      ctx.lineTo(cardX + cardW - radius, cardY);
+      ctx.quadraticCurveTo(cardX + cardW, cardY, cardX + cardW, cardY + radius);
+      ctx.lineTo(cardX + cardW, cardY + cardH - radius);
+      ctx.quadraticCurveTo(cardX + cardW, cardY + cardH, cardX + cardW - radius, cardY + cardH);
+      ctx.lineTo(cardX + radius, cardY + cardH);
+      ctx.quadraticCurveTo(cardX, cardY + cardH, cardX, cardY + cardH - radius);
+      ctx.lineTo(cardX, cardY + radius);
+      ctx.quadraticCurveTo(cardX, cardY, cardX + radius, cardY);
+      ctx.closePath();
+      ctx.fill();
 
-      // Title
+      // subtle border / shadow line
+      ctx.strokeStyle = '#e5e7eb';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      // header: title and status pill
+      const padding = 28;
+      let cursorX = cardX + padding;
+      let cursorY = cardY + padding;
+      const contentW = cardW - padding * 2;
+
       ctx.fillStyle = '#111827';
-      ctx.font = 'bold 48px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
-      ctx.textAlign = 'left';
+      ctx.font = '700 28px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
       ctx.textBaseline = 'top';
-
-      const margin = 60;
-      const maxTextWidth = width - margin * 2;
-
-      // wrap title
-      const drawWrappedText = (text, x, y, font, lineHeight, maxWidth) => {
+      // title wrap helper
+      const wrapText = (text, maxW, startX, startY, lineHeight, font) => {
         ctx.font = font;
         const words = (text || '').split(' ');
         let line = '';
-        let curY = y;
+        let yPos = startY;
         for (let n = 0; n < words.length; n++) {
           const testLine = line + words[n] + ' ';
-          const metrics = ctx.measureText(testLine);
-          if (metrics.width > maxWidth && n > 0) {
-            ctx.fillText(line.trim(), x, curY);
+          if (ctx.measureText(testLine).width > maxW && n > 0) {
+            ctx.fillText(line.trim(), startX, yPos);
             line = words[n] + ' ';
-            curY += lineHeight;
+            yPos += lineHeight;
           } else {
             line = testLine;
           }
         }
         if (line) {
-          ctx.fillText(line.trim(), x, curY);
-          curY += lineHeight;
+          ctx.fillText(line.trim(), startX, yPos);
+          yPos += lineHeight;
         }
-        return curY;
+        return yPos;
       };
 
-      let y = margin;
-      y = drawWrappedText(title || 'New Task', margin, y, 'bold 48px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial', 56, maxTextWidth);
+      cursorY = wrapText(title || 'New Task', contentW, cursorX, cursorY, 36, '700 28px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial');
 
-      // date
+      // priority chip top-right
+      if (priority) {
+        const chipText = priority.charAt(0).toUpperCase() + priority.slice(1);
+        ctx.font = '600 12px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
+        const chipW = ctx.measureText(chipText).width + 20;
+        const chipH = 28;
+        const chipX = cardX + cardW - padding - chipW;
+        const chipY = cardY + padding;
+        ctx.fillStyle = '#ecfdf5';
+        ctx.fillRect(chipX, chipY, chipW, chipH);
+        ctx.fillStyle = '#065f46';
+        ctx.fillText(chipText, chipX + 10, chipY + 7);
+      }
+
+      // small gap
+      cursorY += 8;
+
+      // date row with small calendar box icon
       if (date) {
-        ctx.fillStyle = '#6b7280';
-        ctx.font = '16px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
-        ctx.fillText(date, margin, y + 8);
-        y += 36;
+        // draw calendar icon
+        const iconX = cursorX;
+        const iconY = cursorY + 6;
+        ctx.fillStyle = '#f3f4f6';
+        ctx.fillRect(iconX, iconY, 28, 28);
+        ctx.fillStyle = '#111827';
+        ctx.font = '600 12px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
+        ctx.fillText(new Date(date).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' }), iconX + 40, iconY + 6);
+        cursorY = iconY + 36;
       }
 
       // description
-      ctx.fillStyle = '#374151';
-      y = drawWrappedText(description || '', margin, y + 8, '16px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial', 22, maxTextWidth);
+      if (description) {
+        ctx.fillStyle = '#374151';
+        cursorY = wrapText(description, contentW, cursorX, cursorY + 4, 20, '400 14px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial');
+      }
 
-      // load up to 4 thumbnails
-      const thumbs = (items || []).slice(0, 4);
+      // Assigned to block
+      if ((assignedUsers || []).length) {
+        cursorY += 12;
+        ctx.fillStyle = '#111827';
+        ctx.font = '600 14px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
+        ctx.fillText('Assigned to:', cursorX, cursorY);
+        cursorY += 28;
+
+        const avatarSize = 40;
+        const gapY = 12;
+
+        const userImgPromises = assignedUsers.map((u) => new Promise((resolve) => {
+          if (!u || !u.photoURL) return resolve(null);
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.onload = () => resolve(img);
+          img.onerror = () => resolve(null);
+          img.src = u.photoURL;
+        }));
+        const loadedUserImgs = await Promise.all(userImgPromises);
+
+        for (let i = 0; i < assignedUsers.length; i++) {
+          const u = assignedUsers[i];
+          const img = loadedUserImgs[i];
+          const rowX = cursorX;
+          const rowY = cursorY;
+
+          // avatar
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(rowX + avatarSize / 2, rowY + avatarSize / 2, avatarSize / 2, 0, Math.PI * 2);
+          ctx.closePath();
+          ctx.fillStyle = '#f3f4f6';
+          ctx.fill();
+          if (img) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(rowX + avatarSize / 2, rowY + avatarSize / 2, avatarSize / 2, 0, Math.PI * 2);
+            ctx.clip();
+            const ir = Math.max(avatarSize / img.width, avatarSize / img.height);
+            const iw = img.width * ir;
+            const ih = img.height * ir;
+            const ix = rowX + (avatarSize - iw) / 2;
+            const iy = rowY + (avatarSize - ih) / 2;
+            ctx.drawImage(img, ix, iy, iw, ih);
+            ctx.restore();
+          } else {
+            ctx.fillStyle = '#6b7280';
+            ctx.font = '600 14px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
+            const initials = (u.name || '').split(' ').map((s) => s[0]).slice(0,2).join('').toUpperCase();
+            ctx.fillText(initials, rowX + 10, rowY + 12);
+          }
+          ctx.restore();
+
+          // name
+          const nameX = rowX + avatarSize + 12;
+          ctx.fillStyle = '#111827';
+          ctx.font = '600 14px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
+          ctx.fillText(u.name || 'Unknown', nameX, rowY + 2);
+
+          // status pill (right side)
+          const pillText = (u.status && u.status.length) ? u.status : 'Assigned';
+          ctx.font = '600 12px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
+          const pillW = ctx.measureText(pillText).width + 18;
+          const pillH = 24;
+          const pillX = cardX + cardW - padding - pillW;
+          const pillY = rowY + 6;
+          ctx.fillStyle = '#ecfdf5';
+          ctx.fillRect(pillX, pillY, pillW, pillH);
+          ctx.fillStyle = '#065f46';
+          ctx.fillText(pillText, pillX + 9, pillY + 6);
+
+          // role badges below name
+          const roles = u.roles || [];
+          let bx = nameX;
+          const by = rowY + 22;
+          ctx.font = '12px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
+          for (let r = 0; r < roles.length; r++) {
+            const roleText = roles[r];
+            const bw = ctx.measureText(roleText).width + 12;
+            ctx.fillStyle = '#eef2ff';
+            ctx.fillRect(bx, by, bw, 20);
+            ctx.fillStyle = '#4338ca';
+            ctx.fillText(roleText, bx + 6, by + 14 - 2);
+            bx += bw + 8;
+          }
+
+          cursorY += avatarSize + gapY;
+        }
+      }
+
+      // optionally show up to 3 item thumbnails bottom-right
+      const thumbs = (items || []).slice(0, 3);
       const thumbSize = 160;
       const gap = 20;
       if (thumbs.length) {
@@ -189,6 +326,40 @@ const AssignWork = () => {
       }
 
       // convert to blob and trigger download
+      // draw item thumbnails bottom-right
+      if (thumbs && thumbs.length) {
+        const thumbSize = 84;
+        const gap = 12;
+        const baseX = cardX + cardW - padding - (thumbSize + gap) * thumbs.length + gap;
+        const baseY = cardY + cardH - padding - thumbSize;
+        const imgPromises = thumbs.map((it) => new Promise((resolve) => {
+          if (!it || !it.imageUrl) return resolve(null);
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.onload = () => resolve(img);
+          img.onerror = () => resolve(null);
+          img.src = it.imageUrl;
+        }));
+        const loaded = await Promise.all(imgPromises);
+        for (let i = 0; i < loaded.length; i++) {
+          const img = loaded[i];
+          const dx = baseX + i * (thumbSize + gap);
+          const dy = baseY;
+          ctx.fillStyle = '#f3f4f6';
+          ctx.fillRect(dx - 4, dy - 4, thumbSize + 8, thumbSize + 8);
+          if (img) {
+            const iw = img.width;
+            const ih = img.height;
+            const ratio = Math.max(thumbSize / iw, thumbSize / ih);
+            const dw = iw * ratio;
+            const dh = ih * ratio;
+            const ox = dx + (thumbSize - dw) / 2;
+            const oy = dy + (thumbSize - dh) / 2;
+            ctx.drawImage(img, ox, oy, dw, dh);
+          }
+        }
+      }
+
       canvas.toBlob((blob) => {
         if (!blob) return;
         const url = URL.createObjectURL(blob);
@@ -358,7 +529,12 @@ if (emails.length > 0) {
           date: formData.date || formData.deadline || '',
           items: formData.assignedItems
             .map((id) => items.find((it) => it.id === id))
-            .filter(Boolean)
+            .filter(Boolean),
+          priority: formData.priority,
+          assignedUsers: formData.assignedUsers.map(({ userId, roles }) => {
+            const u = users.find((x) => x.id === userId) || {};
+            return { name: u.name || (u.displayName) || 'Unknown', photoURL: u.photoURL || u.avatarUrl || '', roles: roles || [] };
+          })
         });
       } catch (e) {
         console.warn('failed to generate task image', e);
