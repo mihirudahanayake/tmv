@@ -455,34 +455,36 @@ const handleSave = async (e) => {
       const newlyAddedIds = newUserIds.filter((uid) => !oldUserIds.includes(uid));
 
       if (newlyAddedIds.length > 0) {
-        const emailPromises = newlyAddedIds.map(async (uid) => {
+        const contactPromises = newlyAddedIds.map(async (uid) => {
           const snap = await getDoc(doc(db, 'users', uid));
           const data = snap.data();
-          return data?.email || null;
+          return {
+            email: data?.email || null,
+            phone: data?.phoneNumber || data?.phone || null
+          };
         });
-        const emails = (await Promise.all(emailPromises)).filter(Boolean);
+        const contacts = await Promise.all(contactPromises);
+        const emails = contacts.map(c => c.email).filter(Boolean);
+        const phones = contacts.map(c => c.phone).filter(Boolean);
+
+        // Create message content (used for both email and WhatsApp)
+        const messageContent = {
+          lines: [
+            `Title: ${task.title}`,
+            ...(task.date ? [`Date: ${task.date}`] : []),
+            ...(task.deadline ? [`Deadline: ${task.deadline}`] : []),
+            `Description: ${task.description}`
+          ]
+        };
 
 if (emails.length > 0) {
-  const linesText = [];
-  const linesHtml = [];
-
-  linesText.push(`Title: ${task.title}`);
-  if (task.date) {
-    linesText.push(`Date: ${task.date}`);
-  }
-  if (task.deadline) {
-    linesText.push(`Deadline: ${task.deadline}`);
-  }
-  linesText.push(`Description: ${task.description}`);
-
-  linesHtml.push(`<p><b>Title:</b> ${task.title}</p>`);
-  if (task.date) {
-    linesHtml.push(`<p><b>Date:</b> ${task.date}</p>`);
-  }
-  if (task.deadline) {
-    linesHtml.push(`<p><b>Deadline:</b> ${task.deadline}</p>`);
-  }
-  linesHtml.push(`<p><b>Description:</b> ${task.description}</p>`);
+  const linesText = messageContent.lines;
+  const linesHtml = [
+    `<p><b>Title:</b> ${task.title}</p>`,
+    ...(task.date ? [`<p><b>Date:</b> ${task.date}</p>`] : []),
+    ...(task.deadline ? [`<p><b>Deadline:</b> ${task.deadline}</p>`] : []),
+    `<p><b>Description:</b> ${task.description}</p>`
+  ];
 
   await addDoc(collection(db, 'mail'), {
     to: emails,
@@ -509,6 +511,25 @@ if (emails.length > 0) {
   });
 }
 
+        // Send WhatsApp message
+if (phones.length > 0) {
+  const whatsappMessage = 
+    `Hello!\n\n` +
+    `You have been assigned to a work:\n\n` +
+    messageContent.lines.join('\n') +
+    `\n\nKindly review and confirm the work by visiting the Videography Manager website: https://tmv.fotmv.online/\n\n` +
+    `If you encounter any issues, feel free to contact me.\n\n` +
+    `Best regards,\n` +
+    `Mihiru Dahanayake\n` +
+    `Acting Videography Department Head\n` +
+    `FOT Media, Rajarata University\n` +
+    `070 342 6554`;
+
+  await addDoc(collection(db, 'whatsapp'), {
+    to: phones,
+    message: whatsappMessage
+  });
+}
       }
 
       // Generate and download task image

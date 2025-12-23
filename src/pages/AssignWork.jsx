@@ -452,38 +452,39 @@ const AssignWork = () => {
         status: 'pending'
       });
 
-      // 2) Get emails of assigned users from `users` collection
-      const emailPromises = formData.assignedUsers.map(async ({ userId }) => {
+      // 2) Get emails and phone numbers of assigned users from `users` collection
+      const contactPromises = formData.assignedUsers.map(async ({ userId }) => {
         const snap = await getDoc(doc(db, 'users', userId));
         const data = snap.data();
-        return data?.email || null; // assumes each user doc has `email`
+        return {
+          email: data?.email || null,
+          phone: data?.phoneNumber || data?.phone || null
+        };
       });
 
-      const emails = (await Promise.all(emailPromises)).filter(Boolean);
+      const contacts = await Promise.all(contactPromises);
+      const emails = contacts.map(c => c.email).filter(Boolean);
+      const phones = contacts.map(c => c.phone).filter(Boolean);
 
-      // 3) Write `mail` document so Trigger Email extension sends emails
-// 3) Write `mail` document so Trigger Email extension sends emails
+      // 3) Create message content (used for both email and WhatsApp)
+      const messageContent = {
+        lines: [
+          `Title: ${formData.title}`,
+          ...(formData.date ? [`Date: ${formData.date}`] : []),
+          ...(formData.deadline ? [`Deadline: ${formData.deadline}`] : []),
+          `Description: ${formData.description}`
+        ]
+      };
+
+      // 4) Send Email via mail collection
 if (emails.length > 0) {
-  const linesText = [];
-  const linesHtml = [];
-
-  linesText.push(`Title: ${formData.title}`);
-  if (formData.date) {
-    linesText.push(`Date: ${formData.date}`);
-  }
-  if (formData.deadline) {
-    linesText.push(`Deadline: ${formData.deadline}`);
-  }
-  linesText.push(`Description: ${formData.description}`);
-
-  linesHtml.push(`<p><b>Title:</b> ${formData.title}</p>`);
-  if (formData.date) {
-    linesHtml.push(`<p><b>Date:</b> ${formData.date}</p>`);
-  }
-  if (formData.deadline) {
-    linesHtml.push(`<p><b>Deadline:</b> ${formData.deadline}</p>`);
-  }
-  linesHtml.push(`<p><b>Description :</b> ${formData.description}</p>`);
+  const linesText = messageContent.lines;
+  const linesHtml = [
+    `<p><b>Title:</b> ${formData.title}</p>`,
+    ...(formData.date ? [`<p><b>Date:</b> ${formData.date}</p>`] : []),
+    ...(formData.deadline ? [`<p><b>Deadline:</b> ${formData.deadline}</p>`] : []),
+    `<p><b>Description:</b> ${formData.description}</p>`
+  ];
 
   await addDoc(collection(db, 'mail'), {
     to: emails,
@@ -508,6 +509,26 @@ if (emails.length > 0) {
           <a href="mailto:mihirudahanayake@gmail.com" style="color:#0066cc; text-decoration:none;">mihiru.online@gmail.com</a></i><br>
         </p>`
     }
+  });
+      }
+
+      // 5) Send WhatsApp message via whatsapp collection
+if (phones.length > 0) {
+  const whatsappMessage = 
+    `Hello!\n\n` +
+    `You have been assigned to a new work:\n\n` +
+    messageContent.lines.join('\n') +
+    `\n\nKindly review and confirm the work by visiting the Videography Manager website: https://tmv.fotmv.online/\n\n` +
+    `If you encounter any issues, feel free to contact me.\n\n` +
+    `Best regards,\n` +
+    `Mihiru Dahanayake\n` +
+    `Acting Videography Department Head\n` +
+    `FOT Media, Rajarata University\n` +
+    `070 342 6554`;
+
+  await addDoc(collection(db, 'whatsapp'), {
+    to: phones,
+    message: whatsappMessage
   });
       }
 
