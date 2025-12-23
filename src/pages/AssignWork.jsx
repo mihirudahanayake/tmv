@@ -84,8 +84,27 @@ const AssignWork = () => {
   };
 
   // Generate a PNG image summarizing the task (title, date, description, item thumbnails)
-  const generateAndDownloadTaskImage = async ({ id, title, description, date, items = [], assignedUsers = [], priority = '' }) => {
+  const generateAndDownloadTaskImage = async ({ task, users: usersMap, items: itemsMap }) => {
     try {
+      // Extract data from task object
+      const { id, title, description, date, deadline, priority, assignedUserDetails = [], assignedItems = [] } = task;
+      
+      // Resolve user details with photoURL and status
+      const assignedUsers = (assignedUserDetails || []).map(({ userId, roles }) => {
+        const u = usersMap.find((x) => x.id === userId) || {};
+        return {
+          id: userId,
+          name: u.name || u.displayName || 'Unknown',
+          photoURL: u.photoURL || u.avatarUrl || '',
+          roles: roles || [],
+          status: 'Accepted' // Default to Accepted for new assignments
+        };
+      });
+
+      // Resolve item details with imageUrl
+      const items = assignedItems
+        .map((itemId) => itemsMap.find((it) => it.id === itemId))
+        .filter(Boolean);
       // Card-sized canvas (matching task card layout)
       const width = 540;
       const height = 680;
@@ -186,11 +205,13 @@ const AssignWork = () => {
       // Time and Place (optional - from description or hardcoded for now)
       ctx.fillStyle = '#6b7280';
       ctx.font = '400 13px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
+      // For now, show placeholder - in real scenario this would come from task data if available
       ctx.fillText('Time - TBD | Place - TBD', cursorX, cursorY);
       cursorY += 20;
 
-      // Date with calendar icon
-      if (date) {
+      // Date with calendar icon (use date or deadline)
+      const displayDate = date || deadline;
+      if (displayDate) {
         const iconX = cursorX;
         const iconY = cursorY;
         // calendar icon background
@@ -206,7 +227,7 @@ const AssignWork = () => {
         // date text
         ctx.fillStyle = '#6b7280';
         ctx.font = '400 13px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
-        const dateStr = new Date(date).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+        const dateStr = new Date(displayDate).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
         ctx.fillText(`Date: ${dateStr}`, iconX + 28, iconY + 2);
         cursorY = iconY + 28;
       }
@@ -473,18 +494,19 @@ if (emails.length > 0) {
       // Auto-generate and download a task details image for the admin
       try {
         generateAndDownloadTaskImage({
-          id: workRef.id,
-          title: formData.title,
-          description: formData.description,
-          date: formData.date || formData.deadline || '',
-          items: formData.assignedItems
-            .map((id) => items.find((it) => it.id === id))
-            .filter(Boolean),
-          priority: formData.priority,
-          assignedUsers: formData.assignedUsers.map(({ userId, roles }) => {
-            const u = users.find((x) => x.id === userId) || {};
-            return { name: u.name || (u.displayName) || 'Unknown', photoURL: u.photoURL || u.avatarUrl || '', roles: roles || [] };
-          })
+          task: {
+            id: workRef.id,
+            title: formData.title,
+            description: formData.description,
+            date: formData.date || null,
+            deadline: formData.deadline || null,
+            priority: formData.priority,
+            assignedUserDetails: formData.assignedUsers,
+            assignedItems: formData.assignedItems,
+            status: 'pending'
+          },
+          users: users,
+          items: items
         });
       } catch (e) {
         console.warn('failed to generate task image', e);
