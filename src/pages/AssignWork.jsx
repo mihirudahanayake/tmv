@@ -190,9 +190,9 @@ const AssignWork = () => {
       ctx.textBaseline = 'top';
       cursorY = wrapText(title || 'New Task', contentW - 100, cursorX, cursorY, 28, 'bold 24px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial');
 
-      // "accepted" status pill (top-right)
+      // Priority badge (top-right)
       if (priority) {
-        const chipText = 'accepted';
+        const chipText = priority.toLowerCase();
         ctx.font = '500 11px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
         const chipW = ctx.measureText(chipText).width + 16;
         const chipH = 24;
@@ -206,42 +206,14 @@ const AssignWork = () => {
 
       cursorY += 8;
 
-      // Priority line
-      if (priority) {
-        ctx.fillStyle = '#7c6b5d';
-        ctx.font = '400 13px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
-        ctx.fillText(`Priority: ${priority}`, cursorX, cursorY);
-        cursorY += 22;
-      }
-
-      // Time and Place (optional - from description or hardcoded for now)
-      ctx.fillStyle = '#6b7280';
-      ctx.font = '400 13px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
-      // For now, show placeholder - in real scenario this would come from task data if available
-      ctx.fillText('Time - TBD | Place - TBD', cursorX, cursorY);
-      cursorY += 20;
-
       // Date with calendar icon (use date or deadline)
       const displayDate = date || deadline;
       if (displayDate) {
-        const iconX = cursorX;
-        const iconY = cursorY;
-        // calendar icon background
-        ctx.fillStyle = '#f3f4f6';
-        ctx.fillRect(iconX, iconY, 20, 20);
-        // calendar lines
-        ctx.strokeStyle = '#9ca3af';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(iconX + 2, iconY + 2, 16, 16);
-        ctx.fillStyle = '#9ca3af';
-        ctx.font = '6px Arial';
-        ctx.fillText('📅', iconX + 4, iconY + 5);
-        // date text
         ctx.fillStyle = '#6b7280';
         ctx.font = '400 13px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
         const dateStr = new Date(displayDate).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
-        ctx.fillText(`Date: ${dateStr}`, iconX + 28, iconY + 2);
-        cursorY = iconY + 28;
+        ctx.fillText(`Date: ${dateStr}`, cursorX, cursorY);
+        cursorY += 22;
       }
 
       // description
