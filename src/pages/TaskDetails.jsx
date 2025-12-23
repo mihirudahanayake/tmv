@@ -105,6 +105,281 @@ const TaskDetails = () => {
     load();
   }, [taskId]);
 
+  // Generate a PNG image summarizing the task
+  const generateAndDownloadTaskImage = async ({ task, usersMap = {}, itemsMap = {} }) => {
+    try {
+      const { id, title, description, date, deadline, assignedUserDetails = [], assignedItems = [], userAcceptance = {}, roleCompletion = {} } = task;
+      
+      // Helper: Compute derived status
+      const getDerivedStatus = () => {
+        if ((task.status || '').toLowerCase() === 'complete') {
+          return 'completed';
+        }
+        const userDetails = task.assignedUserDetails || [];
+        const roleComp = task.roleCompletion || {};
+        const acceptance = task.userAcceptance || {};
+        if (!userDetails.length) return 'pending';
+        const allAccepted = userDetails.every((d) => acceptance[d.userId] === 'accepted');
+        if (!allAccepted) return 'pending';
+        const allRolesDone = userDetails.every((d) =>
+          (d.roles || []).every((role) => roleComp[`${d.userId}_${role}`] === 'done')
+        );
+        if (!allRolesDone) return 'accepted';
+        return 'done';
+      };
+
+      // Helper: Get status color
+      const getStatusColor = (status) => {
+        const colors = {
+          pending: { bg: '#fef3c7', text: '#b45309' },
+          accepted: { bg: '#fed7aa', text: '#b45309' },
+          done: { bg: '#bfdbfe', text: '#1e40af' },
+          completed: { bg: '#dcfce7', text: '#166534' }
+        };
+        return colors[status] || colors.pending;
+      };
+
+      // Resolve user details
+      const assignedUsers = (assignedUserDetails || []).map(({ userId, roles }) => {
+        const u = usersMap[userId] || {};
+        const acceptanceStatus = userAcceptance[userId] || 'pending';
+        return {
+          id: userId,
+          name: u.name || u.displayName || 'Unknown',
+          photoURL: u.photoURL || u.avatarUrl || '',
+          roles: roles || [],
+          acceptanceStatus
+        };
+      });
+
+      // Canvas setup
+      const width = 1080;
+      const height = 1360;
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+
+      // Background
+      ctx.fillStyle = '#f3f4f6';
+      ctx.fillRect(0, 0, width, height);
+
+      const margin = 48;
+      const cardX = margin;
+      const cardY = margin;
+      const cardW = width - margin * 2;
+      const cardH = height - margin * 2;
+
+      // White rounded card
+      ctx.fillStyle = '#ffffff';
+      const radius = 24;
+      ctx.beginPath();
+      ctx.moveTo(cardX + radius, cardY);
+      ctx.lineTo(cardX + cardW - radius, cardY);
+      ctx.quadraticCurveTo(cardX + cardW, cardY, cardX + cardW, cardY + radius);
+      ctx.lineTo(cardX + cardW, cardY + cardH - radius);
+      ctx.quadraticCurveTo(cardX + cardW, cardY + cardH, cardX + cardW - radius, cardY + cardH);
+      ctx.lineTo(cardX + radius, cardY + cardH);
+      ctx.quadraticCurveTo(cardX, cardY + cardH, cardX, cardY + cardH - radius);
+      ctx.lineTo(cardX, cardY + radius);
+      ctx.quadraticCurveTo(cardX, cardY, cardX + radius, cardY);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.strokeStyle = '#e5e7eb';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      const padding = 40;
+      let cursorX = cardX + padding;
+      let cursorY = cardY + padding;
+      const contentW = cardW - padding * 2;
+
+      // Text wrapping helper
+      const wrapText = (text, maxW, startX, startY, lineHeight, font) => {
+        ctx.font = font;
+        const words = (text || '').split(' ');
+        let line = '';
+        let yPos = startY;
+        for (let n = 0; n < words.length; n++) {
+          const testLine = line + words[n] + ' ';
+          if (ctx.measureText(testLine).width > maxW && n > 0) {
+            ctx.fillText(line.trim(), startX, yPos);
+            line = words[n] + ' ';
+            yPos += lineHeight;
+          } else {
+            line = testLine;
+          }
+        }
+        if (line) {
+          ctx.fillText(line.trim(), startX, yPos);
+          yPos += lineHeight;
+        }
+        return yPos;
+      };
+
+      // Title
+      ctx.fillStyle = '#3f3f3f';
+      ctx.textBaseline = 'top';
+      cursorY = wrapText(title || 'Task', contentW - 200, cursorX, cursorY, 56, 'bold 48px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial');
+
+      // Status badge
+      const taskStatus = getDerivedStatus();
+      const statusColors = getStatusColor(taskStatus);
+      ctx.font = '500 22px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
+      const statusW = ctx.measureText(taskStatus).width + 32;
+      const statusH = 48;
+      const statusX = cardX + cardW - padding - statusW - 8;
+      const statusY = cardY + padding + 8;
+      ctx.fillStyle = statusColors.bg;
+      ctx.fillRect(statusX, statusY, statusW, statusH);
+      ctx.fillStyle = statusColors.text;
+      ctx.fillText(taskStatus, statusX + 16, statusY + 12);
+
+      cursorY += 16;
+
+      // Date
+      const displayDate = date || deadline;
+      if (displayDate) {
+        ctx.fillStyle = '#6b7280';
+        ctx.font = '400 26px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
+        const dateStr = new Date(displayDate).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+        ctx.fillText(`Date: ${dateStr}`, cursorX, cursorY);
+        cursorY += 44;
+      }
+
+      // Description
+      if (description) {
+        ctx.fillStyle = '#374151';
+        cursorY = wrapText(description, contentW, cursorX, cursorY + 12, 36, '400 24px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial');
+      }
+
+      // Assigned to section
+      if ((assignedUsers || []).length) {
+        cursorY += 16;
+        ctx.fillStyle = '#3f3f3f';
+        ctx.font = '600 26px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
+        ctx.fillText('Assigned to:', cursorX, cursorY);
+        cursorY += 44;
+
+        const avatarSize = 72;
+        const gapY = 20;
+
+        const userImgPromises = assignedUsers.map((u) => new Promise((resolve) => {
+          if (!u || !u.photoURL) return resolve(null);
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.onload = () => resolve(img);
+          img.onerror = () => resolve(null);
+          img.src = u.photoURL;
+        }));
+        const loadedUserImgs = await Promise.all(userImgPromises);
+
+        for (let i = 0; i < assignedUsers.length; i++) {
+          const u = assignedUsers[i];
+          const img = loadedUserImgs[i];
+          const rowX = cursorX;
+          const rowY = cursorY;
+
+          // Avatar
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(rowX + avatarSize / 2, rowY + avatarSize / 2, avatarSize / 2, 0, Math.PI * 2);
+          ctx.closePath();
+          ctx.fillStyle = '#e5e7eb';
+          ctx.fill();
+          if (img) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(rowX + avatarSize / 2, rowY + avatarSize / 2, avatarSize / 2, 0, Math.PI * 2);
+            ctx.clip();
+            const ir = Math.max(avatarSize / img.width, avatarSize / img.height);
+            const iw = img.width * ir;
+            const ih = img.height * ir;
+            const ix = rowX + (avatarSize - iw) / 2;
+            const iy = rowY + (avatarSize - ih) / 2;
+            ctx.drawImage(img, ix, iy, iw, ih);
+            ctx.restore();
+          } else {
+            ctx.fillStyle = '#6b7280';
+            ctx.font = '600 26px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
+            const initials = (u.name || '').split(' ').map((s) => s[0]).slice(0, 2).join('').toUpperCase();
+            ctx.fillText(initials, rowX + 16, rowY + 20);
+          }
+          ctx.restore();
+
+          // Name
+          const nameX = rowX + avatarSize + 20;
+          ctx.fillStyle = '#111827';
+          ctx.font = '600 26px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
+          ctx.fillText(u.name || 'Unknown', nameX, rowY + 4);
+
+          // Acceptance badge
+          const acceptanceStatus = u.acceptanceStatus;
+          let pillText, pillBgColor, pillTextColor;
+          if (acceptanceStatus === 'accepted') {
+            pillText = '✓ Accepted';
+            pillBgColor = '#dcfce7';
+            pillTextColor = '#16a34a';
+          } else if (acceptanceStatus === 'rejected') {
+            pillText = '✗ Rejected';
+            pillBgColor = '#fee2e2';
+            pillTextColor = '#dc2626';
+          } else {
+            pillText = '⏳ Pending';
+            pillBgColor = '#fef3c7';
+            pillTextColor = '#b45309';
+          }
+          
+          ctx.font = '500 22px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
+          const pillW = ctx.measureText(pillText).width + 24;
+          const pillH = 44;
+          const pillX = cardX + cardW - padding - pillW - 8;
+          const pillY = rowY + 10;
+          ctx.fillStyle = pillBgColor;
+          ctx.fillRect(pillX, pillY, pillW, pillH);
+          ctx.fillStyle = pillTextColor;
+          ctx.fillText(pillText, pillX + 12, pillY + 10);
+
+          // Role badges
+          const roles = u.roles || [];
+          let bx = nameX;
+          const by = rowY + 40;
+          ctx.font = '400 22px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
+          for (let r = 0; r < roles.length; r++) {
+            const roleText = roles[r];
+            const key = `${u.id}_${roleText}`;
+            const isCompleted = roleCompletion[key] === 'done';
+            const displayText = isCompleted ? `✓ ${roleText}` : roleText;
+            const bw = ctx.measureText(displayText).width + 20;
+            ctx.fillStyle = isCompleted ? '#d1fae5' : '#f0f0f0';
+            ctx.fillRect(bx, by, bw, 36);
+            ctx.fillStyle = isCompleted ? '#059669' : '#5b6b7d';
+            ctx.fillText(displayText, bx + 10, by + 24 - 6);
+            bx += bw + 12;
+          }
+
+          cursorY += avatarSize + gapY;
+        }
+      }
+
+      // Download
+      canvas.toBlob((blob) => {
+        if (!blob) return;
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `task-${id || Date.now()}.png`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 3000);
+      }, 'image/png');
+    } catch (err) {
+      console.warn('generateAndDownloadTaskImage error', err);
+    }
+  };
+
   const handleToggleUser = (uid) => {
     if (!editing) return;
     const exists = assignedUserDetails.find((u) => u.userId === uid);
@@ -234,6 +509,37 @@ if (emails.length > 0) {
   });
 }
 
+      }
+
+      // Generate and download task image
+      try {
+        const usersMap = {};
+        users.forEach((u) => {
+          usersMap[u.id] = u;
+        });
+        const itemsMap = {};
+        items.forEach((it) => {
+          itemsMap[it.id] = it;
+        });
+
+        await generateAndDownloadTaskImage({
+          task: {
+            id: task.id,
+            title: task.title,
+            description: task.description,
+            date: task.date,
+            deadline: task.deadline,
+            assignedUserDetails,
+            assignedItems,
+            status: task.status || 'pending',
+            userAcceptance: task.userAcceptance || {},
+            roleCompletion: task.roleCompletion || {}
+          },
+          usersMap,
+          itemsMap
+        });
+      } catch (e) {
+        console.warn('failed to generate task image', e);
       }
 
       setSuccess('Task updated successfully.');
