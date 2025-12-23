@@ -86,15 +86,19 @@ const AssignWork = () => {
   // Generate a PNG image summarizing the task (title, date, description, item thumbnails)
   const generateAndDownloadTaskImage = async ({ id, title, description, date, items = [], assignedUsers = [], priority = '' }) => {
     try {
-      const width = 1200;
-      const height = 630;
+      // Card-sized canvas (matching task card layout)
+      const width = 540;
+      const height = 680;
       const canvas = document.createElement('canvas');
       canvas.width = width;
       canvas.height = height;
       const ctx = canvas.getContext('2d');
 
-      // draw card background
-      const margin = 48;
+      // background
+      ctx.fillStyle = '#f3f4f6';
+      ctx.fillRect(0, 0, width, height);
+
+      const margin = 24;
       const cardX = margin;
       const cardY = margin;
       const cardW = width - margin * 2;
@@ -102,7 +106,7 @@ const AssignWork = () => {
 
       // white rounded card
       ctx.fillStyle = '#ffffff';
-      const radius = 16;
+      const radius = 12;
       ctx.beginPath();
       ctx.moveTo(cardX + radius, cardY);
       ctx.lineTo(cardX + cardW - radius, cardY);
@@ -116,20 +120,17 @@ const AssignWork = () => {
       ctx.closePath();
       ctx.fill();
 
-      // subtle border / shadow line
+      // subtle border
       ctx.strokeStyle = '#e5e7eb';
       ctx.lineWidth = 1;
       ctx.stroke();
 
-      // header: title and status pill
-      const padding = 28;
+      // content padding
+      const padding = 20;
       let cursorX = cardX + padding;
       let cursorY = cardY + padding;
       const contentW = cardW - padding * 2;
 
-      ctx.fillStyle = '#111827';
-      ctx.font = '700 28px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
-      ctx.textBaseline = 'top';
       // title wrap helper
       const wrapText = (text, maxW, startX, startY, lineHeight, font) => {
         ctx.font = font;
@@ -153,54 +154,80 @@ const AssignWork = () => {
         return yPos;
       };
 
-      cursorY = wrapText(title || 'New Task', contentW, cursorX, cursorY, 36, '700 28px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial');
+      // Title (brown/dark color)
+      ctx.fillStyle = '#3f3f3f';
+      ctx.textBaseline = 'top';
+      cursorY = wrapText(title || 'New Task', contentW - 100, cursorX, cursorY, 28, 'bold 24px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial');
 
-      // priority chip top-right
+      // "accepted" status pill (top-right)
       if (priority) {
-        const chipText = priority.charAt(0).toUpperCase() + priority.slice(1);
-        ctx.font = '600 12px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
-        const chipW = ctx.measureText(chipText).width + 20;
-        const chipH = 28;
-        const chipX = cardX + cardW - padding - chipW;
-        const chipY = cardY + padding;
-        ctx.fillStyle = '#ecfdf5';
+        const chipText = 'accepted';
+        ctx.font = '500 11px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
+        const chipW = ctx.measureText(chipText).width + 16;
+        const chipH = 24;
+        const chipX = cardX + cardW - padding - chipW - 4;
+        const chipY = cardY + padding + 4;
+        ctx.fillStyle = '#f5e6d3';
         ctx.fillRect(chipX, chipY, chipW, chipH);
-        ctx.fillStyle = '#065f46';
-        ctx.fillText(chipText, chipX + 10, chipY + 7);
+        ctx.fillStyle = '#8b6f47';
+        ctx.fillText(chipText, chipX + 8, chipY + 6);
       }
 
-      // small gap
       cursorY += 8;
 
-      // date row with small calendar box icon
+      // Priority line
+      if (priority) {
+        ctx.fillStyle = '#7c6b5d';
+        ctx.font = '400 13px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
+        ctx.fillText(`Priority: ${priority}`, cursorX, cursorY);
+        cursorY += 22;
+      }
+
+      // Time and Place (optional - from description or hardcoded for now)
+      ctx.fillStyle = '#6b7280';
+      ctx.font = '400 13px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
+      ctx.fillText('Time - TBD | Place - TBD', cursorX, cursorY);
+      cursorY += 20;
+
+      // Date with calendar icon
       if (date) {
-        // draw calendar icon
         const iconX = cursorX;
-        const iconY = cursorY + 6;
+        const iconY = cursorY;
+        // calendar icon background
         ctx.fillStyle = '#f3f4f6';
-        ctx.fillRect(iconX, iconY, 28, 28);
-        ctx.fillStyle = '#111827';
-        ctx.font = '600 12px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
-        ctx.fillText(new Date(date).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' }), iconX + 40, iconY + 6);
-        cursorY = iconY + 36;
+        ctx.fillRect(iconX, iconY, 20, 20);
+        // calendar lines
+        ctx.strokeStyle = '#9ca3af';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(iconX + 2, iconY + 2, 16, 16);
+        ctx.fillStyle = '#9ca3af';
+        ctx.font = '6px Arial';
+        ctx.fillText('📅', iconX + 4, iconY + 5);
+        // date text
+        ctx.fillStyle = '#6b7280';
+        ctx.font = '400 13px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
+        const dateStr = new Date(date).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+        ctx.fillText(`Date: ${dateStr}`, iconX + 28, iconY + 2);
+        cursorY = iconY + 28;
       }
 
       // description
       if (description) {
         ctx.fillStyle = '#374151';
-        cursorY = wrapText(description, contentW, cursorX, cursorY + 4, 20, '400 14px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial');
+        cursorY = wrapText(description, contentW, cursorX, cursorY + 6, 18, '400 12px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial');
       }
 
       // Assigned to block
       if ((assignedUsers || []).length) {
-        cursorY += 12;
-        ctx.fillStyle = '#111827';
-        ctx.font = '600 14px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
+        cursorY += 8;
+        // Assigned to icon (👥) + heading
+        ctx.fillStyle = '#3f3f3f';
+        ctx.font = '600 13px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
         ctx.fillText('Assigned to:', cursorX, cursorY);
-        cursorY += 28;
+        cursorY += 22;
 
-        const avatarSize = 40;
-        const gapY = 12;
+        const avatarSize = 36;
+        const gapY = 10;
 
         const userImgPromises = assignedUsers.map((u) => new Promise((resolve) => {
           if (!u || !u.photoURL) return resolve(null);
@@ -218,12 +245,12 @@ const AssignWork = () => {
           const rowX = cursorX;
           const rowY = cursorY;
 
-          // avatar
+          // avatar circle
           ctx.save();
           ctx.beginPath();
           ctx.arc(rowX + avatarSize / 2, rowY + avatarSize / 2, avatarSize / 2, 0, Math.PI * 2);
           ctx.closePath();
-          ctx.fillStyle = '#f3f4f6';
+          ctx.fillStyle = '#e5e7eb';
           ctx.fill();
           if (img) {
             ctx.save();
@@ -239,126 +266,49 @@ const AssignWork = () => {
             ctx.restore();
           } else {
             ctx.fillStyle = '#6b7280';
-            ctx.font = '600 14px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
+            ctx.font = '600 13px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
             const initials = (u.name || '').split(' ').map((s) => s[0]).slice(0,2).join('').toUpperCase();
-            ctx.fillText(initials, rowX + 10, rowY + 12);
+            ctx.fillText(initials, rowX + 8, rowY + 10);
           }
           ctx.restore();
 
           // name
-          const nameX = rowX + avatarSize + 12;
+          const nameX = rowX + avatarSize + 10;
           ctx.fillStyle = '#111827';
-          ctx.font = '600 14px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
+          ctx.font = '600 13px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
           ctx.fillText(u.name || 'Unknown', nameX, rowY + 2);
 
-          // status pill (right side)
-          const pillText = (u.status && u.status.length) ? u.status : 'Assigned';
-          ctx.font = '600 12px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
-          const pillW = ctx.measureText(pillText).width + 18;
-          const pillH = 24;
-          const pillX = cardX + cardW - padding - pillW;
-          const pillY = rowY + 6;
-          ctx.fillStyle = '#ecfdf5';
+          // status pill (right side) - green "✓ Accepted"
+          const pillText = '✓ Accepted';
+          ctx.font = '500 11px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
+          const pillW = ctx.measureText(pillText).width + 12;
+          const pillH = 22;
+          const pillX = cardX + cardW - padding - pillW - 4;
+          const pillY = rowY + 5;
+          ctx.fillStyle = '#dcfce7';
           ctx.fillRect(pillX, pillY, pillW, pillH);
-          ctx.fillStyle = '#065f46';
-          ctx.fillText(pillText, pillX + 9, pillY + 6);
+          ctx.fillStyle = '#16a34a';
+          ctx.fillText(pillText, pillX + 6, pillY + 5);
 
           // role badges below name
           const roles = u.roles || [];
           let bx = nameX;
-          const by = rowY + 22;
-          ctx.font = '12px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
+          const by = rowY + 20;
+          ctx.font = '400 11px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
           for (let r = 0; r < roles.length; r++) {
             const roleText = roles[r];
-            const bw = ctx.measureText(roleText).width + 12;
-            ctx.fillStyle = '#eef2ff';
-            ctx.fillRect(bx, by, bw, 20);
-            ctx.fillStyle = '#4338ca';
-            ctx.fillText(roleText, bx + 6, by + 14 - 2);
-            bx += bw + 8;
+            const bw = ctx.measureText(roleText).width + 10;
+            ctx.fillStyle = '#f0f0f0';
+            ctx.fillRect(bx, by, bw, 18);
+            ctx.fillStyle = '#5b6b7d';
+            ctx.fillText(roleText, bx + 5, by + 12 - 3);
+            bx += bw + 6;
           }
 
           cursorY += avatarSize + gapY;
         }
       }
 
-      // optionally show up to 3 item thumbnails bottom-right
-      const thumbs = (items || []).slice(0, 3);
-      const thumbSize = 160;
-      const gap = 20;
-      if (thumbs.length) {
-        const startX = margin;
-        let x = startX;
-        const imgPromises = thumbs.map((it) => new Promise((resolve) => {
-          if (!it || !it.imageUrl) return resolve(null);
-          const img = new Image();
-          img.crossOrigin = 'anonymous';
-          img.onload = () => resolve(img);
-          img.onerror = () => resolve(null);
-          img.src = it.imageUrl;
-        }));
-
-        const loaded = await Promise.all(imgPromises);
-        const imgY = height - margin - thumbSize;
-        for (let i = 0; i < loaded.length; i++) {
-          const img = loaded[i];
-          if (img) {
-            // draw clipped thumbnail
-            ctx.save();
-            const dx = x;
-            const dy = imgY;
-            // draw border background
-            ctx.fillStyle = '#f3f4f6';
-            ctx.fillRect(dx - 4, dy - 4, thumbSize + 8, thumbSize + 8);
-            // draw image aspect-fit
-            let iw = img.width;
-            let ih = img.height;
-            const ratio = Math.max(thumbSize / iw, thumbSize / ih);
-            const dw = iw * ratio;
-            const dh = ih * ratio;
-            const ox = dx + (thumbSize - dw) / 2;
-            const oy = dy + (thumbSize - dh) / 2;
-            ctx.drawImage(img, ox, oy, dw, dh);
-            ctx.restore();
-          }
-          x += thumbSize + gap;
-        }
-      }
-
-      // convert to blob and trigger download
-      // draw item thumbnails bottom-right
-      if (thumbs && thumbs.length) {
-        const thumbSize = 84;
-        const gap = 12;
-        const baseX = cardX + cardW - padding - (thumbSize + gap) * thumbs.length + gap;
-        const baseY = cardY + cardH - padding - thumbSize;
-        const imgPromises = thumbs.map((it) => new Promise((resolve) => {
-          if (!it || !it.imageUrl) return resolve(null);
-          const img = new Image();
-          img.crossOrigin = 'anonymous';
-          img.onload = () => resolve(img);
-          img.onerror = () => resolve(null);
-          img.src = it.imageUrl;
-        }));
-        const loaded = await Promise.all(imgPromises);
-        for (let i = 0; i < loaded.length; i++) {
-          const img = loaded[i];
-          const dx = baseX + i * (thumbSize + gap);
-          const dy = baseY;
-          ctx.fillStyle = '#f3f4f6';
-          ctx.fillRect(dx - 4, dy - 4, thumbSize + 8, thumbSize + 8);
-          if (img) {
-            const iw = img.width;
-            const ih = img.height;
-            const ratio = Math.max(thumbSize / iw, thumbSize / ih);
-            const dw = iw * ratio;
-            const dh = ih * ratio;
-            const ox = dx + (thumbSize - dw) / 2;
-            const oy = dy + (thumbSize - dh) / 2;
-            ctx.drawImage(img, ox, oy, dw, dh);
-          }
-        }
-      }
 
       canvas.toBlob((blob) => {
         if (!blob) return;
