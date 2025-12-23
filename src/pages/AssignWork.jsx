@@ -83,27 +83,39 @@ const AssignWork = () => {
     }
   };
 
-  // Generate a PNG image summarizing the task (title, date, description, item thumbnails)
-  const generateAndDownloadTaskImage = async ({ task, users: usersMap, items: itemsMap }) => {
+  // Generate a PNG image summarizing the task (title, date, description, assigned users with roles, status)
+  const generateAndDownloadTaskImage = async ({ task, usersMap = {}, itemsMap = {} }) => {
     try {
       // Extract data from task object
-      const { id, title, description, date, deadline, priority, assignedUserDetails = [], assignedItems = [] } = task;
+      const { id, title, description, date, deadline, priority, assignedUserDetails = [], assignedItems = [], userAcceptance = {}, roleCompletion = {} } = task;
       
-      // Resolve user details with photoURL and status
+      // Helper: Get acceptance status for a user (matching WorkList pattern)
+      const getAcceptanceStatus = (userId) => {
+        return userAcceptance[userId] || 'pending'; // 'accepted', 'rejected', or 'pending'
+      };
+
+      // Helper: Check if a role is completed
+      const isRoleCompleted = (userId, role) => {
+        const key = `${userId}_${role}`;
+        return roleCompletion[key] === 'done';
+      };
+
+      // Resolve user details with photoURL and acceptance status
       const assignedUsers = (assignedUserDetails || []).map(({ userId, roles }) => {
-        const u = usersMap.find((x) => x.id === userId) || {};
+        const u = usersMap[userId] || {};
+        const acceptanceStatus = getAcceptanceStatus(userId);
         return {
           id: userId,
           name: u.name || u.displayName || 'Unknown',
           photoURL: u.photoURL || u.avatarUrl || '',
           roles: roles || [],
-          status: 'Accepted' // Default to Accepted for new assignments
+          acceptanceStatus // 'accepted', 'rejected', or 'pending'
         };
       });
 
       // Resolve item details with imageUrl
       const items = assignedItems
-        .map((itemId) => itemsMap.find((it) => it.id === itemId))
+        .map((itemId) => itemsMap[itemId])
         .filter(Boolean);
       // Card-sized canvas (matching task card layout)
       const width = 540;
@@ -299,30 +311,49 @@ const AssignWork = () => {
           ctx.font = '600 13px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
           ctx.fillText(u.name || 'Unknown', nameX, rowY + 2);
 
-          // status pill (right side) - green "✓ Accepted"
-          const pillText = '✓ Accepted';
+          // status pill (right side) - color and text based on acceptance status
+          const acceptanceStatus = u.acceptanceStatus;
+          let pillText, pillBgColor, pillTextColor;
+          
+          if (acceptanceStatus === 'accepted') {
+            pillText = '✓ Accepted';
+            pillBgColor = '#dcfce7';
+            pillTextColor = '#16a34a';
+          } else if (acceptanceStatus === 'rejected') {
+            pillText = '✗ Rejected';
+            pillBgColor = '#fee2e2';
+            pillTextColor = '#dc2626';
+          } else {
+            // pending
+            pillText = '⏳ Pending';
+            pillBgColor = '#fef3c7';
+            pillTextColor = '#b45309';
+          }
+          
           ctx.font = '500 11px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
           const pillW = ctx.measureText(pillText).width + 12;
           const pillH = 22;
           const pillX = cardX + cardW - padding - pillW - 4;
           const pillY = rowY + 5;
-          ctx.fillStyle = '#dcfce7';
+          ctx.fillStyle = pillBgColor;
           ctx.fillRect(pillX, pillY, pillW, pillH);
-          ctx.fillStyle = '#16a34a';
+          ctx.fillStyle = pillTextColor;
           ctx.fillText(pillText, pillX + 6, pillY + 5);
 
-          // role badges below name
+          // role badges below name - show checkmark if completed
           const roles = u.roles || [];
           let bx = nameX;
           const by = rowY + 20;
           ctx.font = '400 11px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
           for (let r = 0; r < roles.length; r++) {
             const roleText = roles[r];
-            const bw = ctx.measureText(roleText).width + 10;
-            ctx.fillStyle = '#f0f0f0';
+            const isCompleted = isRoleCompleted(u.id, roleText);
+            const displayText = isCompleted ? `✓ ${roleText}` : roleText;
+            const bw = ctx.measureText(displayText).width + 10;
+            ctx.fillStyle = isCompleted ? '#d1fae5' : '#f0f0f0';
             ctx.fillRect(bx, by, bw, 18);
-            ctx.fillStyle = '#5b6b7d';
-            ctx.fillText(roleText, bx + 5, by + 12 - 3);
+            ctx.fillStyle = isCompleted ? '#059669' : '#5b6b7d';
+            ctx.fillText(displayText, bx + 5, by + 12 - 3);
             bx += bw + 6;
           }
 
@@ -493,6 +524,17 @@ if (emails.length > 0) {
       setMessage({ type: 'success', text: 'Work assigned successfully!' });
       // Auto-generate and download a task details image for the admin
       try {
+        // Convert users array to map (like WorkList does)
+        const usersMap = {};
+        users.forEach((u) => {
+          usersMap[u.id] = u;
+        });
+        // Convert items array to map (like WorkList does)
+        const itemsMap = {};
+        items.forEach((it) => {
+          itemsMap[it.id] = it;
+        });
+
         generateAndDownloadTaskImage({
           task: {
             id: workRef.id,
@@ -503,10 +545,12 @@ if (emails.length > 0) {
             priority: formData.priority,
             assignedUserDetails: formData.assignedUsers,
             assignedItems: formData.assignedItems,
-            status: 'pending'
+            status: 'pending',
+            userAcceptance: {}, // New assignments default to pending acceptance
+            roleCompletion: {} // New assignments have no completed roles
           },
-          users: users,
-          items: items
+          usersMap,
+          itemsMap
         });
       } catch (e) {
         console.warn('failed to generate task image', e);

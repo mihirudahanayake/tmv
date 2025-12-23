@@ -43,11 +43,44 @@ exports.onTaskWrite = functions.firestore
 
     if (!tokens.length) return null;
 
+    // Build small payload with task details and any item image URLs
+    const dataPayload = {
+      taskId: context.params.taskId,
+      title: after.title || 'New task assigned',
+      description: after.description || ''
+    };
+
+    try {
+      const assignedItems = after.assignedItems || [];
+      if (Array.isArray(assignedItems) && assignedItems.length > 0) {
+        const items = [];
+        // fetch inventory docs for each item id
+        for (const itemId of assignedItems) {
+          try {
+            const docSnap = await db.collection('inventory').doc(itemId).get();
+            if (docSnap.exists) {
+              const d = docSnap.data();
+              items.push({ id: itemId, itemName: d.itemName || '', imageUrl: d.imageUrl || d.photoURL || '' });
+            }
+          } catch (e) {
+            // ignore individual item errors
+            console.warn('failed to fetch inventory item', itemId, e);
+          }
+        }
+        if (items.length) {
+          dataPayload.items = JSON.stringify(items);
+        }
+      }
+    } catch (err) {
+      console.warn('failed to build items payload', err);
+    }
+
     const message = {
       notification: {
-        title: 'New task assigned',
-        body: after.title || 'You have a new task',
+        title: dataPayload.title,
+        body: after.title ? (after.description || '') : 'You have a new task'
       },
+      data: dataPayload,
       tokens,
     };
 

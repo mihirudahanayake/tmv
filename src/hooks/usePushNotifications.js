@@ -42,9 +42,44 @@ export async function initPushForUser(userId) {
     const title = payload.notification?.title;
     const body = payload.notification?.body;
     if (!title) return;
-    new Notification(title, {
-      body,
-      icon: '/icon-192.png'
-    });
+    // try to cache any images sent in data payload (items)
+    (async () => {
+      try {
+        const data = payload.data || {};
+        const itemsJson = data.items;
+        const opts = { body, icon: '/icon-192.png' };
+
+        if (itemsJson) {
+          const items = JSON.parse(itemsJson);
+          const imageUrls = items
+            .map((it) => it.imageUrl)
+            .filter((u) => typeof u === 'string' && u.length);
+
+          if (imageUrls.length && window.caches) {
+            try {
+              const cache = await caches.open('tmv-task-assets-v1');
+              await Promise.all(
+                imageUrls.map(async (u) => {
+                  try {
+                    const r = await fetch(u, { mode: 'no-cors' });
+                    await cache.put(u, r.clone());
+                    if (!opts.image) opts.image = u;
+                  } catch (e) {
+                    // ignore
+                  }
+                })
+              );
+            } catch (e) {
+              console.warn('caching images failed', e);
+            }
+          }
+        }
+
+        new Notification(title, opts);
+      } catch (e) {
+        // fallback: simple notification
+        new Notification(title, { body, icon: '/icon-192.png' });
+      }
+    })();
   });
 }

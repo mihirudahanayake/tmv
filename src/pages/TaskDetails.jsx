@@ -64,6 +64,33 @@ const TaskDetails = () => {
           setTask(data);
           setAssignedUserDetails(data.assignedUserDetails || []);
           setAssignedItems(data.assignedItems || []);
+          // admin page: cache any images for assigned inventory items
+          (async () => {
+            try {
+              const itemIds = data.assignedItems || [];
+              if (!itemIds.length) return;
+              if (!('caches' in window)) return;
+              const cache = await caches.open('tmv-task-assets-v1');
+              const urls = itemIds
+                .map((id) => items.find((it) => it.id === id))
+                .filter(Boolean)
+                .map((it) => it.imageUrl || it.photoURL || '')
+                .filter((u) => typeof u === 'string' && u.length);
+
+              await Promise.all(
+                urls.map(async (u) => {
+                  try {
+                    const r = await fetch(u, { mode: 'no-cors' });
+                    await cache.put(u, r.clone());
+                  } catch (e) {
+                    // ignore individual failures
+                  }
+                })
+              );
+            } catch (e) {
+              console.warn('prefetch admin item images failed', e);
+            }
+          })();
         } else {
           setError('Task not found.');
         }
