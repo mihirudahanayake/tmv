@@ -89,27 +89,45 @@ const AssignWork = () => {
       // Extract data from task object
       const { id, title, description, date, deadline, priority, assignedUserDetails = [], assignedItems = [], userAcceptance = {}, roleCompletion = {} } = task;
       
-      // Helper: Get acceptance status for a user (matching WorkList pattern)
-      const getAcceptanceStatus = (userId) => {
-        return userAcceptance[userId] || 'pending'; // 'accepted', 'rejected', or 'pending'
+      // Helper: Compute derived status (matching WorkList pattern)
+      const getDerivedStatus = () => {
+        if ((task.status || '').toLowerCase() === 'complete') {
+          return 'completed';
+        }
+        const userDetails = task.assignedUserDetails || [];
+        const roleCompletion = task.roleCompletion || {};
+        const acceptance = task.userAcceptance || {};
+        if (!userDetails.length) return 'pending';
+        const allAccepted = userDetails.every((d) => acceptance[d.userId] === 'accepted');
+        if (!allAccepted) return 'pending';
+        const allRolesDone = userDetails.every((d) =>
+          (d.roles || []).every((role) => roleCompletion[`${d.userId}_${role}`] === 'done')
+        );
+        if (!allRolesDone) return 'accepted';
+        return 'done';
       };
 
-      // Helper: Check if a role is completed
-      const isRoleCompleted = (userId, role) => {
-        const key = `${userId}_${role}`;
-        return roleCompletion[key] === 'done';
+      // Helper: Get status color
+      const getStatusColor = (status) => {
+        const colors = {
+          pending: { bg: '#fef3c7', text: '#b45309' },
+          accepted: { bg: '#fed7aa', text: '#b45309' },
+          done: { bg: '#bfdbfe', text: '#1e40af' },
+          completed: { bg: '#dcfce7', text: '#166534' }
+        };
+        return colors[status] || colors.pending;
       };
 
       // Resolve user details with photoURL and acceptance status
       const assignedUsers = (assignedUserDetails || []).map(({ userId, roles }) => {
         const u = usersMap[userId] || {};
-        const acceptanceStatus = getAcceptanceStatus(userId);
+        const acceptanceStatus = userAcceptance[userId] || 'pending';
         return {
           id: userId,
           name: u.name || u.displayName || 'Unknown',
           photoURL: u.photoURL || u.avatarUrl || '',
           roles: roles || [],
-          acceptanceStatus // 'accepted', 'rejected', or 'pending'
+          acceptanceStatus
         };
       });
 
@@ -190,19 +208,18 @@ const AssignWork = () => {
       ctx.textBaseline = 'top';
       cursorY = wrapText(title || 'New Task', contentW - 100, cursorX, cursorY, 28, 'bold 24px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial');
 
-      // Priority badge (top-right)
-      if (priority) {
-        const chipText = priority.toLowerCase();
-        ctx.font = '500 11px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
-        const chipW = ctx.measureText(chipText).width + 16;
-        const chipH = 24;
-        const chipX = cardX + cardW - padding - chipW - 4;
-        const chipY = cardY + padding + 4;
-        ctx.fillStyle = '#f5e6d3';
-        ctx.fillRect(chipX, chipY, chipW, chipH);
-        ctx.fillStyle = '#8b6f47';
-        ctx.fillText(chipText, chipX + 8, chipY + 6);
-      }
+      // Status badge (top-right)
+      const taskStatus = getDerivedStatus();
+      const statusColors = getStatusColor(taskStatus);
+      ctx.font = '500 11px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
+      const statusW = ctx.measureText(taskStatus).width + 16;
+      const statusH = 24;
+      const statusX = cardX + cardW - padding - statusW - 4;
+      const statusY = cardY + padding + 4;
+      ctx.fillStyle = statusColors.bg;
+      ctx.fillRect(statusX, statusY, statusW, statusH);
+      ctx.fillStyle = statusColors.text;
+      ctx.fillText(taskStatus, statusX + 8, statusY + 6);
 
       cursorY += 8;
 
@@ -319,7 +336,8 @@ const AssignWork = () => {
           ctx.font = '400 11px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
           for (let r = 0; r < roles.length; r++) {
             const roleText = roles[r];
-            const isCompleted = isRoleCompleted(u.id, roleText);
+            const key = `${u.id}_${roleText}`;
+            const isCompleted = roleCompletion[key] === 'done';
             const displayText = isCompleted ? `✓ ${roleText}` : roleText;
             const bw = ctx.measureText(displayText).width + 10;
             ctx.fillStyle = isCompleted ? '#d1fae5' : '#f0f0f0';
