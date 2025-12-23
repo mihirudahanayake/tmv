@@ -135,9 +135,9 @@ const AssignWork = () => {
       const items = assignedItems
         .map((itemId) => itemsMap[itemId])
         .filter(Boolean);
-      // Card-sized canvas (matching task card layout)
-      const width = 540;
-      const height = 680;
+      // Card-sized canvas (matching task card layout) - high resolution
+      const width = 1080;
+      const height = 1360;
       const canvas = document.createElement('canvas');
       canvas.width = width;
       canvas.height = height;
@@ -147,7 +147,7 @@ const AssignWork = () => {
       ctx.fillStyle = '#f3f4f6';
       ctx.fillRect(0, 0, width, height);
 
-      const margin = 24;
+      const margin = 48;
       const cardX = margin;
       const cardY = margin;
       const cardW = width - margin * 2;
@@ -155,7 +155,7 @@ const AssignWork = () => {
 
       // white rounded card
       ctx.fillStyle = '#ffffff';
-      const radius = 12;
+      const radius = 24;
       ctx.beginPath();
       ctx.moveTo(cardX + radius, cardY);
       ctx.lineTo(cardX + cardW - radius, cardY);
@@ -171,11 +171,11 @@ const AssignWork = () => {
 
       // subtle border
       ctx.strokeStyle = '#e5e7eb';
-      ctx.lineWidth = 1;
+      ctx.lineWidth = 2;
       ctx.stroke();
 
       // content padding
-      const padding = 20;
+      const padding = 40;
       let cursorX = cardX + padding;
       let cursorY = cardY + padding;
       const contentW = cardW - padding * 2;
@@ -206,50 +206,50 @@ const AssignWork = () => {
       // Title (brown/dark color)
       ctx.fillStyle = '#3f3f3f';
       ctx.textBaseline = 'top';
-      cursorY = wrapText(title || 'New Task', contentW - 100, cursorX, cursorY, 28, 'bold 24px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial');
+      cursorY = wrapText(title || 'New Task', contentW - 200, cursorX, cursorY, 56, 'bold 48px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial');
 
       // Status badge (top-right)
       const taskStatus = getDerivedStatus();
       const statusColors = getStatusColor(taskStatus);
-      ctx.font = '500 11px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
-      const statusW = ctx.measureText(taskStatus).width + 16;
-      const statusH = 24;
-      const statusX = cardX + cardW - padding - statusW - 4;
-      const statusY = cardY + padding + 4;
+      ctx.font = '500 22px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
+      const statusW = ctx.measureText(taskStatus).width + 32;
+      const statusH = 48;
+      const statusX = cardX + cardW - padding - statusW - 8;
+      const statusY = cardY + padding + 8;
       ctx.fillStyle = statusColors.bg;
       ctx.fillRect(statusX, statusY, statusW, statusH);
       ctx.fillStyle = statusColors.text;
-      ctx.fillText(taskStatus, statusX + 8, statusY + 6);
+      ctx.fillText(taskStatus, statusX + 16, statusY + 12);
 
-      cursorY += 8;
+      cursorY += 16;
 
       // Date with calendar icon (use date or deadline)
       const displayDate = date || deadline;
       if (displayDate) {
         ctx.fillStyle = '#6b7280';
-        ctx.font = '400 13px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
+        ctx.font = '400 26px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
         const dateStr = new Date(displayDate).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
         ctx.fillText(`Date: ${dateStr}`, cursorX, cursorY);
-        cursorY += 22;
+        cursorY += 44;
       }
 
       // description
       if (description) {
         ctx.fillStyle = '#374151';
-        cursorY = wrapText(description, contentW, cursorX, cursorY + 6, 18, '400 12px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial');
+        cursorY = wrapText(description, contentW, cursorX, cursorY + 12, 36, '400 24px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial');
       }
 
       // Assigned to block
       if ((assignedUsers || []).length) {
-        cursorY += 8;
+        cursorY += 16;
         // Assigned to icon (👥) + heading
         ctx.fillStyle = '#3f3f3f';
-        ctx.font = '600 13px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
+        ctx.font = '600 26px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
         ctx.fillText('Assigned to:', cursorX, cursorY);
-        cursorY += 22;
+        cursorY += 44;
 
-        const avatarSize = 36;
-        const gapY = 10;
+        const avatarSize = 72;
+        const gapY = 20;
 
         const userImgPromises = assignedUsers.map((u) => new Promise((resolve) => {
           if (!u || !u.photoURL) return resolve(null);
@@ -288,17 +288,17 @@ const AssignWork = () => {
             ctx.restore();
           } else {
             ctx.fillStyle = '#6b7280';
-            ctx.font = '600 13px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
+            ctx.font = '600 26px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
             const initials = (u.name || '').split(' ').map((s) => s[0]).slice(0,2).join('').toUpperCase();
-            ctx.fillText(initials, rowX + 8, rowY + 10);
+            ctx.fillText(initials, rowX + 16, rowY + 20);
           }
           ctx.restore();
 
           // name
-          const nameX = rowX + avatarSize + 10;
+          const nameX = rowX + avatarSize + 20;
           ctx.fillStyle = '#111827';
-          ctx.font = '600 13px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
-          ctx.fillText(u.name || 'Unknown', nameX, rowY + 2);
+          ctx.font = '600 26px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
+          ctx.fillText(u.name || 'Unknown', nameX, rowY + 4);
 
           // status pill (right side) - color and text based on acceptance status
           const acceptanceStatus = u.acceptanceStatus;
@@ -319,32 +319,32 @@ const AssignWork = () => {
             pillTextColor = '#b45309';
           }
           
-          ctx.font = '500 11px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
-          const pillW = ctx.measureText(pillText).width + 12;
-          const pillH = 22;
-          const pillX = cardX + cardW - padding - pillW - 4;
-          const pillY = rowY + 5;
+          ctx.font = '500 22px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
+          const pillW = ctx.measureText(pillText).width + 24;
+          const pillH = 44;
+          const pillX = cardX + cardW - padding - pillW - 8;
+          const pillY = rowY + 10;
           ctx.fillStyle = pillBgColor;
           ctx.fillRect(pillX, pillY, pillW, pillH);
           ctx.fillStyle = pillTextColor;
-          ctx.fillText(pillText, pillX + 6, pillY + 5);
+          ctx.fillText(pillText, pillX + 12, pillY + 10);
 
           // role badges below name - show checkmark if completed
           const roles = u.roles || [];
           let bx = nameX;
-          const by = rowY + 20;
-          ctx.font = '400 11px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
+          const by = rowY + 40;
+          ctx.font = '400 22px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
           for (let r = 0; r < roles.length; r++) {
             const roleText = roles[r];
             const key = `${u.id}_${roleText}`;
             const isCompleted = roleCompletion[key] === 'done';
             const displayText = isCompleted ? `✓ ${roleText}` : roleText;
-            const bw = ctx.measureText(displayText).width + 10;
+            const bw = ctx.measureText(displayText).width + 20;
             ctx.fillStyle = isCompleted ? '#d1fae5' : '#f0f0f0';
-            ctx.fillRect(bx, by, bw, 18);
+            ctx.fillRect(bx, by, bw, 36);
             ctx.fillStyle = isCompleted ? '#059669' : '#5b6b7d';
-            ctx.fillText(displayText, bx + 5, by + 12 - 3);
-            bx += bw + 6;
+            ctx.fillText(displayText, bx + 10, by + 24 - 6);
+            bx += bw + 12;
           }
 
           cursorY += avatarSize + gapY;
