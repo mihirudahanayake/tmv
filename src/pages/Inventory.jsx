@@ -16,7 +16,8 @@ const Inventory = () => {
   const [formData, setFormData] = useState({
     itemNo: '',
     itemName: '',
-    details: ''
+    category: '',
+    description: ''
   });
 
   useEffect(() => {
@@ -75,7 +76,7 @@ const Inventory = () => {
         setMessage({ type: 'success', text: 'Item added successfully!' });
       }
 
-      setFormData({ itemNo: '', itemName: '', details: '' });
+      setFormData({ itemNo: '', itemName: '', category: '', description: '' });
       setShowAddForm(false);
       setEditingItem(null);
       await fetchItems();
@@ -95,7 +96,8 @@ const Inventory = () => {
     setFormData({
       itemNo: item.itemNo,
       itemName: item.itemName,
-      details: item.details || ''
+      category: item.category || '',
+      description: item.description || ''
     });
     setShowAddForm(true);
     setMessage({ type: '', text: '' });
@@ -120,7 +122,7 @@ const Inventory = () => {
 
   const handleCancelEdit = () => {
     setEditingItem(null);
-    setFormData({ itemNo: '', itemName: '', details: '' });
+    setFormData({ itemNo: '', itemName: '', category: '', description: '' });
     setShowAddForm(false);
     setMessage({ type: '', text: '' });
   };
@@ -221,11 +223,32 @@ const Inventory = () => {
 
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Details
+                  Category
+                </label>
+                <select
+                  name="category"
+                  value={formData.category}
+                  onChange={handleChange}
+                  required
+                  className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                >
+                  <option value="">Select a category</option>
+                  <option value="Photography">Photography</option>
+                  <option value="Videography">Videography</option>
+                  <option value="Live Streaming">Live Streaming</option>
+                  <option value="Drones & Accessories">Drones & Accessories</option>
+                  <option value="Announcing">Announcing</option>
+                  <option value="Storages">Storages</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Description
                 </label>
                 <textarea
-                  name="details"
-                  value={formData.details}
+                  name="description"
+                  value={formData.description}
                   onChange={handleChange}
                   rows="3"
                   className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
@@ -293,9 +316,14 @@ const Inventory = () => {
                     {item.itemNo}
                   </span>
                 </div>
-                {item.details && (
+                {item.category && (
+                  <p className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded inline-block mb-2">
+                    {item.category}
+                  </p>
+                )}
+                {item.description && (
                   <p className="text-gray-600 text-xs sm:text-sm mb-3">
-                    {item.details}
+                    {item.description}
                   </p>
                 )}
                 <div className="flex gap-2 mt-3 pt-3 border-t">
