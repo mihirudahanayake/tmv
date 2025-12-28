@@ -1,27 +1,61 @@
 import { useNavigate } from 'react-router-dom';
+import { useDarkMode } from '../context/DarkModeContext';
+import { FaSun, FaMoon } from 'react-icons/fa';
 
 const Welcome = () => {
   const navigate = useNavigate();
+  const { isDarkMode, toggleDarkMode } = useDarkMode();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center px-4 py-8 overflow-hidden">
+    <div className={`min-h-screen transition-colors duration-300 flex items-center justify-center px-4 py-8 overflow-hidden ${
+      isDarkMode 
+        ? 'bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900' 
+        : 'bg-gradient-to-br from-blue-50 via-cyan-50 to-blue-100'
+    }`}>
       {/* Animated background elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-20 left-10 w-72 h-72 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
-        <div className="absolute top-40 right-10 w-72 h-72 bg-cyan-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob" style={{ animationDelay: '2s' }}></div>
-        <div className="absolute bottom-20 left-20 w-72 h-72 bg-blue-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob" style={{ animationDelay: '4s' }}></div>
+        {isDarkMode ? (
+          <>
+            <div className="absolute top-20 left-10 w-72 h-72 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+            <div className="absolute top-40 right-10 w-72 h-72 bg-cyan-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob" style={{ animationDelay: '2s' }}></div>
+            <div className="absolute bottom-20 left-20 w-72 h-72 bg-blue-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob" style={{ animationDelay: '4s' }}></div>
+          </>
+        ) : (
+          <>
+            <div className="absolute top-20 left-10 w-72 h-72 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob"></div>
+            <div className="absolute top-40 right-10 w-72 h-72 bg-cyan-300 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob" style={{ animationDelay: '2s' }}></div>
+            <div className="absolute bottom-20 left-20 w-72 h-72 bg-blue-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob" style={{ animationDelay: '4s' }}></div>
+          </>
+        )}
 
         {/* Floating particles */}
-        <div className="absolute top-1/4 left-1/4 w-1 h-1 bg-blue-300 rounded-full animate-float opacity-50"></div>
-        <div className="absolute top-1/3 right-1/4 w-1 h-1 bg-cyan-300 rounded-full animate-float opacity-60" style={{ animationDelay: '1s' }}></div>
-        <div className="absolute bottom-1/3 left-1/3 w-1 h-1 bg-blue-200 rounded-full animate-float opacity-40" style={{ animationDelay: '2s' }}></div>
-        <div className="absolute top-2/3 right-1/3 w-1 h-1 bg-cyan-200 rounded-full animate-float opacity-50" style={{ animationDelay: '1.5s' }}></div>
-        <div className="absolute bottom-1/4 right-1/4 w-1 h-1 bg-blue-300 rounded-full animate-float opacity-60" style={{ animationDelay: '2.5s' }}></div>
+        <div className={`absolute top-1/4 left-1/4 w-1 h-1 rounded-full animate-float opacity-50 ${isDarkMode ? 'bg-blue-300' : 'bg-blue-400'}`}></div>
+        <div className={`absolute top-1/3 right-1/4 w-1 h-1 rounded-full animate-float opacity-60 ${isDarkMode ? 'bg-cyan-300' : 'bg-cyan-400'}`} style={{ animationDelay: '1s' }}></div>
+        <div className={`absolute bottom-1/3 left-1/3 w-1 h-1 rounded-full animate-float opacity-40 ${isDarkMode ? 'bg-blue-200' : 'bg-blue-300'}`} style={{ animationDelay: '2s' }}></div>
+        <div className={`absolute top-2/3 right-1/3 w-1 h-1 rounded-full animate-float opacity-50 ${isDarkMode ? 'bg-cyan-200' : 'bg-cyan-300'}`} style={{ animationDelay: '1.5s' }}></div>
+        <div className={`absolute bottom-1/4 right-1/4 w-1 h-1 rounded-full animate-float opacity-60 ${isDarkMode ? 'bg-blue-300' : 'bg-blue-400'}`} style={{ animationDelay: '2.5s' }}></div>
       </div>
+
+      {/* Dark Mode Toggle Button */}
+      <button
+        onClick={toggleDarkMode}
+        className={`absolute top-8 right-8 z-20 p-3 rounded-full transition-all duration-300 ${
+          isDarkMode
+            ? 'bg-gray-700 hover:bg-gray-600 text-yellow-300'
+            : 'bg-blue-200 hover:bg-blue-300 text-blue-600'
+        }`}
+        aria-label="Toggle dark mode"
+      >
+        {isDarkMode ? <FaSun size={20} /> : <FaMoon size={20} />}
+      </button>
 
       {/* Main content */}
       <div className="relative z-10 w-full max-w-md">
-        <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl shadow-2xl p-8 sm:p-12 space-y-8 animate-fade-in">
+        <div className={`backdrop-blur-xl border rounded-2xl shadow-2xl p-8 sm:p-12 space-y-8 animate-fade-in transition-colors duration-300 ${
+          isDarkMode
+            ? 'bg-white/10 border-white/20'
+            : 'bg-white/40 border-white/60'
+        }`}>
           {/* Header */}
           <div className="text-center space-y-3">
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 mb-4 animate-pulse-glow relative">
@@ -29,17 +63,25 @@ const Welcome = () => {
               <span className="text-white font-bold text-2xl relative z-10">TMV</span>
             </div>
 
-            <h1 className="text-4xl sm:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-200 via-cyan-200 to-blue-200 overflow-hidden whitespace-nowrap border-r-2 border-cyan-400 animate-smooth-typing">
+            <h1 className={`text-4xl sm:text-5xl font-bold text-transparent bg-clip-text overflow-hidden whitespace-nowrap border-r-2 animate-smooth-typing ${
+              isDarkMode
+                ? 'bg-gradient-to-r from-blue-200 via-cyan-200 to-blue-200 border-cyan-400'
+                : 'bg-gradient-to-r from-blue-600 via-cyan-600 to-blue-600 border-cyan-600'
+            }`}>
               Welcome
             </h1>
-            <p className="text-lg text-blue-200 font-semibold animate-slide-up-delayed">
+            <p className={`text-lg font-semibold animate-slide-up-delayed ${
+              isDarkMode ? 'text-blue-200' : 'text-blue-700'
+            }`}>
               Task Management & Verification
             </p>
           </div>
 
           {/* Description */}
           <div className="text-center">
-            <p className="text-gray-300 leading-relaxed text-sm sm:text-base animate-slide-up-delayed-2">
+            <p className={`leading-relaxed text-sm sm:text-base animate-slide-up-delayed-2 ${
+              isDarkMode ? 'text-gray-300' : 'text-gray-700'
+            }`}>
               Streamline your workflow and efficiently manage all your task assignments in one unified platform.
             </p>
           </div>
@@ -55,166 +97,36 @@ const Welcome = () => {
             </button>
             <button
               onClick={() => navigate('/signup')}
-              className="w-full px-6 py-3 sm:py-4 bg-white/10 backdrop-blur-md text-white font-semibold rounded-lg border border-white/30 hover:bg-white/20 hover:border-white/40 transition-all duration-300 transform hover:-translate-y-1 hover:shadow-lg hover:shadow-cyan-500/30 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-slate-900 active:translate-y-0 group relative"
+              className={`w-full px-6 py-3 sm:py-4 font-semibold rounded-lg border transition-all duration-300 transform hover:-translate-y-1 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-slate-900 active:translate-y-0 group relative
+                ${isDarkMode
+                  ? 'bg-white/10 backdrop-blur-md text-white border-white/30 hover:bg-white/20 hover:border-white/40 hover:shadow-lg hover:shadow-cyan-500/30'
+                  : 'bg-white text-blue-700 border-blue-500 hover:bg-blue-50 hover:border-blue-600 hover:text-blue-800 shadow-md'}
+              `}
             >
               <span className="relative z-10">Create Account</span>
-              <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-cyan-500/20 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              {isDarkMode ? (
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-cyan-500/20 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              ) : null}
             </button>
           </div>
 
           {/* Footer */}
-          <div className="pt-6 border-t border-white/10 text-center animate-slide-up-delayed-4">
-            <p className="text-sm text-gray-400">
+          <div className={`pt-6 border-t text-center animate-slide-up-delayed-4 ${
+            isDarkMode ? 'border-white/10 text-gray-400' : 'border-gray-300 text-gray-600'
+          }`}>
+            <p className="text-sm">
               Get started in seconds
             </p>
           </div>
         </div>
 
         {/* Bottom accent */}
-        <div className="text-center mt-8 text-xs text-gray-500 animate-fade-in" style={{ animationDelay: '1.2s' }}>
+        <div className={`text-center mt-8 text-xs animate-fade-in ${
+          isDarkMode ? 'text-gray-500' : 'text-gray-600'
+        }`} style={{ animationDelay: '1.2s' }}>
           © 2025 Videography Management System
         </div>
       </div>
-
-      <style>{`
-        @keyframes blob {
-          0%, 100% { transform: translate(0, 0) scale(1); }
-          33% { transform: translate(30px, -50px) scale(1.1); }
-          66% { transform: translate(-20px, 20px) scale(0.9); }
-        }
-        .animate-blob {
-          animation: blob 7s infinite;
-        }
-        .animation-delay-2000 {
-          animation-delay: 2s;
-        }
-        .animation-delay-4000 {
-          animation-delay: 4s;
-        }
-
-        @keyframes float {
-          0%, 100% { transform: translateY(0px) translateX(0px); opacity: 0; }
-          10% { opacity: 1; }
-          90% { opacity: 1; }
-          100% { transform: translateY(-100vh) translateX(100px); opacity: 0; }
-        }
-        .animate-float {
-          animation: float 15s infinite ease-in;
-        }
-
-        @keyframes fade-in {
-          from {
-            opacity: 0;
-          }
-          to {
-            opacity: 1;
-          }
-        }
-        .animate-fade-in {
-          animation: fade-in 0.8s ease-out forwards;
-        }
-
-        @keyframes slide-up {
-          from {
-            opacity: 0;
-            transform: translateY(30px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        .animate-slide-up-delayed {
-          animation: slide-up 0.8s ease-out 0.3s forwards;
-          opacity: 0;
-        }
-        .animate-slide-up-delayed-2 {
-          animation: slide-up 0.8s ease-out 0.5s forwards;
-          opacity: 0;
-        }
-        .animate-slide-up-delayed-3 {
-          animation: slide-up 0.8s ease-out 0.7s forwards;
-          opacity: 0;
-        }
-        .animate-slide-up-delayed-4 {
-          animation: slide-up 0.8s ease-out 0.9s forwards;
-          opacity: 0;
-        }
-
-        @keyframes typing {
-          0% {
-            width: 0;
-            border-right-color: rgba(34, 211, 238, 0.75);
-          }
-          50% {
-            border-right-color: rgba(34, 211, 238, 0.75);
-          }
-          100% {
-            width: 100%;
-            border-right-color: transparent;
-          }
-        }
-
-        @keyframes smooth-typing {
-          0% {
-            width: 0;
-            border-right-color: rgba(34, 211, 238, 0.75);
-            opacity: 0;
-          }
-          10% {
-            opacity: 1;
-          }
-          85% {
-            border-right-color: rgba(34, 211, 238, 0.75);
-          }
-          100% {
-            width: 100%;
-            border-right-color: transparent;
-            opacity: 1;
-          }
-        }
-
-        .animate-smooth-typing {
-          animation: smooth-typing 3s cubic-bezier(0.4, 0.0, 0.2, 1) 0.3s forwards;
-          width: 0;
-          opacity: 0;
-        }
-
-        @keyframes blink-caret {
-          0%, 50% {
-            border-right-color: rgba(34, 211, 238, 0.75);
-          }
-          100% {
-            border-right-color: transparent;
-          }
-        }
-
-        @keyframes gradient-shift {
-          0% { background-position: 0% 50%; }
-          50% { background-position: 100% 50%; }
-          100% { background-position: 0% 50%; }
-        }
-        .animate-gradient-shift {
-          background-size: 200% 200%;
-          animation: gradient-shift 6s ease infinite;
-        }
-
-        @keyframes blob {
-          0%, 100% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.5); }
-          50% { box-shadow: 0 0 40px rgba(34, 211, 238, 0.7); }
-        }
-        .animate-pulse-glow {
-          animation: pulse-glow 3s ease-in-out infinite;
-        }
-
-        @keyframes spin-slow {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-        .animate-spin-slow {
-          animation: spin-slow 3s linear infinite;
-        }
-      `}</style>
     </div>
   );
 };

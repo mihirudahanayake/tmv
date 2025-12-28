@@ -3,6 +3,19 @@ export default {
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
+  safelist: [
+    'animate-blob',
+    'animate-float',
+    'animate-fade-in',
+    'animate-slide-up',
+    'animate-slide-up-delayed',
+    'animate-slide-up-delayed-2',
+    'animate-slide-up-delayed-3',
+    'animate-slide-up-delayed-4',
+    'animate-smooth-typing',
+    'animate-pulse-glow',
+    'animate-spin-slow',
+  ],
   theme: {
     extend: {
       animation: {
@@ -63,5 +76,6 @@ export default {
       },
     },
   },
+  darkMode: 'class',
   plugins: [],
 }
