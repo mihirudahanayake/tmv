@@ -109,8 +109,14 @@ const Header = ({ userType, isDarkMode, toggleDarkMode }) => {
         </button>
 
         {/* MOBILE MENU */}
-        {isMenuOpen && (
-          <ul className="lg:hidden mt-4 space-y-2 pb-2 bg-blue-700/50 backdrop-blur-sm rounded-lg">
+        <div
+          className={`lg:hidden transition-all duration-300 ease-in-out overflow-hidden ${
+            isMenuOpen
+              ? 'max-h-96 opacity-100 scale-100 mt-4'
+              : 'max-h-0 opacity-0 scale-95 mt-0'
+          }`}
+        >
+          <ul className="space-y-2 pb-2 bg-blue-700/50 backdrop-blur-sm rounded-lg">
             {navItems.map((item) => (
               <li key={item.path}>
                 <Link
@@ -126,7 +132,7 @@ const Header = ({ userType, isDarkMode, toggleDarkMode }) => {
               </li>
             ))}
           </ul>
-        )}
+        </div>
       </nav>
     </header>
   );
