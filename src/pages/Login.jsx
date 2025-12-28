@@ -59,9 +59,18 @@ const Login = () => {
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center px-4">
       <div className="w-full max-w-md bg-white rounded-lg shadow-md p-4 sm:p-6">
-        <h1 className="text-xl sm:text-2xl font-bold text-gray-800 mb-4">
-          Log In
-        </h1>
+        <div className="flex items-center justify-between mb-4">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-800">
+            Log In
+          </h1>
+          <button
+            onClick={() => navigate('/')}
+            className="text-gray-600 hover:text-gray-800 text-2xl"
+            title="Go back"
+          >
+            ×
+          </button>
+        </div>
 
         {error && (
           <div className="mb-4 p-3 rounded bg-red-100 text-red-700 text-sm">

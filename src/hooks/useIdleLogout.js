@@ -21,7 +21,7 @@ export function useIdleLogout() {
         } catch (e) {
           console.error('Auto logout failed', e);
         }
-        navigate('/'); // Redirect to welcome page
+        navigate('/'); // redirect to welcome page
       }, idleMs);
     };
 

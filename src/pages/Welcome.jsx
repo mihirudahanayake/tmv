@@ -1,131 +1,216 @@
 import { useNavigate } from 'react-router-dom';
-import { useState } from 'react';
 
-export default function Welcome() {
+const Welcome = () => {
   const navigate = useNavigate();
-  const [hoveredButton, setHoveredButton] = useState(null);
 
   return (
-    <div className="min-h-screen relative overflow-hidden bg-black">
-      {/* Animated Background */}
-      <div className="fixed inset-0">
-        {/* Gradient Orbs */}
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-cyan-500 rounded-full mix-blend-screen filter blur-3xl opacity-20 animate-pulse"></div>
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-purple-500 rounded-full mix-blend-screen filter blur-3xl opacity-20 animate-pulse"></div>
-        <div className="absolute top-1/2 left-1/2 w-96 h-96 bg-blue-500 rounded-full mix-blend-screen filter blur-3xl opacity-10 animate-pulse"></div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center px-4 py-8 overflow-hidden">
+      {/* Animated background elements */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-20 left-10 w-72 h-72 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+        <div className="absolute top-40 right-10 w-72 h-72 bg-cyan-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+        <div className="absolute bottom-20 left-20 w-72 h-72 bg-blue-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
 
-        {/* Grid Background */}
-        <div className="absolute inset-0 bg-[linear-gradient(rgba(100,200,255,.1)_1px,transparent_1px),linear-gradient(90deg,rgba(100,200,255,.1)_1px,transparent_1px)] bg-[size:50px_50px]"></div>
+        {/* Floating particles */}
+        <div className="absolute top-1/4 left-1/4 w-1 h-1 bg-blue-300 rounded-full animate-float opacity-50"></div>
+        <div className="absolute top-1/3 right-1/4 w-1 h-1 bg-cyan-300 rounded-full animate-float opacity-60" style={{ animationDelay: '1s' }}></div>
+        <div className="absolute bottom-1/3 left-1/3 w-1 h-1 bg-blue-200 rounded-full animate-float opacity-40" style={{ animationDelay: '2s' }}></div>
+        <div className="absolute top-2/3 right-1/3 w-1 h-1 bg-cyan-200 rounded-full animate-float opacity-50" style={{ animationDelay: '1.5s' }}></div>
+        <div className="absolute bottom-1/4 right-1/4 w-1 h-1 bg-blue-300 rounded-full animate-float opacity-60" style={{ animationDelay: '2.5s' }}></div>
       </div>
 
-      {/* Content */}
-      <div className="relative z-10 min-h-screen flex items-center justify-center p-4">
-        <div className="w-full max-w-2xl">
-          {/* Main Card */}
-          <div className="relative">
-            {/* Glowing Border Effect */}
-            <div className="absolute -inset-1 bg-gradient-to-r from-cyan-500 via-purple-500 to-pink-500 rounded-2xl blur opacity-30 group-hover:opacity-100 transition duration-1000 animate-pulse"></div>
-
-            {/* Card Content */}
-            <div className="relative bg-black/80 backdrop-blur-xl border border-cyan-500/20 rounded-2xl p-12">
-              {/* Top Accent Line */}
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-500 via-purple-500 to-pink-500 rounded-t-2xl"></div>
-
-              {/* Logo Section */}
-              <div className="text-center mb-10">
-                {/* Animated Logo */}
-                <div className="inline-block mb-8 relative">
-                  <div className="absolute inset-0 bg-gradient-to-r from-cyan-500 to-purple-500 rounded-3xl blur-lg opacity-75 animate-pulse"></div>
-                  <div className="relative bg-gradient-to-br from-cyan-500 to-purple-600 rounded-3xl w-24 h-24 flex items-center justify-center border border-cyan-400/50">
-                    <span className="text-5xl font-black text-white drop-shadow-lg">TMV</span>
-                  </div>
-                </div>
-
-                {/* Title */}
-                <h1 className="text-5xl font-black text-white mb-3 bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400">
-                  Welcome
-                </h1>
-
-                {/* Subtitle */}
-                <p className="text-xl text-cyan-300 font-light tracking-widest mb-2">TASK MANAGEMENT</p>
-                <p className="text-lg text-purple-300 font-light">& VIDEOGRAPHY PLATFORM</p>
-              </div>
-
-              {/* Divider */}
-              <div className="h-px bg-gradient-to-r from-transparent via-cyan-500 to-transparent mb-8"></div>
-
-              {/* Description */}
-              <div className="text-center mb-10">
-                <p className="text-gray-300 text-sm leading-relaxed max-w-sm mx-auto">
-                  Experience the future of project management. Seamlessly coordinate your videography assignments, track progress, and collaborate with your team in real-time.
-                </p>
-              </div>
-
-              {/* Buttons */}
-              <div className="grid grid-cols-2 gap-4 mb-8">
-                {/* Login Button */}
-                <button
-                  onMouseEnter={() => setHoveredButton('login')}
-                  onMouseLeave={() => setHoveredButton(null)}
-                  onClick={() => navigate('/login')}
-                  className="group relative overflow-hidden rounded-xl py-4 px-6 font-bold text-white transition-all duration-300 transform hover:scale-105"
-                >
-                  {/* Button Background */}
-                  <div className="absolute inset-0 bg-gradient-to-r from-cyan-500 to-blue-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                  <div className="absolute inset-0 bg-gray-900/50 border border-cyan-500/50 group-hover:border-cyan-400 rounded-xl transition-all duration-300"></div>
-
-                  {/* Button Text */}
-                  <span className="relative flex items-center justify-center gap-2">
-                    <span>LOGIN</span>
-                    {hoveredButton === 'login' && <span className="text-lg">→</span>}
-                  </span>
-                </button>
-
-                {/* Signup Button */}
-                <button
-                  onMouseEnter={() => setHoveredButton('signup')}
-                  onMouseLeave={() => setHoveredButton(null)}
-                  onClick={() => navigate('/signup')}
-                  className="group relative overflow-hidden rounded-xl py-4 px-6 font-bold text-white transition-all duration-300 transform hover:scale-105"
-                >
-                  {/* Button Background */}
-                  <div className="absolute inset-0 bg-gradient-to-r from-purple-500 to-pink-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                  <div className="absolute inset-0 bg-gray-900/50 border border-purple-500/50 group-hover:border-purple-400 rounded-xl transition-all duration-300"></div>
-
-                  {/* Button Text */}
-                  <span className="relative flex items-center justify-center gap-2">
-                    <span>SIGN UP</span>
-                    {hoveredButton === 'signup' && <span className="text-lg">→</span>}
-                  </span>
-                </button>
-              </div>
-
-              {/* Alternative Login */}
-              <div className="text-center text-xs text-gray-500 mb-8">
-                OR
-              </div>
-
-              {/* Social Indicators */}
-              <div className="flex justify-center gap-3 mb-8">
-                <div className="w-2 h-2 bg-cyan-500 rounded-full animate-pulse"></div>
-                <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
-                <div className="w-2 h-2 bg-pink-500 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
-              </div>
-
-              {/* Footer */}
-              <div className="text-center border-t border-cyan-500/10 pt-8">
-                <p className="text-cyan-400 font-semibold text-sm mb-1">FOT MEDIA</p>
-                <p className="text-gray-500 text-xs">Rajarata University • Videography Department</p>
-              </div>
+      {/* Main content */}
+      <div className="relative z-10 w-full max-w-md">
+        <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl shadow-2xl p-8 sm:p-12 space-y-8 animate-fade-in">
+          {/* Header */}
+          <div className="text-center space-y-3">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 mb-4 animate-pulse-glow relative">
+              <div className="absolute inset-0 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 animate-spin-slow opacity-75"></div>
+              <span className="text-white font-bold text-2xl relative z-10">TMV</span>
             </div>
+
+            <h1 className="text-4xl sm:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-200 via-cyan-200 to-blue-200 overflow-hidden whitespace-nowrap border-r-2 border-cyan-400 animate-typing-welcome">
+              Welcome
+            </h1>
+            <p className="text-lg text-blue-200 font-semibold animate-slide-up-delayed">
+              Task Management & Verification
+            </p>
           </div>
 
-          {/* Bottom Info */}
-          <div className="mt-8 text-center text-gray-600 text-xs">
-            <p>© 2025 TMV Platform. All rights reserved.</p>
+          {/* Description */}
+          <div className="text-center">
+            <p className="text-gray-300 leading-relaxed text-sm sm:text-base animate-slide-up-delayed-2">
+              Streamline your workflow and efficiently manage all your task assignments in one unified platform.
+            </p>
+          </div>
+
+          {/* Buttons */}
+          <div className="space-y-3 sm:space-y-4 animate-slide-up-delayed-3">
+            <button
+              onClick={() => navigate('/login')}
+              className="w-full px-6 py-3 sm:py-4 bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-semibold rounded-lg hover:from-blue-600 hover:to-cyan-600 transition-all duration-300 transform hover:-translate-y-1 hover:shadow-lg hover:shadow-blue-500/50 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-slate-900 active:translate-y-0 group relative overflow-hidden"
+            >
+              <span className="relative z-10">Sign In</span>
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-cyan-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            </button>
+            <button
+              onClick={() => navigate('/signup')}
+              className="w-full px-6 py-3 sm:py-4 bg-white/10 backdrop-blur-md text-white font-semibold rounded-lg border border-white/30 hover:bg-white/20 hover:border-white/40 transition-all duration-300 transform hover:-translate-y-1 hover:shadow-lg hover:shadow-cyan-500/30 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-slate-900 active:translate-y-0 group relative"
+            >
+              <span className="relative z-10">Create Account</span>
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-cyan-500/20 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            </button>
+          </div>
+
+          {/* Footer */}
+          <div className="pt-6 border-t border-white/10 text-center animate-slide-up-delayed-4">
+            <p className="text-sm text-gray-400">
+              Get started in seconds
+            </p>
           </div>
         </div>
+
+        {/* Bottom accent */}
+        <div className="text-center mt-8 text-xs text-gray-500 animate-fade-in" style={{ animationDelay: '1.2s' }}>
+          © 2025 Task Management System
+        </div>
       </div>
+
+      <style>{`
+        @keyframes blob {
+          0%, 100% { transform: translate(0, 0) scale(1); }
+          33% { transform: translate(30px, -50px) scale(1.1); }
+          66% { transform: translate(-20px, 20px) scale(0.9); }
+        }
+        .animate-blob {
+          animation: blob 7s infinite;
+        }
+        .animation-delay-2000 {
+          animation-delay: 2s;
+        }
+        .animation-delay-4000 {
+          animation-delay: 4s;
+        }
+
+        @keyframes float {
+          0%, 100% { transform: translateY(0px) translateX(0px); opacity: 0; }
+          10% { opacity: 1; }
+          90% { opacity: 1; }
+          100% { transform: translateY(-100vh) translateX(100px); opacity: 0; }
+        }
+        .animate-float {
+          animation: float 15s infinite ease-in;
+        }
+
+        @keyframes fade-in {
+          from {
+            opacity: 0;
+          }
+          to {
+            opacity: 1;
+          }
+        }
+        .animate-fade-in {
+          animation: fade-in 0.8s ease-out forwards;
+        }
+
+        @keyframes slide-up {
+          from {
+            opacity: 0;
+            transform: translateY(30px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        .animate-slide-up-delayed {
+          animation: slide-up 0.8s ease-out 0.3s forwards;
+          opacity: 0;
+        }
+        .animate-slide-up-delayed-2 {
+          animation: slide-up 0.8s ease-out 0.5s forwards;
+          opacity: 0;
+        }
+        .animate-slide-up-delayed-3 {
+          animation: slide-up 0.8s ease-out 0.7s forwards;
+          opacity: 0;
+        }
+        .animate-slide-up-delayed-4 {
+          animation: slide-up 0.8s ease-out 0.9s forwards;
+          opacity: 0;
+        }
+
+        @keyframes typing {
+          0% {
+            width: 0;
+            border-right-color: rgba(34, 211, 238, 0.75);
+          }
+          50% {
+            border-right-color: rgba(34, 211, 238, 0.75);
+          }
+          100% {
+            width: 100%;
+            border-right-color: transparent;
+          }
+        }
+
+        @keyframes typing-welcome {
+          0% {
+            width: 0;
+            border-right-color: rgba(34, 211, 238, 0.75);
+          }
+          50% {
+            border-right-color: rgba(34, 211, 238, 0.75);
+          }
+          100% {
+            width: 100%;
+            border-right-color: transparent;
+          }
+        }
+
+        .animate-typing-welcome {
+          animation: typing-welcome 2.5s steps(7, end) 0.3s forwards;
+          width: 0;
+        }
+
+        @keyframes blink-caret {
+          0%, 50% {
+            border-right-color: rgba(34, 211, 238, 0.75);
+          }
+          100% {
+            border-right-color: transparent;
+          }
+        }
+
+        @keyframes gradient-shift {
+          0% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
+        }
+        .animate-gradient-shift {
+          background-size: 200% 200%;
+          animation: gradient-shift 6s ease infinite;
+        }
+
+        @keyframes blob {
+          0%, 100% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.5); }
+          50% { box-shadow: 0 0 40px rgba(34, 211, 238, 0.7); }
+        }
+        .animate-pulse-glow {
+          animation: pulse-glow 3s ease-in-out infinite;
+        }
+
+        @keyframes spin-slow {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        .animate-spin-slow {
+          animation: spin-slow 3s linear infinite;
+        }
+      `}</style>
     </div>
   );
-}
+};
+
+export default Welcome;

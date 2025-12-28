@@ -317,7 +317,7 @@ const Inventory = () => {
                   </span>
                 </div>
                 {item.category && (
-                  <p className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded inline-block mb-2">
+                  <p className="text-xs bg-slate-100 text-slate-800 px-2 py-1 rounded inline-block mb-2">
                     {item.category}
                   </p>
                 )}

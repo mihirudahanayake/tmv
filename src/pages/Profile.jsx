@@ -63,7 +63,7 @@ const Profile = () => {
 
   const handleLogout = async () => {
     await signOut(auth);
-    navigate('/'); // Redirect to welcome page
+    navigate('/');
   };
 
   const handleFieldChange = (e) => {

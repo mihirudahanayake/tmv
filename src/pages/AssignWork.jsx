@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   collection,
   addDoc,
@@ -38,6 +39,8 @@ const AssignWork = () => {
   const [message, setMessage] = useState({ type: '', text: '' });
   const [userSearch, setUserSearch] = useState('');
   const [itemSearch, setItemSearch] = useState('');
+
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchUsers();
@@ -783,6 +786,17 @@ if (phones.length > 0) {
                               </span>
                             </p>
                           </div>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              navigate(`/users/${user.id}`);
+                            }}
+                            className="ml-2 px-2 py-1 text-xs text-gray-500 hover:text-gray-700 transition-colors"
+                            title="View user details"
+                          >
+                            View
+                          </button>
                         </label>
 
                         {selected && (
