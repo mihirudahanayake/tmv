@@ -3,6 +3,7 @@ import { Routes, Route } from 'react-router-dom';
 import { useIdleLogout } from './hooks/useIdleLogout';
 
 // your existing imports
+import Welcome from './pages/Welcome.jsx';
 import AdminRoute from './components/AdminRoute.jsx';
 import Homepage from './pages/Homepage.jsx';
 import Home from './pages/Home.jsx';
@@ -31,8 +32,11 @@ const AppShell = () => {
 
   return (
     <Routes>
+      {/* Welcome / Landing page */}
+      <Route path="/" element={<Welcome />} />
+
       {/* auth / common */}
-      <Route path="/" element={<Login />} />
+      <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
       <Route path="/home" element={<Home />} />
 
