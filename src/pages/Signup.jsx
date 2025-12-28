@@ -295,7 +295,7 @@ const Signup = () => {
               value={form.registrationNumber}
               onChange={handleChange}
               required
-              placeholder="Ex: 2021/ITT/123"
+              placeholder="Ex: ITT/2021/123"
               className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white text-gray-900 dark:bg-slate-800 dark:text-gray-100 dark:border-slate-700"
             />
           </div>
