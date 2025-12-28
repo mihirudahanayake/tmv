@@ -632,15 +632,15 @@ const renderTeamMembers = (task) => {
                   {pendingTasks.map((task) => (
                     <div
                       key={task.id}
-                      className="bg-white dark:bg-slate-800 rounded-2xl shadow-md hover:shadow-xl transition-all p-5 sm:p-6 border border-yellow-100 dark:border-yellow-900"
+                      className="bg-white dark:bg-slate-900 rounded-2xl shadow-md hover:shadow-xl transition-all p-5 sm:p-6 border border-yellow-100 dark:border-blue-800"
                     >
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex-1">
-                          <h3 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-yellow-100 mb-1">
+                          <h3 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-gray-100 mb-1">
                             {task.title || 'Task'}
                           </h3>
 {(task.date || task.deadline) && (
-  <div className="flex flex-col gap-1 text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+  <div className="flex flex-col gap-1 text-xs sm:text-sm text-gray-500 dark:text-gray-300">
     {task.date && (
       <p className="flex items-center gap-2">
         <FaCalendarAlt className="dark:text-yellow-300" />
@@ -657,7 +657,7 @@ const renderTeamMembers = (task) => {
 )}
 
                         </div>
-                        <span className="bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 text-xs font-semibold px-3 py-1.5 rounded-full flex items-center gap-1">
+                        <span className="bg-yellow-100 dark:bg-yellow-800 text-yellow-800 dark:text-yellow-200 text-xs font-semibold px-3 py-1.5 rounded-full flex items-center gap-1 border border-yellow-200 dark:border-yellow-700">
                           <FaHourglassHalf className="dark:text-yellow-200" />
                           Pending
                         </span>
@@ -675,14 +675,14 @@ const renderTeamMembers = (task) => {
                       <div className="flex gap-3 mt-4">
                         <button
                           onClick={() => handleAccept(task)}
-                          className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 text-white py-2.5 px-4 rounded-xl font-semibold hover:from-green-600 hover:to-emerald-700 transition-all shadow-md flex items-center justify-center gap-2"
+                          className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 dark:from-green-700 dark:to-emerald-900 text-white py-2.5 px-4 rounded-xl font-semibold hover:from-green-600 hover:to-emerald-700 dark:hover:from-green-800 dark:hover:to-emerald-800 transition-all shadow-md flex items-center justify-center gap-2"
                         >
                           <FaCheck />
                           Accept
                         </button>
                         <button
                           onClick={() => openRejectModal(task)}
-                          className="flex-1 bg-gradient-to-r from-red-500 to-rose-600 text-white py-2.5 px-4 rounded-xl font-semibold hover:from-red-600 hover:to-rose-700 transition-all shadow-md flex items-center justify-center gap-2"
+                          className="flex-1 bg-gradient-to-r from-red-500 to-rose-600 dark:from-red-700 dark:to-rose-900 text-white py-2.5 px-4 rounded-xl font-semibold hover:from-red-600 hover:to-rose-700 dark:hover:from-red-800 dark:hover:to-rose-800 transition-all shadow-md flex items-center justify-center gap-2"
                         >
                           <FaTimes />
                           Reject
