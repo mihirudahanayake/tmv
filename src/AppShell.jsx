@@ -6,6 +6,7 @@ import { useIdleLogout } from './hooks/useIdleLogout';
 import AdminRoute from './components/AdminRoute.jsx';
 import Homepage from './pages/Homepage.jsx';
 import Home from './pages/Home.jsx';
+import Welcome from './pages/Welcome.jsx';
 import Login from './pages/Login.jsx';
 import Signup from './pages/Signup.jsx';
 import CreateUser from './pages/CreateUser.jsx';
@@ -32,7 +33,8 @@ const AppShell = () => {
   return (
     <Routes>
       {/* auth / common */}
-      <Route path="/" element={<Login />} />
+      <Route path="/" element={<Welcome />} />
+      <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
       <Route path="/home" element={<Home />} />
 

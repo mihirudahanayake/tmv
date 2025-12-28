@@ -1,0 +1,144 @@
+.welcome-container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.welcome-content {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  padding: 60px 40px;
+  max-width: 500px;
+  width: 90%;
+  text-align: center;
+  animation: slideUp 0.5s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.welcome-header {
+  margin-bottom: 30px;
+}
+
+.welcome-header h1 {
+  font-size: 3rem;
+  margin: 0;
+  color: #333;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-weight: 700;
+}
+
+.welcome-header p {
+  font-size: 1rem;
+  color: #666;
+  margin: 10px 0 0 0;
+  font-weight: 500;
+}
+
+.welcome-description {
+  margin-bottom: 40px;
+}
+
+.welcome-description p {
+  font-size: 1rem;
+  color: #555;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.welcome-buttons {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 30px;
+  flex-direction: column;
+}
+
+.welcome-btn {
+  flex: 1;
+  padding: 14px 28px;
+  font-size: 1rem;
+  font-weight: 600;
+  border: 2px solid;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.login-btn {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-color: transparent;
+}
+
+.login-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+}
+
+.login-btn:active {
+  transform: translateY(0);
+}
+
+.signup-btn {
+  background: white;
+  color: #667eea;
+  border-color: #667eea;
+}
+
+.signup-btn:hover {
+  background: #f0f4ff;
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(102, 126, 234, 0.2);
+}
+
+.signup-btn:active {
+  transform: translateY(0);
+}
+
+.welcome-footer {
+  padding-top: 20px;
+  border-top: 1px solid #eee;
+}
+
+.welcome-footer p {
+  font-size: 0.9rem;
+  color: #999;
+  margin: 0;
+}
+
+@media (max-width: 600px) {
+  .welcome-content {
+    padding: 40px 20px;
+  }
+
+  .welcome-header h1 {
+    font-size: 2rem;
+  }
+
+  .welcome-description p {
+    font-size: 0.95rem;
+  }
+
+  .welcome-btn {
+    padding: 12px 20px;
+    font-size: 0.95rem;
+  }
+}

@@ -10,6 +10,7 @@ const ManageUsers = () => {
   const [loading, setLoading] = useState(true);
   const [searchText, setSearchText] = useState('');
   const [batchFilter, setBatchFilter] = useState('all');
+  const [departmentFilter, setDepartmentFilter] = useState('all');
 
   const navigate = useNavigate();
 
@@ -34,6 +35,9 @@ const ManageUsers = () => {
   const filteredUsers = users.filter((u) => {
     // batch filter
     if (batchFilter !== 'all' && (u.batch || '') !== batchFilter) return false;
+
+    // department filter
+    if (departmentFilter !== 'all' && (u.studyDepartment || '') !== departmentFilter) return false;
 
     // search by name or card
     if (!normalizedSearch) return true;
@@ -78,6 +82,21 @@ const ManageUsers = () => {
               <option value="23/24">23/24</option>
             </select>
           </div>
+
+          <div className="w-full sm:w-40">
+            <select
+              value={departmentFilter}
+              onChange={(e) => setDepartmentFilter(e.target.value)}
+              className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">All departments</option>
+              <option value="ITT">ITT</option>
+              <option value="EET">EET</option>
+              <option value="MTT">MTT</option>
+              <option value="BPT">BPT</option>
+              <option value="Food">Food</option>
+            </select>
+          </div>
         </div>
 
         {loading ? (
@@ -119,7 +138,7 @@ const ManageUsers = () => {
                       <FaEnvelope /> {u.email}
                     </p>
                     <p className="text-xs text-gray-500">
-                      Card: {u.cardNumber || '-'} • Batch: {u.batch || '-'}
+                      Card: {u.cardNumber || '-'} • Batch: {u.batch || '-'} • Dept: {u.studyDepartment || '-'}
                     </p>
                   </div>
                 </div>

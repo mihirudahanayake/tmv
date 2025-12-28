@@ -112,9 +112,18 @@ const Signup = () => {
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center px-4">
       <div className="w-full max-w-md bg-white rounded-lg shadow-md p-4 sm:p-6">
-        <h1 className="text-xl sm:text-2xl font-bold text-gray-800 mb-4">
-          Sign Up
-        </h1>
+        <div className="flex items-center justify-between mb-4">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-800">
+            Sign Up
+          </h1>
+          <button
+            onClick={() => navigate('/')}
+            className="text-gray-600 hover:text-gray-800 text-2xl"
+            title="Go back"
+          >
+            ×
+          </button>
+        </div>
 
         {error && (
           <div className="mb-4 p-3 rounded bg-red-100 text-red-700 text-sm">
@@ -362,7 +371,7 @@ const Signup = () => {
           <p className="mt-3 text-center text-xs sm:text-sm text-gray-600">
             Already have an account?{' '}
             <span
-              onClick={() => navigate('/')}
+              onClick={() => navigate('/login')}
               className="text-blue-600 font-semibold cursor-pointer hover:underline"
             >
               Log in
