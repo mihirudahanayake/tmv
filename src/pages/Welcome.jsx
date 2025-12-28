@@ -50,7 +50,7 @@ const Welcome = () => {
               onClick={() => navigate('/login')}
               className="w-full px-6 py-3 sm:py-4 bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-semibold rounded-lg hover:from-blue-600 hover:to-cyan-600 transition-all duration-300 transform hover:-translate-y-1 hover:shadow-lg hover:shadow-blue-500/50 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-slate-900 active:translate-y-0 group relative overflow-hidden"
             >
-              <span className="relative z-10">Sign In</span>
+              <span className="relative z-10">Log In</span>
               <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-cyan-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
             </button>
             <button
