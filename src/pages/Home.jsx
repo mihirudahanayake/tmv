@@ -21,7 +21,10 @@ import {
   FaCheckCircle,
   FaHourglassHalf,
   FaUndo,
+  FaSun,
+  FaMoon,
 } from 'react-icons/fa';
+import { useDarkMode } from '../context/DarkModeContext';
 
 const Home = () => {
   const [user, setUser] = useState(null);
@@ -40,6 +43,8 @@ const Home = () => {
   const [popup, setPopup] = useState(null); // { id, title, message, type, workId, createdAt }
 
   const userType = 'user';
+
+  const { isDarkMode, toggleDarkMode } = useDarkMode();
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
@@ -514,21 +519,25 @@ const renderTeamMembers = (task) => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
-      <Header userType={userType} />
+    <div className={`min-h-screen transition-colors duration-300 ${
+      isDarkMode
+        ? 'bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900'
+        : 'bg-gradient-to-br from-blue-50 via-white to-purple-50'
+    }`}>
+      <Header userType={userType} isDarkMode={isDarkMode} toggleDarkMode={toggleDarkMode} />
 
 {/* User popup notification */}
 {popup && (
   <div
-    className="fixed bottom-4 right-4 z-50 max-w-xs text-left bg-white shadow-xl rounded-xl border border-gray-200 px-4 py-3 text-sm"
+    className="fixed bottom-4 right-4 z-50 max-w-xs text-left bg-white dark:bg-slate-900 shadow-xl rounded-xl border border-gray-200 dark:border-slate-700 px-4 py-3 text-sm"
   >
-    <p className="font-semibold text-gray-800 mb-1">
+    <p className="font-semibold text-gray-800 dark:text-gray-100 mb-1">
       {renderUserPopupText()}
     </p>
     {popup.message && (
-      <p className="text-gray-600 text-xs mb-1">{popup.message}</p>
+      <p className="text-gray-600 dark:text-gray-300 text-xs mb-1">{popup.message}</p>
     )}
-    <p className="text-gray-500 text-xs">Notification</p>
+    <p className="text-gray-500 dark:text-gray-400 text-xs">Notification</p>
   </div>
 )}
 
@@ -594,14 +603,14 @@ const renderTeamMembers = (task) => {
             <p className="text-gray-600">Loading your tasks...</p>
           </div>
         ) : visibleTasks.length === 0 ? (
-          <div className="bg-white rounded-2xl shadow-lg p-12 text-center border border-gray-100">
-            <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <FaCheckCircle className="text-4xl text-blue-600" />
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-lg p-12 text-center border border-gray-100 dark:border-slate-700">
+            <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-purple-100 dark:from-yellow-200 dark:to-pink-200 rounded-full flex items-center justify-center mx-auto mb-4">
+              <FaCheckCircle className="text-4xl text-blue-600 dark:text-yellow-400" />
             </div>
-            <h3 className="text-xl font-bold text-gray-800 mb-2">
+            <h3 className="text-xl font-bold text-gray-800 dark:text-gray-100 mb-2">
               All Clear!
             </h3>
-            <p className="text-gray-600">
+            <p className="text-gray-600 dark:text-gray-300">
               You have no active tasks at the moment.
             </p>
           </div>
@@ -612,7 +621,7 @@ const renderTeamMembers = (task) => {
               <section className="mb-8">
                 <div className="flex items-center gap-2 mb-4">
                   <div className="w-1 h-6 bg-gradient-to-b from-yellow-400 to-orange-500 rounded-full"></div>
-                  <h2 className="text-xl sm:text-2xl font-bold text-gray-800">
+                  <h2 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-gray-100">
                     Pending Acceptance
                   </h2>
                   <span className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white text-xs font-bold px-3 py-1 rounded-full">
@@ -627,7 +636,7 @@ const renderTeamMembers = (task) => {
                     >
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex-1">
-                          <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-1">
+                          <h3 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-gray-100 mb-1">
                             {task.title || 'Task'}
                           </h3>
 {(task.date || task.deadline) && (
@@ -655,7 +664,7 @@ const renderTeamMembers = (task) => {
                       </div>
 
                       {task.description && (
-                        <p className="text-gray-700 text-sm mb-2">
+                        <p className="text-gray-700 dark:text-gray-300 text-sm mb-2">
                           {task.description}
                         </p>
                       )}
@@ -691,7 +700,7 @@ const renderTeamMembers = (task) => {
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
                     <div className="w-1 h-6 bg-gradient-to-b from-orange-500 to-red-500 rounded-full"></div>
-                    <h2 className="text-xl sm:text-2xl font-bold text-gray-800">
+                    <h2 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-gray-100">
                       Pending Rejection Approval
                     </h2>
                     <span className="bg-gradient-to-r from-orange-500 to-red-500 text-white text-xs font-bold px-3 py-1 rounded-full">
@@ -721,7 +730,7 @@ const renderTeamMembers = (task) => {
                         >
                           <div className="flex items-start justify-between mb-3">
                             <div>
-                              <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-1">
+                              <h3 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-gray-100 mb-1">
                                 {task.title || 'Task'}
                               </h3>
 {(task.date || task.deadline) && (
@@ -755,10 +764,10 @@ const renderTeamMembers = (task) => {
                             <p className="text-xs font-semibold text-orange-800 mb-1">
                               Your Rejection Reason:
                             </p>
-                            <p className="text-sm text-gray-700">
+                            <p className="text-sm text-gray-700 dark:text-gray-300">
                               {rejection.reason || '-'}
                             </p>
-                            <p className="text-xs text-gray-500 mt-2">
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
                               Waiting for admin to approve your rejection
                               request
                             </p>
@@ -776,7 +785,7 @@ const renderTeamMembers = (task) => {
               <section className="mb-8">
                 <div className="flex items-center gap-2 mb-4">
                   <div className="w-1 h-6 bg-gradient-to-b from-blue-500 to-purple-600 rounded-full"></div>
-                  <h2 className="text-xl sm:text-2xl font-bold text-gray-800">
+                  <h2 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-gray-100">
                     Active Tasks
                   </h2>
                   <span className="bg-gradient-to-r from-blue-500 to-purple-600 text-white text-xs font-bold px-3 py-1 rounded-full">
@@ -792,7 +801,7 @@ const renderTeamMembers = (task) => {
                         key={task.id}
                         className="bg-white rounded-2xl shadow-md hover:shadow-xl transition-all p-5 sm:p-6 border border-blue-100"
                       >
-                        <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-1">
+                        <h3 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-gray-100 mb-1">
                           {task.title || 'Task'}
                         </h3>
 {(task.date || task.deadline) && (
@@ -813,7 +822,7 @@ const renderTeamMembers = (task) => {
 )}
 
                         {task.description && (
-                          <p className="text-gray-700 text-sm mb-2">
+                          <p className="text-gray-700 dark:text-gray-300 text-sm mb-2">
                             {task.description}
                           </p>
                         )}
@@ -821,8 +830,8 @@ const renderTeamMembers = (task) => {
                         {renderAssignedItems(task)}
                         {renderTeamMembers(task)}
 
-                        <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-4 mt-3">
-                          <p className="text-sm font-semibold text-gray-700 mb-3">
+                        <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-slate-800 dark:to-slate-900 rounded-xl p-4 mt-3">
+                          <p className="text-sm font-semibold text-gray-700 dark:text-gray-100 mb-3">
                             Your Work Types:
                           </p>
                           <div className="flex flex-wrap gap-2">
@@ -838,7 +847,7 @@ const renderTeamMembers = (task) => {
                                   className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all shadow-sm ${
                                     done
                                       ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700'
-                                      : 'bg-white text-gray-700 border-2 border-gray-200 hover:border-blue-400'
+                                      : 'bg-white dark:bg-slate-900 text-gray-700 dark:text-gray-100 border-2 border-gray-200 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-400'
                                   }`}
                                 >
                                   {done ? (
@@ -869,7 +878,7 @@ const renderTeamMembers = (task) => {
               <section>
                 <div className="flex items-center gap-2 mb-4">
                   <div className="w-1 h-6 bg-gradient-to-b from-green-500 to-emerald-600 rounded-full"></div>
-                  <h2 className="text-xl sm:text-2xl font-bold text-gray-800">
+                  <h2 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-gray-100">
                     Completed
                   </h2>
                   <span className="bg-gradient-to-r from-green-500 to-emerald-600 text-white text-xs font-bold px-3 py-1 rounded-full">
@@ -887,7 +896,7 @@ const renderTeamMembers = (task) => {
                       >
                         <div className="flex items-start justify-between mb-3">
                           <div>
-                            <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-1">
+                            <h3 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-gray-100 mb-1">
                               {task.title || 'Task'}
                             </h3>
 {(task.date || task.deadline) && (
@@ -912,7 +921,7 @@ const renderTeamMembers = (task) => {
                         </div>
 
                         {task.description && (
-                          <p className="text-gray-700 text-sm mb-2">
+                          <p className="text-gray-700 dark:text-gray-300 text-sm mb-2">
                             {task.description}
                           </p>
                         )}
