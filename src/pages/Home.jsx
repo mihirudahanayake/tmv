@@ -632,24 +632,24 @@ const renderTeamMembers = (task) => {
                   {pendingTasks.map((task) => (
                     <div
                       key={task.id}
-                      className="bg-white rounded-2xl shadow-md hover:shadow-xl transition-all p-5 sm:p-6 border border-yellow-100"
+                      className="bg-white dark:bg-slate-800 rounded-2xl shadow-md hover:shadow-xl transition-all p-5 sm:p-6 border border-yellow-100 dark:border-yellow-900"
                     >
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex-1">
-                          <h3 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-gray-100 mb-1">
+                          <h3 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-yellow-100 mb-1">
                             {task.title || 'Task'}
                           </h3>
 {(task.date || task.deadline) && (
-  <div className="flex flex-col gap-1 text-xs sm:text-sm text-gray-500">
+  <div className="flex flex-col gap-1 text-xs sm:text-sm text-gray-500 dark:text-gray-400">
     {task.date && (
       <p className="flex items-center gap-2">
-        <FaCalendarAlt />
+        <FaCalendarAlt className="dark:text-yellow-300" />
         <span>Date: {new Date(task.date).toLocaleDateString()}</span>
       </p>
     )}
     {task.deadline && (
       <p className="flex items-center gap-2">
-        <FaCalendarAlt />
+        <FaCalendarAlt className="dark:text-yellow-300" />
         <span>Deadline: {new Date(task.deadline).toLocaleDateString()}</span>
       </p>
     )}
@@ -657,14 +657,14 @@ const renderTeamMembers = (task) => {
 )}
 
                         </div>
-                        <span className="bg-yellow-100 text-yellow-800 text-xs font-semibold px-3 py-1.5 rounded-full flex items-center gap-1">
-                          <FaHourglassHalf />
+                        <span className="bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 text-xs font-semibold px-3 py-1.5 rounded-full flex items-center gap-1">
+                          <FaHourglassHalf className="dark:text-yellow-200" />
                           Pending
                         </span>
                       </div>
 
                       {task.description && (
-                        <p className="text-gray-700 dark:text-gray-300 text-sm mb-2">
+                        <p className="text-gray-700 dark:text-gray-200 text-sm mb-2">
                           {task.description}
                         </p>
                       )}
