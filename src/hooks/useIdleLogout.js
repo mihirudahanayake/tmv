@@ -21,7 +21,7 @@ export function useIdleLogout() {
         } catch (e) {
           console.error('Auto logout failed', e);
         }
-        navigate('/login'); // or wherever your login route is
+        navigate('/'); // Redirect to welcome page
       }, idleMs);
     };
 
