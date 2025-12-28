@@ -588,10 +588,10 @@ const renderTeamMembers = (task) => {
 
       <main className="container mx-auto px-4 py-8 max-w-5xl">
         <div className="mb-8">
-          <h1 className="text-3xl sm:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600 mb-2">
+          <h1 className="text-3xl sm:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600 dark:from-yellow-300 dark:to-pink-400 mb-2">
             Welcome Back
           </h1>
-          <p className="text-gray-600 text-sm sm:text-base">
+          <p className="text-gray-600 dark:text-gray-300 text-sm sm:text-base">
             Manage your tasks efficiently. Accept new assignments and track your
             progress.
           </p>
@@ -599,12 +599,12 @@ const renderTeamMembers = (task) => {
 
         {loadingUser || loadingTasks ? (
           <div className="flex flex-col items-center justify-center py-20">
-            <FaSpinner className="animate-spin text-5xl text-blue-600 mb-4" />
-            <p className="text-gray-600">Loading your tasks...</p>
+            <FaSpinner className="animate-spin text-5xl text-blue-600 dark:text-yellow-300 mb-4" />
+            <p className="text-gray-600 dark:text-gray-300">Loading your tasks...</p>
           </div>
         ) : visibleTasks.length === 0 ? (
           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-lg p-12 text-center border border-gray-100 dark:border-slate-700">
-            <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-purple-100 dark:from-yellow-200 dark:to-pink-200 rounded-full flex items-center justify-center mx-auto mb-4">
+            <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-purple-100 dark:from-yellow-300 dark:to-pink-400 rounded-full flex items-center justify-center mx-auto mb-4">
               <FaCheckCircle className="text-4xl text-blue-600 dark:text-yellow-400" />
             </div>
             <h3 className="text-xl font-bold text-gray-800 dark:text-gray-100 mb-2">
