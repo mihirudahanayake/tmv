@@ -8,8 +8,8 @@ const Welcome = () => {
       {/* Animated background elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-20 left-10 w-72 h-72 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
-        <div className="absolute top-40 right-10 w-72 h-72 bg-cyan-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
-        <div className="absolute bottom-20 left-20 w-72 h-72 bg-blue-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+        <div className="absolute top-40 right-10 w-72 h-72 bg-cyan-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob" style={{ animationDelay: '2s' }}></div>
+        <div className="absolute bottom-20 left-20 w-72 h-72 bg-blue-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob" style={{ animationDelay: '4s' }}></div>
 
         {/* Floating particles */}
         <div className="absolute top-1/4 left-1/4 w-1 h-1 bg-blue-300 rounded-full animate-float opacity-50"></div>
@@ -29,7 +29,7 @@ const Welcome = () => {
               <span className="text-white font-bold text-2xl relative z-10">TMV</span>
             </div>
 
-            <h1 className="text-4xl sm:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-200 via-cyan-200 to-blue-200 overflow-hidden whitespace-nowrap border-r-2 border-cyan-400 animate-typing-welcome">
+            <h1 className="text-4xl sm:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-200 via-cyan-200 to-blue-200 overflow-hidden whitespace-nowrap border-r-2 border-cyan-400 animate-smooth-typing">
               Welcome
             </h1>
             <p className="text-lg text-blue-200 font-semibold animate-slide-up-delayed">
@@ -155,23 +155,29 @@ const Welcome = () => {
           }
         }
 
-        @keyframes typing-welcome {
+        @keyframes smooth-typing {
           0% {
             width: 0;
             border-right-color: rgba(34, 211, 238, 0.75);
+            opacity: 0;
           }
-          50% {
+          10% {
+            opacity: 1;
+          }
+          85% {
             border-right-color: rgba(34, 211, 238, 0.75);
           }
           100% {
             width: 100%;
             border-right-color: transparent;
+            opacity: 1;
           }
         }
 
-        .animate-typing-welcome {
-          animation: typing-welcome 2.5s steps(7, end) 0.3s forwards;
+        .animate-smooth-typing {
+          animation: smooth-typing 3s cubic-bezier(0.4, 0.0, 0.2, 1) 0.3s forwards;
           width: 0;
+          opacity: 0;
         }
 
         @keyframes blink-caret {
