@@ -72,7 +72,7 @@ const Welcome = () => {
 
         {/* Bottom accent */}
         <div className="text-center mt-8 text-xs text-gray-500 animate-fade-in" style={{ animationDelay: '1.2s' }}>
-          © 2025 Task Management System
+          © 2025 Videography Management System
         </div>
       </div>
 
