@@ -303,7 +303,7 @@ const Signup = () => {
           {/* Card number (optional) */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-1">
-              Card Number
+              Card
             </label>
             <input
               type="text"
