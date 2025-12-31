@@ -7,10 +7,16 @@ import Header from '../components/Header';
 const CreateUser = () => {
   const [formData, setFormData] = useState({
     name: '',
+    batch: '',
     email: '',
-    password: '',
-    phone: '',
-    specialty: '',
+    phoneNo: '',
+    departments: ['videography'],
+    firstPriority: 'videography',
+    studyDepartment: '',
+    gender: '',
+    registrationNumber: '',
+    cardNumber: '',
+    birthday: '',
   });
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
@@ -25,32 +31,38 @@ const CreateUser = () => {
     setMessage({ type: '', text: '' });
 
     try {
-      const userCredential = await createUserWithEmailAndPassword(
-        auth,
-        formData.email,
-        formData.password
-      );
 
-      // only this email is admin, others are user
-      const role =
-        formData.email === 'mihirudahanayake@gmail.com' ? 'admin' : 'user';
-
-      await setDoc(doc(db, 'users', userCredential.user.uid), {
+      // Generate a random UID for the user (since no email/password auth)
+      const userId = 'user_' + Math.random().toString(36).slice(2, 12);
+      await setDoc(doc(db, 'users', userId), {
         name: formData.name,
+        batch: formData.batch,
         email: formData.email,
-        phone: formData.phone,
-        specialty: formData.specialty,
-        role,
+        phoneNo: formData.phoneNo,
+        departments: formData.departments,
+        firstPriority: formData.firstPriority,
+        studyDepartment: formData.studyDepartment,
+        gender: formData.gender,
+        registrationNumber: formData.registrationNumber,
+        cardNumber: formData.cardNumber,
+        birthday: formData.birthday,
+        userType: 'user',
         createdAt: new Date().toISOString(),
       });
 
       setMessage({ type: 'success', text: 'User created successfully.' });
       setFormData({
         name: '',
+        batch: '',
         email: '',
-        password: '',
-        phone: '',
-        specialty: '',
+        phoneNo: '',
+        departments: ['videography'],
+        firstPriority: 'videography',
+        studyDepartment: '',
+        gender: '',
+        registrationNumber: '',
+        cardNumber: '',
+        birthday: '',
       });
     } catch (error) {
       setMessage({ type: 'error', text: error.message });
@@ -84,7 +96,7 @@ const CreateUser = () => {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-gray-700 font-semibold mb-2 text-sm sm:text-base">
-                Name
+                Name <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
@@ -95,62 +107,160 @@ const CreateUser = () => {
                 className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
               />
             </div>
-
             <div>
               <label className="block text-gray-700 font-semibold mb-2 text-sm sm:text-base">
-                Email
+                Batch <span className="text-red-500">*</span>
               </label>
+              <select
+                name="batch"
+                value={formData.batch}
+                onChange={handleChange}
+                required
+                className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
+              >
+                <option value="">Select batch</option>
+                <option value="20/21">20/21</option>
+                <option value="21/22">21/22</option>
+                <option value="22/23">22/23</option>
+                <option value="23/24">23/24</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-gray-700 font-semibold mb-2 text-sm sm:text-base">Email</label>
               <input
                 type="email"
                 name="email"
                 value={formData.email}
                 onChange={handleChange}
-                required
                 className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
+                placeholder="you@email.com"
               />
             </div>
-
             <div>
-              <label className="block text-gray-700 font-semibold mb-2 text-sm sm:text-base">
-                Password
-              </label>
-              <input
-                type="password"
-                name="password"
-                value={formData.password}
-                onChange={handleChange}
-                required
-                minLength={6}
-                className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
-              />
-            </div>
-
-            <div>
-              <label className="block text-gray-700 font-semibold mb-2 text-sm sm:text-base">
-                Phone
-              </label>
+              <label className="block text-gray-700 font-semibold mb-2 text-sm sm:text-base">Phone Number</label>
               <input
                 type="tel"
-                name="phone"
-                value={formData.phone}
+                name="phoneNo"
+                value={formData.phoneNo}
                 onChange={handleChange}
                 className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
+                placeholder="07XXXXXXXX"
               />
             </div>
-
             <div>
-              <label className="block text-gray-700 font-semibold mb-2 text-sm sm:text-base">
-                Specialty
-              </label>
+              <label className="block text-gray-700 font-semibold mb-2 text-sm sm:text-base">Departments (work)</label>
+              <div className="flex gap-4">
+                {['videography', 'photography'].map((dept) => (
+                  <label key={dept} className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={formData.departments.includes(dept)}
+                      onChange={() => {
+                        setFormData((prev) => {
+                          const exists = prev.departments.includes(dept);
+                          const next = exists
+                            ? prev.departments.filter((d) => d !== dept)
+                            : [...prev.departments, dept];
+                          let nextFirst = prev.firstPriority;
+                          if (!next.includes(nextFirst)) {
+                            nextFirst = next[0] || '';
+                          }
+                          return { ...prev, departments: next, firstPriority: nextFirst };
+                        });
+                      }}
+                    />
+                    <span className="capitalize">{dept}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="block text-gray-700 font-semibold mb-2 text-sm sm:text-base">First Priority Department</label>
+              <select
+                name="firstPriority"
+                value={formData.firstPriority}
+                onChange={handleChange}
+                className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
+              >
+                {formData.departments.map((dept) => (
+                  <option key={dept} value={dept}>{dept}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-gray-700 font-semibold mb-2 text-sm sm:text-base">Department in Study</label>
+              <select
+                name="studyDepartment"
+                value={formData.studyDepartment}
+                onChange={handleChange}
+                className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
+              >
+                <option value="">Select department</option>
+                <option value="ITT">ITT</option>
+                <option value="EET">EET</option>
+                <option value="MTT">MTT</option>
+                <option value="BPT">BPT</option>
+                <option value="Food">Food</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-gray-700 font-semibold mb-2 text-sm sm:text-base">Gender</label>
+              <div className="flex items-center gap-4 text-sm">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="gender"
+                    value="male"
+                    checked={formData.gender === 'male'}
+                    onChange={handleChange}
+                  />
+                  <span>Male</span>
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="gender"
+                    value="female"
+                    checked={formData.gender === 'female'}
+                    onChange={handleChange}
+                  />
+                  <span>Female</span>
+                </label>
+              </div>
+            </div>
+            <div>
+              <label className="block text-gray-700 font-semibold mb-2 text-sm sm:text-base">Registration Number</label>
               <input
                 type="text"
-                name="specialty"
-                value={formData.specialty}
+                name="registrationNumber"
+                value={formData.registrationNumber}
                 onChange={handleChange}
                 className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
+                placeholder="Ex: ITT/2021/123"
               />
             </div>
-
+            <div>
+              <label className="block text-gray-700 font-semibold mb-2 text-sm sm:text-base">Card Number</label>
+              <input
+                type="text"
+                name="cardNumber"
+                value={formData.cardNumber}
+                onChange={handleChange}
+                className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
+                placeholder="If you have one"
+              />
+            </div>
+            <div>
+              <label className="block text-gray-700 font-semibold mb-2 text-sm sm:text-base">Birthday</label>
+              <input
+                type="date"
+                name="birthday"
+                value={formData.birthday}
+                onChange={handleChange}
+                className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
+                placeholder="YYYY-MM-DD"
+              />
+            </div>
             <button
               type="submit"
               disabled={loading}
