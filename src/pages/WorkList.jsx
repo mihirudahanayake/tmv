@@ -88,6 +88,10 @@ const WorkList = () => {
 
   // derived status for chip + filter
   const getDerivedStatus = (task) => {
+
+    if ((task.status || '').toLowerCase() === 'old work') {
+      return 'old work';
+    }
     if ((task.status || '').toLowerCase() === 'complete') {
       return 'completed';
     }
@@ -523,7 +527,7 @@ const WorkList = () => {
                       className="bg-white rounded-lg shadow-md p-4 sm:p-6 cursor-pointer hover:shadow-xl transition"
                       onClick={() => navigate(`/edit-old-work/${task.id}`)}
                     >
-                      <h3 className="text-lg font-semibold text-gray-800">{task.title || 'Old Work'}</h3>
+                      <h3 className="text-lg font-semibold text-gray-800">{task.title || 'old Work'}</h3>
                       <p className="text-gray-600 mb-2 text-sm">{task.description}</p>
                       {task.date && (
                         <p className="text-xs text-gray-500 mb-1">Date: {new Date(task.date).toLocaleDateString('en-GB')}</p>
