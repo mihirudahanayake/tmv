@@ -1,4 +1,5 @@
 const { onDocumentCreated } = require('firebase-functions/v2/firestore');
+const { addDoc, collection } = require('firebase-admin/firestore');
 const logger = require('firebase-functions/logger');
 const admin = require('firebase-admin');
 const nodemailer = require('nodemailer');
@@ -76,6 +77,10 @@ exports.onNotificationCreated = onDocumentCreated(
     let body = 'You have a new notification.';
 
     switch (type) {
+      case 'assigned':
+        title = 'New task assigned';
+        body = 'You have been assigned a new task.';
+        break;
       case 'accept':
         title = 'Work accepted';
         body = 'You accepted a new work assignment.';
@@ -201,5 +206,36 @@ exports.onWhatsAppDocCreated = onDocumentCreated(
         error: error.message,
       });
     }
+  }
+);
+
+/* ================== WORK ASSIGNMENT NOTIFICATION ================== */
+
+exports.onWorkCreated = onDocumentCreated(
+  'works/{workId}',
+  async (event) => {
+    const data = event.data.data();
+    const { assignedUsers } = data;
+
+    if (!Array.isArray(assignedUsers) || !assignedUsers.length) {
+      return;
+    }
+
+    // Create notification for each assigned user
+    const notificationPromises = assignedUsers.map(async (userId) => {
+      await addDoc(collection(db, 'notifications'), {
+        userId,
+        type: 'assigned',
+        workId: event.params.workId,
+        createdAt: new Date().toISOString(),
+      });
+    });
+
+    await Promise.all(notificationPromises);
+
+    logger.info('Notifications created for assigned work', {
+      workId: event.params.workId,
+      assignedUsers: assignedUsers.length,
+    });
   }
 );
