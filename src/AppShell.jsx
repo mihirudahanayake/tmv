@@ -1,7 +1,6 @@
 // src/AppShell.jsx
 import { Routes, Route } from 'react-router-dom';
 import { useIdleLogout } from './hooks/useIdleLogout';
-
 // your existing imports
 import AdminRoute from './components/AdminRoute.jsx';
 import Homepage from './pages/Homepage.jsx';
@@ -11,6 +10,7 @@ import Login from './pages/Login.jsx';
 import Signup from './pages/Signup.jsx';
 import CreateUser from './pages/CreateUser.jsx';
 import AssignWork from './pages/AssignWork.jsx';
+import AddOldWork from './pages/AddOldWork.jsx';
 import WorkList from './pages/WorkList.jsx';
 import Profile from './pages/Profile.jsx';
 import ManageUsers from './pages/ManageUsers.jsx';
@@ -26,6 +26,7 @@ import AdminNotifications from './pages/AdminNotifications';
 import UserNotifications from './pages/UserNotifications';
 import UserNotificationDetail from './pages/UserNotificationDetail';
 import NotificationDetails from './pages/NotificationDetails';
+import EditOldWork from './pages/EditOldWork.jsx';
 
 const AppShell = () => {
   useIdleLogout(); // idle timer active for all routes
@@ -155,6 +156,25 @@ const AppShell = () => {
         path="/user/notifications/:notifId"
         element={<UserNotificationDetail />}
       />
+
+      <Route
+        path="/add-old-work"
+        element={
+          <AdminRoute>
+            <AddOldWork />
+          </AdminRoute>
+        }
+      />
+
+      <Route
+        path="/edit-old-work/:id"
+        element={
+          <AdminRoute>
+            <EditOldWork />
+          </AdminRoute>
+        }
+      />
+
     </Routes>
   );
 };

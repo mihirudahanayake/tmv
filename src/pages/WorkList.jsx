@@ -113,6 +113,7 @@ const WorkList = () => {
     return 'done';
   };
 
+  // Separate old works and normal tasks
   const filteredAndSorted = tasks
     .filter((task) => {
       // date filter
@@ -153,10 +154,12 @@ const WorkList = () => {
       return dbt - da;
     });
 
-  const incompleteTasks = filteredAndSorted.filter(
+  const oldWorks = filteredAndSorted.filter((t) => (t.status || '').toLowerCase() === 'old work');
+  const normalTasks = filteredAndSorted.filter((t) => (t.status || '').toLowerCase() !== 'old work');
+  const incompleteTasks = normalTasks.filter(
     (t) => (t.status || 'incomplete') !== 'complete'
   );
-  const completeTasks = filteredAndSorted.filter(
+  const completeTasks = normalTasks.filter(
     (t) => (t.status || 'incomplete') === 'complete'
   );
 
@@ -425,7 +428,7 @@ const WorkList = () => {
     );
   };
 
-  const hasAnyTasks = incompleteTasks.length > 0 || completeTasks.length > 0;
+  const hasAnyTasks = incompleteTasks.length > 0 || completeTasks.length > 0 || oldWorks.length > 0;
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -473,6 +476,7 @@ const WorkList = () => {
                 <option value="pending">Pending</option>
                 <option value="done">Done</option>
                 <option value="completed">Completed</option>
+                <option value="old work">Old work</option>
                 <option value="all">All status</option>
               </select>
             </div>
@@ -497,7 +501,6 @@ const WorkList = () => {
                 </div>
               </section>
             )}
-
             {completeTasks.length > 0 && (
               <section>
                 <h3 className="text-lg sm:text-xl font-semibold text-gray-800 mb-3">
@@ -505,6 +508,31 @@ const WorkList = () => {
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                   {completeTasks.map((task) => renderTaskCard(task, true))}
+                </div>
+              </section>
+            )}
+            {oldWorks.length > 0 && (
+              <section className="mb-6">
+                <h3 className="text-lg sm:text-xl font-semibold text-gray-800 mb-3">
+                  Old Works
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+                  {oldWorks.map((task) => (
+                    <div
+                      key={task.id}
+                      className="bg-white rounded-lg shadow-md p-4 sm:p-6 cursor-pointer hover:shadow-xl transition"
+                      onClick={() => navigate(`/edit-old-work/${task.id}`)}
+                    >
+                      <h3 className="text-lg font-semibold text-gray-800">{task.title || 'Old Work'}</h3>
+                      <p className="text-gray-600 mb-2 text-sm">{task.description}</p>
+                      {task.date && (
+                        <p className="text-xs text-gray-500 mb-1">Date: {new Date(task.date).toLocaleDateString('en-GB')}</p>
+                      )}
+                      <span className={`inline-block px-2 py-1 rounded text-xs font-semibold mt-2 ${getStatusColor(task.status)}`}>
+                        {task.status || 'old work'}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               </section>
             )}
