@@ -25,6 +25,7 @@ import {
   FaMoon,
 } from 'react-icons/fa';
 import { useDarkMode } from '../context/DarkModeContext';
+import { useIdleLogout } from '../hooks/useIdleLogout';
 
 const Home = () => {
   const [user, setUser] = useState(null);
@@ -517,6 +518,8 @@ const renderTeamMembers = (task) => {
       return 'You changed a previously completed work.';
     return 'New notification.';
   };
+
+  useIdleLogout();
 
   return (
     <div className={`min-h-screen transition-colors duration-300 ${
