@@ -62,7 +62,15 @@ const Welcome = () => {
               <div className="absolute inset-0 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 animate-spin-slow opacity-75"></div>
               <span className="text-white font-bold text-2xl relative z-10">TMV</span>
             </div>
-
+            {/* New Year Wish */}
+            <div className={`mt-2 mb-4 text-xl font-bold flex flex-col items-center gap-2 ${isDarkMode ? 'text-yellow-200' : 'text-yellow-600'}`}>
+              <span className="bg-gradient-to-r from-pink-400 via-yellow-300 to-green-400 bg-clip-text text-transparent font-extrabold text-2xl sm:text-3xl drop-shadow-lg animate-gradient-x">
+                Happy New Year 2026!
+              </span>
+              <span className="text-base sm:text-lg font-semibold text-center animate-fade-in-up">
+                Wishing you a year filled with <span className="text-pink-500">joy</span>, <span className="text-green-500">success</span>, and <span className="text-yellow-500">new adventures</span>.<br/>
+              </span>
+            </div>
             <h1 className={`text-4xl sm:text-5xl font-bold text-transparent bg-clip-text overflow-hidden whitespace-nowrap border-r-2 animate-smooth-typing ${
               isDarkMode
                 ? 'bg-gradient-to-r from-blue-200 via-cyan-200 to-blue-200 border-cyan-400'

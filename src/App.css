@@ -40,3 +40,38 @@
 .read-the-docs {
   color: #888;
 }
+
+/* Futuristic New Year Wish Animations */
+@keyframes gradient-bar {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 100% 50%; }
+}
+.animate-gradient-bar {
+  background-size: 200% 200%;
+  animation: gradient-bar 2s linear infinite;
+}
+
+@keyframes glow-ring {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.7; }
+}
+.animate-glow-ring {
+  animation: glow-ring 2.5s ease-in-out infinite;
+}
+
+@keyframes gradient-x {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 100% 50%; }
+}
+.animate-gradient-x {
+  background-size: 200% 200%;
+  animation: gradient-x 3s linear infinite;
+}
+
+@keyframes fade-in-up {
+  0% { opacity: 0; transform: translateY(20px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in-up {
+  animation: fade-in-up 1.2s cubic-bezier(0.4,0,0.2,1) both;
+}
