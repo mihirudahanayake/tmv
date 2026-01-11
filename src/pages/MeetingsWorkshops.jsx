@@ -130,32 +130,63 @@ const MeetingsWorkshops = () => {
                 userLocation &&
                 event.latitude && event.longitude &&
                 getDistanceMeters(userLocation.lat, userLocation.lng, event.latitude, event.longitude) <= 100;
+
+              // Admin: End meeting/workshop
+              const handleEndEvent = async (eventId) => {
+                await updateDoc(doc(db, 'events', eventId), {
+                  ended: new Date().toISOString()
+                });
+              };
+
+              const isEnded = !!event.ended;
+              const userAttended = attending[event.id];
+
               return (
                 <li key={event.id} className="border rounded p-4 flex flex-col gap-2 bg-white">
-                  <div>
-                    <span className="font-semibold">{event.title}</span> ({event.type})
+                  <div className="flex items-center justify-between">
+                    <span>
+                      <span className="font-semibold">{event.title}</span> ({event.type})
+                    </span>
+                    {userType === 'admin' && !isEnded && (
+                      <button
+                        className="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 text-xs font-semibold"
+                        onClick={() => handleEndEvent(event.id)}
+                      >
+                        End Meeting/Workshop
+                      </button>
+                    )}
+                    {userType === 'admin' && isEnded && (
+                      <span className="bg-gray-200 text-gray-700 px-3 py-1 rounded text-xs font-semibold">Ended</span>
+                    )}
                   </div>
                   <div className="text-xs text-gray-500">
                     Location: {event.latitude}, {event.longitude}
                   </div>
-                  {attending[event.id] ? (
-                    <button className="bg-green-100 text-green-700 px-4 py-2 rounded font-semibold cursor-default" disabled>
-                      Attended
-                    </button>
-                  ) : (
-                    <button
-                      className={`px-4 py-2 rounded font-semibold ${canMark ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}
-                      disabled={!canMark || attendanceLoading[event.id]}
-                      onClick={() => handleMarkAttendance(event)}
-                    >
-                      {attendanceLoading[event.id] ? 'Marking...' : 'Mark Attended'}
-                    </button>
-                  )}
-                  {!userLocation && (
-                    <div className="text-xs text-red-500 mt-1">Location permission required to mark attendance.</div>
-                  )}
-                  {userLocation && event.latitude && event.longitude && !canMark && (
-                    <div className="text-xs text-yellow-600 mt-1">You must be within 100 meters of the event location to mark attendance.</div>
+                  {/* User: Attendance/Missed logic */}
+                  {userType !== 'admin' && (
+                    <>
+                      {userAttended ? (
+                        <button className="bg-green-100 text-green-700 px-4 py-2 rounded font-semibold cursor-default" disabled>
+                          Attended
+                        </button>
+                      ) : isEnded ? (
+                        <div className="bg-red-100 text-red-700 px-4 py-2 rounded font-semibold">You missed this</div>
+                      ) : (
+                        <button
+                          className={`px-4 py-2 rounded font-semibold ${canMark ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}
+                          disabled={!canMark || attendanceLoading[event.id]}
+                          onClick={() => handleMarkAttendance(event)}
+                        >
+                          {attendanceLoading[event.id] ? 'Marking...' : 'Mark Attended'}
+                        </button>
+                      )}
+                      {!userLocation && !userAttended && !isEnded && (
+                        <div className="text-xs text-red-500 mt-1">Location permission required to mark attendance.</div>
+                      )}
+                      {userLocation && event.latitude && event.longitude && !canMark && !userAttended && !isEnded && (
+                        <div className="text-xs text-yellow-600 mt-1">You must be within 100 meters of the event location to mark attendance.</div>
+                      )}
+                    </>
                   )}
                 </li>
               );

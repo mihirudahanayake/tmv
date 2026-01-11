@@ -48,10 +48,10 @@ function AppWithFCM() {
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <DarkModeProvider>
-      <BrowserRouter>
+    <BrowserRouter>
+      <DarkModeProvider>
         <AppWithFCM />
-      </BrowserRouter>
-    </DarkModeProvider>
+      </DarkModeProvider>
+    </BrowserRouter>
   </StrictMode>
 );

@@ -157,6 +157,19 @@ const AdminCreateEvent = () => {
                   <div className="flex gap-2 mt-2">
                     <button onClick={() => startEdit(ev)} className="bg-yellow-500 text-white px-3 py-1 rounded">Edit</button>
                     <button onClick={() => handleDelete(ev.id)} className="bg-red-600 text-white px-3 py-1 rounded">Delete</button>
+                    {!ev.ended ? (
+                      <button
+                        onClick={async () => {
+                          await updateDoc(doc(db, 'events', ev.id), { ended: new Date().toISOString() });
+                          setEvents(events => events.map(e => e.id === ev.id ? { ...e, ended: new Date().toISOString() } : e));
+                        }}
+                        className="bg-red-700 text-white px-3 py-1 rounded"
+                      >
+                        End Meeting/Workshop
+                      </button>
+                    ) : (
+                      <span className="bg-gray-200 text-gray-700 px-3 py-1 rounded text-xs font-semibold">Ended</span>
+                    )}
                   </div>
                 </>
               )}
