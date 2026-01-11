@@ -11,6 +11,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import AttendancePage from './pages/AttendancePage';
 import AdminCreateEvent from './pages/AdminCreateEvent';
 import MeetingsWorkshops from './pages/MeetingsWorkshops.jsx';
+import EventAttendees from './pages/EventAttendees.jsx';
 
 // Replace this with your real Web Push VAPID key (Project Settings → Cloud Messaging → Web configuration)
 const VAPID_KEY = 'BCDW2bDpR51kOUCYdebGFw4pHEU_h2159MHvkSEslEdrV0yI0AVUiQikAbClmXfS9EGHHQblUlKTC_To4SaQ7Hg';
@@ -41,6 +42,7 @@ function AppWithFCM() {
       <Route path="/attendance" element={<AttendancePage />} />
       <Route path="/admin-create-event" element={<AdminCreateEvent />} />
       <Route path="/my-meetings" element={<MeetingsWorkshops />} />
+      <Route path="/event-attendees/:eventId" element={<EventAttendees />} />
       <Route path="/*" element={<App />} />
     </Routes>
   );

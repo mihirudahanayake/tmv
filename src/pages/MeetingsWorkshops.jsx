@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { collection, onSnapshot, query, doc, updateDoc, getDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, doc, updateDoc, getDoc, arrayUnion } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import Header from '../components/Header';
 import { useDarkMode } from '../context/DarkModeContext';
@@ -93,7 +93,8 @@ const MeetingsWorkshops = () => {
           timestamp: new Date().toISOString(),
           lat: userLocation?.lat,
           lng: userLocation?.lng
-        }
+        },
+        users: arrayUnion(user.uid)
       });
       setAttending((prev) => ({ ...prev, [event.id]: true }));
     } catch (err) {
@@ -107,7 +108,13 @@ const MeetingsWorkshops = () => {
     setLoading(true);
     const q = query(collection(db, 'events'));
     const unsub = onSnapshot(q, (snap) => {
-      const allEvents = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      let allEvents = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      // Sort by dateTime descending (newest first)
+      allEvents = allEvents.sort((a, b) => {
+        const aTime = a.dateTime ? new Date(a.dateTime).getTime() : 0;
+        const bTime = b.dateTime ? new Date(b.dateTime).getTime() : 0;
+        return bTime - aTime;
+      });
       setEvents(allEvents);
       setLoading(false);
     });
@@ -126,10 +133,13 @@ const MeetingsWorkshops = () => {
         ) : (
           <ul className="space-y-4">
             {events.map(event => {
-              const canMark =
-                userLocation &&
-                event.latitude && event.longitude &&
-                getDistanceMeters(userLocation.lat, userLocation.lng, event.latitude, event.longitude) <= 10;
+
+              // Move variable declarations above their usage
+              const isEnded = !!event.ended;
+              // User is attended if their uid is in event.users array
+              const userAttended = Array.isArray(event.users) && user && event.users.includes(user.uid);
+              // For now, allow marking attendance if not ended and not already attended
+              const canMark = !isEnded && !userAttended;
 
               // Admin: End meeting/workshop
               const handleEndEvent = async (eventId) => {
@@ -138,14 +148,14 @@ const MeetingsWorkshops = () => {
                 });
               };
 
-              const isEnded = !!event.ended;
-              const userAttended = attending[event.id];
-
               return (
                 <li key={event.id} className="border rounded p-4 flex flex-col gap-2 bg-white">
                   <div className="flex items-center justify-between">
                     <span>
-                      <span className="font-semibold">{event.title}</span> ({event.type})
+                      <span className="font-semibold">{event.title}</span>
+                      {' '}(
+                        {Array.isArray(event.type) ? event.type.join(' and ') : event.type}
+                      )
                     </span>
                     {userType === 'admin' && !isEnded && (
                       <button
@@ -160,15 +170,18 @@ const MeetingsWorkshops = () => {
                     )}
                   </div>
                   <div className="text-xs text-gray-500">
-                    Location: {event.latitude}, {event.longitude}
+                    {event.locationName && (
+                      <span>Location: {event.locationName}</span>
+                    )}
+                    {event.dateTime && (
+                      <span> | Date & Time: {new Date(event.dateTime).toLocaleString()}</span>
+                    )}
                   </div>
                   {/* User: Attendance/Missed logic */}
                   {userType !== 'admin' && (
                     <>
                       {userAttended ? (
-                        <button className="bg-green-100 text-green-700 px-4 py-2 rounded font-semibold cursor-default" disabled>
-                          Attended
-                        </button>
+                        <div className="bg-green-100 text-green-700 px-4 py-2 rounded font-semibold">You attended</div>
                       ) : isEnded ? (
                         <div className="bg-red-100 text-red-700 px-4 py-2 rounded font-semibold">You missed this</div>
                       ) : (

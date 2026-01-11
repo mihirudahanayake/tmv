@@ -42,10 +42,15 @@ const Login = () => {
       const profileSnap = await getDoc(profileRef);
 
       let userType = 'user';
+      let userData = { uid: user.uid, email: user.email };
       if (profileSnap.exists()) {
         const data = profileSnap.data();
         userType = data.userType || 'user';
+        userData = { ...userData, ...data };
       }
+
+      // Store user info in localStorage with uid
+      localStorage.setItem('user', JSON.stringify(userData));
 
       if (userType === 'admin') {
         navigate('/admin-home');
