@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import * as XLSX from 'xlsx';
 import { collection, getDocs } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../firebase/config';
@@ -47,6 +48,33 @@ const ManageUsers = () => {
     return name.includes(normalizedSearch) || card.includes(normalizedSearch);
   });
 
+  // Export filtered users to Excel
+  const handleExportExcel = () => {
+    // Define batch order
+    const batchOrder = ['20/21', '21/22', '22/23', '23/24'];
+    // Sort users by batch (custom order) then by card number alphabetically
+    const sorted = [...filteredUsers].sort((a, b) => {
+      const batchA = batchOrder.indexOf(a.batch);
+      const batchB = batchOrder.indexOf(b.batch);
+      if (batchA !== batchB) return batchA - batchB;
+      const regA = (a.registrationNumber || '').toLowerCase();
+      const regB = (b.registrationNumber || '').toLowerCase();
+      return regA.localeCompare(regB);
+    });
+    // Prepare data for Excel (remove userType and email, rename CardNumber to Card)
+    const data = sorted.map((u) => ({
+      Name: u.name || '',
+      Card: u.cardNumber || '',
+      Batch: u.batch || '',
+      RegistrationNumber: u.registrationNumber || '',
+      // Add more fields as needed
+    }));
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Users');
+    XLSX.writeFile(workbook, 'users_completed_works.xlsx');
+  };
+
   return (
     <div className="min-h-screen bg-gray-100">
       <Header userType="admin" />
@@ -55,6 +83,16 @@ const ManageUsers = () => {
         <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-4">
           Manage users
         </h1>
+
+        {/* Export to Excel button */}
+        <div className="mb-4 flex justify-end">
+          <button
+            onClick={handleExportExcel}
+            className="bg-green-600 hover:bg-green-700 text-white font-semibold px-4 py-2 rounded shadow"
+          >
+            Export to Excel
+          </button>
+        </div>
 
         {/* Search + filters */}
         <div className="mb-4 flex flex-col sm:flex-row gap-3 sm:items-center">

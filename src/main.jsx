@@ -6,6 +6,9 @@ import './index.css';
 import { messaging, db, auth } from './firebase/config';
 import { getToken } from 'firebase/messaging';
 import { doc, updateDoc } from 'firebase/firestore';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import AttendancePage from './pages/AttendancePage';
+import AdminCreateEvent from './pages/AdminCreateEvent';
 
 // Replace this with your real Web Push VAPID key (Project Settings → Cloud Messaging → Web configuration)
 const VAPID_KEY = 'BCDW2bDpR51kOUCYdebGFw4pHEU_h2159MHvkSEslEdrV0yI0AVUiQikAbClmXfS9EGHHQblUlKTC_To4SaQ7Hg';
@@ -41,7 +44,15 @@ function AppWithFCM() {
     init().catch(console.error);
   }, []);
 
-  return <App />;
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/attendance" element={<AttendancePage />} />
+        <Route path="/admin-create-event" element={<AdminCreateEvent />} />
+        <Route path="/*" element={<App />} />
+      </Routes>
+    </BrowserRouter>
+  );
 }
 
 createRoot(document.getElementById('root')).render(

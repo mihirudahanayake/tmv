@@ -118,6 +118,25 @@ const Homepage = () => {
           </h2>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+            {/* Create Meeting/Workshop */}
+            <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-xl transition">
+              <div className="flex items-center gap-3 mb-4">
+                <FaCalendarAlt className="text-3xl sm:text-4xl text-indigo-600" />
+                <h3 className="text-lg sm:text-xl font-semibold text-indigo-600">
+                  Create Meeting/Workshop
+                </h3>
+              </div>
+              <p className="text-gray-600 mb-4 text-sm sm:text-base">
+                Schedule a new meeting or workshop and set the location for attendance.
+              </p>
+              <button
+                onClick={() => navigate('/admin-create-event')}
+                className="w-full bg-indigo-600 text-white py-2 sm:py-3 px-4 rounded hover:bg-indigo-700 transition font-medium"
+              >
+                Create Meeting/Workshop
+              </button>
+            </div>
+
             {/* Work list */}
             <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-xl transition">
               <div className="flex items-center gap-3 mb-4">

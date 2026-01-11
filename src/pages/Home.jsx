@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from 'react';
 import {
   collection,
@@ -43,7 +44,25 @@ const Home = () => {
   // NEW: popup notification for this user
   const [popup, setPopup] = useState(null); // { id, title, message, type, workId, createdAt }
 
-  const userType = 'user';
+  // Set userType based on logged-in user
+  const [userType, setUserType] = useState('user');
+
+  useEffect(() => {
+    if (!user) return;
+    const fetchUserType = async () => {
+      try {
+        const snap = await getDocs(collection(db, 'users'));
+        const found = snap.docs.find((docSnap) => docSnap.id === user.uid);
+        if (found) {
+          const data = found.data();
+          setUserType(data.userType || 'user');
+        }
+      } catch (err) {
+        setUserType('user');
+      }
+    };
+    fetchUserType();
+  }, [user]);
 
   const { isDarkMode, toggleDarkMode } = useDarkMode();
 
@@ -521,6 +540,7 @@ const renderTeamMembers = (task) => {
 
   useIdleLogout();
 
+
   return (
     <div className={`min-h-screen transition-colors duration-300 ${
       isDarkMode
@@ -529,21 +549,20 @@ const renderTeamMembers = (task) => {
     }`}>
       <Header userType={userType} isDarkMode={isDarkMode} toggleDarkMode={toggleDarkMode} />
 
-{/* User popup notification */}
-{popup && (
-  <div
-    className="fixed bottom-4 right-4 z-50 max-w-xs text-left bg-white dark:bg-slate-900 shadow-xl rounded-xl border border-gray-200 dark:border-slate-700 px-4 py-3 text-sm"
-  >
-    <p className="font-semibold text-gray-800 dark:text-gray-100 mb-1">
-      {renderUserPopupText()}
-    </p>
-    {popup.message && (
-      <p className="text-gray-600 dark:text-gray-300 text-xs mb-1">{popup.message}</p>
-    )}
-    <p className="text-gray-500 dark:text-gray-400 text-xs">Notification</p>
-  </div>
-)}
-
+      {/* User popup notification */}
+      {popup && (
+        <div
+          className="fixed bottom-4 right-4 z-50 max-w-xs text-left bg-white dark:bg-slate-900 shadow-xl rounded-xl border border-gray-200 dark:border-slate-700 px-4 py-3 text-sm"
+        >
+          <p className="font-semibold text-gray-800 dark:text-gray-100 mb-1">
+            {renderUserPopupText()}
+          </p>
+          {popup.message && (
+            <p className="text-gray-600 dark:text-gray-300 text-xs mb-1">{popup.message}</p>
+          )}
+          <p className="text-gray-500 dark:text-gray-400 text-xs">Notification</p>
+        </div>
+      )}
 
       {toast && (
         <div className="fixed top-20 right-4 z-40 bg-gradient-to-r from-blue-600 to-purple-600 text-white text-sm px-5 py-3 rounded-lg shadow-2xl animate-slide-in">
@@ -590,6 +609,14 @@ const renderTeamMembers = (task) => {
       )}
 
       <main className="container mx-auto px-4 py-8 max-w-5xl">
+        {/* Admin: Add event creation button */}
+        {userType === 'admin' && (
+          <div className="mb-6 flex justify-end">
+            <a href="/admin-create-event" className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded shadow">
+              Create Meeting/Workshop
+            </a>
+          </div>
+        )}
         <div className="mb-8">
           <h1 className="text-3xl sm:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600 dark:from-yellow-300 dark:to-pink-400 mb-2">
             Welcome Back
