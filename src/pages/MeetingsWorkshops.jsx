@@ -129,7 +129,7 @@ const MeetingsWorkshops = () => {
               const canMark =
                 userLocation &&
                 event.latitude && event.longitude &&
-                getDistanceMeters(userLocation.lat, userLocation.lng, event.latitude, event.longitude) <= 100;
+                getDistanceMeters(userLocation.lat, userLocation.lng, event.latitude, event.longitude) <= 10;
 
               // Admin: End meeting/workshop
               const handleEndEvent = async (eventId) => {
@@ -184,7 +184,7 @@ const MeetingsWorkshops = () => {
                         <div className="text-xs text-red-500 mt-1">Location permission required to mark attendance.</div>
                       )}
                       {userLocation && event.latitude && event.longitude && !canMark && !userAttended && !isEnded && (
-                        <div className="text-xs text-yellow-600 mt-1">You must be within 100 meters of the event location to mark attendance.</div>
+                        <div className="text-xs text-yellow-600 mt-1">You must be within place of the meeting/workshop location to mark attendance.</div>
                       )}
                     </>
                   )}

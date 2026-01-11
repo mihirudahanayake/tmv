@@ -27,15 +27,13 @@ const Header = ({ userType, isDarkMode, toggleDarkMode }) => {
   const navItems = [
     { path: homePath, label: 'Home', icon: <FaHome /> },
     { path: '/profile', label: 'Profile', icon: <FaUser /> },
-    { path: '/my-meetings', label: 'My Meetings / Workshops', icon: <FaCalendarAlt /> }
-  ];
-
-  if (userType === 'user') {
-    navItems.push(
+    // Only show My Meetings / Workshops for users
+    ...(userType === 'user' ? [
+      { path: '/my-meetings', label: 'My Meetings / Workshops', icon: <FaCalendarAlt /> },
       { path: '/task-history', label: 'Task History', icon: <FaHistory /> },
       { path: '/user-reject-details', label: 'My Rejections', icon: <FaTimes /> }
-    );
-  }
+    ] : [])
+  ];
 
   if (userType === 'admin') {
     navItems.push(

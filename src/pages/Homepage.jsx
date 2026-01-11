@@ -11,6 +11,7 @@ import {
   getDocs,
 } from 'firebase/firestore';
 import { FaUserPlus, FaTasks, FaCalendarAlt } from 'react-icons/fa';
+import { FaRegHandshake } from 'react-icons/fa6';
 import Header from '../components/Header';
 import { db } from '../firebase/config';
 
@@ -118,24 +119,7 @@ const Homepage = () => {
           </h2>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-            {/* Create Meeting/Workshop */}
-            <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-xl transition">
-              <div className="flex items-center gap-3 mb-4">
-                <FaCalendarAlt className="text-3xl sm:text-4xl text-indigo-600" />
-                <h3 className="text-lg sm:text-xl font-semibold text-indigo-600">
-                  Create Meeting/Workshop
-                </h3>
-              </div>
-              <p className="text-gray-600 mb-4 text-sm sm:text-base">
-                Schedule a new meeting or workshop and set the location for attendance.
-              </p>
-              <button
-                onClick={() => navigate('/admin-create-event')}
-                className="w-full bg-indigo-600 text-white py-2 sm:py-3 px-4 rounded hover:bg-indigo-700 transition font-medium"
-              >
-                Create Meeting/Workshop
-              </button>
-            </div>
+
 
             {/* Work list */}
             <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-xl transition">
@@ -193,6 +177,25 @@ const Homepage = () => {
                 className="w-full bg-purple-600 text-white py-2 sm:py-3 px-4 rounded hover:bg-purple-700 transition font-medium"
               >
                 Go to Schedule Posting
+              </button>
+            </div>
+
+            {/* Create Meeting/Workshop (moved, new color/icon) */}
+            <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-xl transition">
+              <div className="flex items-center gap-3 mb-4">
+                <FaRegHandshake className="text-3xl sm:text-4xl text-teal-600" />
+                <h3 className="text-lg sm:text-xl font-semibold text-teal-600">
+                  Create Meeting/Workshop
+                </h3>
+              </div>
+              <p className="text-gray-600 mb-4 text-sm sm:text-base">
+                Schedule a new meeting or workshop and set the location for attendance.
+              </p>
+              <button
+                onClick={() => navigate('/admin-create-event')}
+                className="w-full bg-teal-600 text-white py-2 sm:py-3 px-4 rounded hover:bg-teal-700 transition font-medium"
+              >
+                Create Meeting/Workshop
               </button>
             </div>
 
