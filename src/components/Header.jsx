@@ -9,7 +9,8 @@ import {
   FaUser,
   FaHistory,
   FaBox,
-  FaBell
+  FaBell,
+  FaCalendarAlt
 } from 'react-icons/fa';
 import { useState } from 'react';
 import { FaSun, FaMoon } from 'react-icons/fa';
@@ -22,9 +23,11 @@ const Header = ({ userType, isDarkMode, toggleDarkMode }) => {
 
   const homePath = userType === 'admin' ? '/admin-home' : '/home';
 
+
   const navItems = [
     { path: homePath, label: 'Home', icon: <FaHome /> },
-    { path: '/profile', label: 'Profile', icon: <FaUser /> }
+    { path: '/profile', label: 'Profile', icon: <FaUser /> },
+    { path: '/my-meetings', label: 'My Meetings / Workshops', icon: <FaCalendarAlt /> }
   ];
 
   if (userType === 'user') {

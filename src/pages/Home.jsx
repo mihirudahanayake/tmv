@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react';
 import {
   collection,
@@ -28,6 +27,9 @@ import {
 import { useDarkMode } from '../context/DarkModeContext';
 import { useIdleLogout } from '../hooks/useIdleLogout';
 
+// --- Meetings/Workshops for user ---
+// (Place this inside the Home component, after all imports)
+
 const Home = () => {
   const [user, setUser] = useState(null);
   const [tasks, setTasks] = useState([]);
@@ -36,6 +38,22 @@ const Home = () => {
   const [loadingUser, setLoadingUser] = useState(true);
   const [loadingTasks, setLoadingTasks] = useState(false);
   const [toast, setToast] = useState('');
+
+  // Meetings/Workshops state
+  const [userEvents, setUserEvents] = useState([]);
+  const [loadingEvents, setLoadingEvents] = useState(true);
+
+  useEffect(() => {
+    setLoadingEvents(true);
+    // Fetch all events for all users
+    const q = query(collection(db, 'events'));
+    const unsub = onSnapshot(q, (snap) => {
+      const events = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setUserEvents(events);
+      setLoadingEvents(false);
+    });
+    return () => unsub();
+  }, []);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   const [selectedTask, setSelectedTask] = useState(null);
@@ -609,6 +627,7 @@ const renderTeamMembers = (task) => {
       )}
 
       <main className="container mx-auto px-4 py-8 max-w-5xl">
+        {/* ...removed My Meetings/Workshops Button... */}
         {/* Admin: Add event creation button */}
         {userType === 'admin' && (
           <div className="mb-6 flex justify-end">
