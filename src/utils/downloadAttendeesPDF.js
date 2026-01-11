@@ -10,7 +10,7 @@ export function downloadAttendeesPDF({ attendees, eventTitle, locationName, even
   doc.text(eventTitle || "Attendees", 14, 16);
   doc.setFontSize(12);
   doc.text(`Location: ${locationName || ''}`, 14, 24);
-  doc.text(`Event Date & Time: ${eventDateTime ? new Date(eventDateTime).toLocaleString() : ''}`, 14, 32);
+  doc.text(`Meeting / Workshop Date & Time: ${eventDateTime ? new Date(eventDateTime).toLocaleString() : ''}`, 14, 32);
   const tableData = attendees.map(a => [
     a.name || "",
     a.registrationNumber || a.userId || ""
