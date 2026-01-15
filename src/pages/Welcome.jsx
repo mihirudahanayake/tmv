@@ -132,7 +132,7 @@ const Welcome = () => {
         <div className={`text-center mt-8 text-xs animate-fade-in ${
           isDarkMode ? 'text-gray-500' : 'text-gray-600'
         }`} style={{ animationDelay: '1.2s' }}>
-          © 2025 Videography Management System
+          © 2026 Videography Management System
         </div>
       </div>
     </div>
