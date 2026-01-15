@@ -507,7 +507,7 @@ if (emails.length > 0) {
         <p>Best regards,</p>
         <p style="color:#A3A9AD">
           <strong>Mihiru Dahanayake</strong><br>
-          <i>Acting Videography Department Head<br>FOT Media<br>Faculty Of Technology<br>Rajarata University of Sri Lanka<br>
+          <i>Head of Videography Department<br>FOT Media<br>Faculty Of Technology<br>Rajarata University of Sri Lanka<br>
           <a href="tel:+94703426554" style="color:#0066cc; text-decoration:none;">070 342 6554</a><br>
           <a href="mailto:mihirudahanayake@gmail.com" style="color:#0066cc; text-decoration:none;">mihiru.online@gmail.com</a></i><br>
         </p>`
@@ -525,7 +525,7 @@ if (phones.length > 0) {
     `If you encounter any issues, feel free to contact me.\n\n` +
     `Best regards,\n` +
     `Mihiru Dahanayake\n` +
-    `Acting Videography Department Head\n` +
+    `Head of Videography Department\n` +
     `FOT Media, Rajarata University\n` +
     `070 342 6554`;
 
