@@ -526,7 +526,7 @@ if (phones.length > 0) {
     `Best regards,\n` +
     `Mihiru Dahanayake\n` +
     `Head of Videography Department\n` +
-    `FOT Media, Rajarata University\n` +
+    `FOT Media, \nFaculty of Technology, \nRajarata University of Sri Lanka\n` +
     `070 342 6554`;
 
   await addDoc(collection(db, 'whatsapp'), {
