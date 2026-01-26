@@ -173,6 +173,18 @@ useEffect(() => {
         };
         setPopup(notif);
 
+        // Show device notification for assigned
+        if (
+          notif.type === 'assigned' &&
+          'Notification' in window &&
+          Notification.permission === 'granted'
+        ) {
+          new Notification(notif.title || 'New Work Assigned', {
+            body: notif.message || 'You have been assigned a new work.',
+            icon: '/icon-192.png',
+          });
+        }
+
         // auto-hide after 5s and mark as read
         setTimeout(async () => {
           try {
