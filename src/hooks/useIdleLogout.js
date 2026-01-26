@@ -4,7 +4,7 @@ import { signOut } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
 import { auth } from '../firebase/config';
 
-const IDLE_TIMEOUT_MINUTES = 15; // set your timeout to 1 minute for security
+const IDLE_TIMEOUT_MINUTES = 5; // set your timeout to 10 minutes for security
 
 export function useIdleLogout() {
   const navigate = useNavigate();

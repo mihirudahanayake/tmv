@@ -556,7 +556,6 @@ const renderTeamMembers = (task) => {
     return 'New notification.';
   };
 
-  useIdleLogout();
 
 
   return (
