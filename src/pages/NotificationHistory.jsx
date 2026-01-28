@@ -107,21 +107,39 @@ const NotificationHistory = () => {
     .filter((n) => n.type !== 'admin-message')
     .filter(inMyDept);
 
-  const deleteUserCopiesByBroadcastId = async (broadcastId) => {
+  const deleteUserCopies = async (notif) => {
+    const broadcastId = notif?.id;
     if (!broadcastId) return;
-    // Deletes `/users/{uid}/notifications/*` that were fanned out from this broadcast.
-    const snap = await getDocs(
-      query(collectionGroup(db, 'notifications'), where('broadcastId', '==', broadcastId))
-    );
 
-    if (snap.empty) return;
+    // Preferred: delete by deterministic doc id using stored recipient list.
+    const recipients = Array.isArray(notif?.recipientUserIds) ? notif.recipientUserIds : null;
+    if (recipients && recipients.length > 0) {
+      const chunkSize = 450;
+      for (let i = 0; i < recipients.length; i += chunkSize) {
+        const batch = writeBatch(db);
+        recipients.slice(i, i + chunkSize).forEach((uid) => {
+          batch.delete(doc(db, 'users', uid, 'notifications', broadcastId));
+        });
+        await batch.commit();
+      }
+      return;
+    }
 
-    const docs = snap.docs;
-    const chunkSize = 450;
-    for (let i = 0; i < docs.length; i += chunkSize) {
-      const batch = writeBatch(db);
-      docs.slice(i, i + chunkSize).forEach((d) => batch.delete(d.ref));
-      await batch.commit();
+    // Fallback for older notifications: try collectionGroup search (may require an index).
+    try {
+      const snap = await getDocs(
+        query(collectionGroup(db, 'notifications'), where('broadcastId', '==', broadcastId))
+      );
+      if (snap.empty) return;
+      const docs = snap.docs;
+      const chunkSize = 450;
+      for (let i = 0; i < docs.length; i += chunkSize) {
+        const batch = writeBatch(db);
+        docs.slice(i, i + chunkSize).forEach((d) => batch.delete(d.ref));
+        await batch.commit();
+      }
+    } catch (e) {
+      console.warn('Skipping deletion of user copies (index required):', e);
     }
   };
 
@@ -133,7 +151,7 @@ const NotificationHistory = () => {
     setDeletingId(notif.id);
     try {
       // Delete per-user copies first (best effort)
-      await deleteUserCopiesByBroadcastId(notif.id);
+      await deleteUserCopies(notif);
       // Delete global record
       await deleteDoc(doc(db, 'notifications', notif.id));
       setNotifs((prev) => prev.filter((n) => n.id !== notif.id));

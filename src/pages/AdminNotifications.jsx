@@ -105,6 +105,7 @@ const AdminNotifications = () => {
       const senderUid = auth.currentUser?.uid || null;
 
       // Keep a global record for dept heads / history.
+      const storeRecipientIds = targetUserIds.length <= 1000; // avoid large docs
       const broadcastRef = await addDoc(collection(db, 'notifications'), {
         type: 'admin-message',
         source: 'admin',
@@ -115,13 +116,17 @@ const AdminNotifications = () => {
         title: titleText,
         message: messageText,
         target: sendMode === 'all' ? 'all' : 'user',
+        recipientUserIds: storeRecipientIds ? targetUserIds : null,
         department,
         createdAt: serverTimestamp(),
         read: false,
       });
 
       // Fan-out to per-user notifications so users can mark read individually.
-      await fanOutUserNotifications(db, targetUserIds, {
+      await fanOutUserNotifications(
+        db,
+        targetUserIds,
+        {
         type: 'admin-message',
         source: 'admin',
         audience: 'user',
@@ -135,7 +140,9 @@ const AdminNotifications = () => {
         department,
         createdAt: serverTimestamp(),
         read: false,
-      });
+        },
+        { docId: broadcastRef.id }
+      );
 
       setSuccessMsg('Notification(s) sent successfully.');
       setTitle('');

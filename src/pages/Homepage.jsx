@@ -4,7 +4,6 @@ import {
   collection,
   query,
   where,
-  orderBy,
   onSnapshot,
   doc,
   updateDoc,
@@ -38,47 +37,36 @@ const Homepage = () => {
     };
 
     const makeQuery = (deptValue) =>
-      query(
-        collection(db, 'notifications'),
-        where('department', '==', deptValue),
-        where('read', '==', false),
-        orderBy('createdAt', 'desc')
-      );
+      query(collection(db, 'notifications'), where('department', '==', deptValue));
 
-    const qMain = makeQuery(department);
+    const processSnap = (snap) => {
+      const candidates = snap.docs
+        .map((d) => ({ id: d.id, ...d.data() }))
+        .filter((n) => n.read === false)
+        .filter(isAdminActivity)
+        .sort((a, b) => {
+          const aTime = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : new Date(a.createdAt || 0).getTime();
+          const bTime = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : new Date(b.createdAt || 0).getTime();
+          return bTime - aTime;
+        });
+
+      setPopup(candidates[0] || null);
+    };
 
     const unsubMain = onSnapshot(
-      qMain,
+      makeQuery(department),
       (snap) => {
         console.log('Notification snapshot size:', snap.size);
-        snap.docChanges().forEach((change) => {
-          console.log('Notif change:', change.type, change.doc.id);
-          if (change.type === 'added') {
-            const data = change.doc.data();
-            if (!isAdminActivity(data)) return;
-            setPopup({ id: change.doc.id, ...data });
-          }
-        });
+        processSnap(snap);
       },
-      (err) => {
-        console.error('Notification listener error:', err);
-      }
+      (err) => console.error('Notification listener error:', err)
     );
 
     let unsubLegacy = null;
     if (department === 'videography') {
-      const qLegacy = makeQuery(null);
       unsubLegacy = onSnapshot(
-        qLegacy,
-        (snap) => {
-          snap.docChanges().forEach((change) => {
-            if (change.type === 'added') {
-              const data = change.doc.data();
-              if (!isAdminActivity(data)) return;
-              setPopup({ id: change.doc.id, ...data });
-            }
-          });
-        },
+        makeQuery(null),
+        (snap) => processSnap(snap),
         (err) => console.error('Legacy notification listener error:', err)
       );
     }
