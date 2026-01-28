@@ -24,7 +24,6 @@ const Signup = () => {
     phoneNo: '',
     // work departments as array
     departments: ['videography'],
-    firstPriority: 'videography',
     batch: '20/21',
     studyDepartment: 'ITT',
     gender: 'male',
@@ -51,13 +50,7 @@ const Signup = () => {
         ? prev.departments.filter((d) => d !== value)
         : [...prev.departments, value];
 
-      // ensure firstPriority always in selected list
-      let nextFirst = prev.firstPriority;
-      if (!next.includes(nextFirst)) {
-        nextFirst = next[0] || '';
-      }
-
-      return { ...prev, departments: next, firstPriority: nextFirst };
+      return { ...prev, departments: next };
     });
   };
 
@@ -110,7 +103,6 @@ const Signup = () => {
         phoneNo: form.phoneNo,
         // work fields
         departments: form.departments,
-        firstPriority: form.firstPriority,
         role,
         managedDepartments,
         // study / personal
@@ -369,25 +361,6 @@ const Signup = () => {
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-300">
               You must select at least one department.
             </p>
-          </div>
-
-          {/* First priority work department */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-1">
-              First priority department (work)
-            </label>
-            <select
-              name="firstPriority"
-              value={form.firstPriority}
-              onChange={handleChange}
-              className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white text-gray-900 dark:bg-slate-800 dark:text-gray-100 dark:border-slate-700"
-            >
-              {form.departments.map((dept) => (
-                <option key={dept} value={dept}>
-                  {dept}
-                </option>
-              ))}
-            </select>
           </div>
 
           {/* Password */}

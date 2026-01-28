@@ -33,10 +33,6 @@ export const getManagedDepartments = (userDoc) => {
 
   if (managed.length) return managed;
 
-  // Sensible fallback for legacy admins
-  const fromFirst = userDoc?.firstPriority ? [userDoc.firstPriority] : [];
-  if (fromFirst.length) return fromFirst;
-
   const fromDepartments = Array.isArray(userDoc?.departments) ? userDoc.departments.filter(Boolean) : [];
   if (fromDepartments.length) return [fromDepartments[0]];
 

@@ -97,7 +97,7 @@ const Profile = () => {
 
     try {
       const userRef = doc(db, 'users', userData.id);
-      const { id, userType, createdAt, email, ...editable } = userData;
+      const { id, userType, createdAt, email, firstPriority, ...editable } = userData;
       await updateDoc(userRef, editable);
       setSuccessMsg('Profile updated successfully.');
       setIsEditingProfile(false);
@@ -495,22 +495,6 @@ const Profile = () => {
                   <select
                     name="department"
                     value={userData.department || 'videography'}
-                    onChange={handleFieldChange}
-                    className={inputClass}
-                    disabled={!isEditingProfile}
-                  >
-                    <option value="videography">Videography</option>
-                    <option value="photography">Photography</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
-                    First priority (work)
-                  </label>
-                  <select
-                    name="firstPriority"
-                    value={userData.firstPriority || 'videography'}
                     onChange={handleFieldChange}
                     className={inputClass}
                     disabled={!isEditingProfile}

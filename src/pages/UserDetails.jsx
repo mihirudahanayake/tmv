@@ -156,10 +156,6 @@ const UserDetails = () => {
                   : user.department || '-'}
               </p>
               <p>
-                <span className="font-semibold">First priority:</span>{' '}
-                {user.firstPriority || '-'}
-              </p>
-              <p>
                 <span className="font-semibold">User type:</span>{' '}
                 {user.userType || 'user'}
               </p>
