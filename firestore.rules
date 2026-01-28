@@ -150,7 +150,19 @@ service cloud.firestore {
 
         // Users can update their own (e.g., mark read).
         allow update: if signedIn() && userId == request.auth.uid;
-        allow delete: if false;
+        // Allow deleting only admin-sent broadcast notifications.
+        allow delete: if (isDeptHead() || isSiteAdmin())
+          && resource.data.source == 'admin'
+          && resource.data.type == 'admin-message'
+          && resource.data.broadcastId != null
+          && (
+            isSiteAdmin()
+            || (resource.data.senderUid != null && resource.data.senderUid == request.auth.uid)
+          )
+          && canReadUserDoc(
+            userId,
+            get(/databases/$(database)/documents/users/$(userId)).data
+          );
       }
     }
 
@@ -199,7 +211,7 @@ service cloud.firestore {
     match /notifications/{notifId} {
       allow read: if isDeptHead() || isSuperAdmin();
       allow create: if signedIn();
-      allow update, delete: if isDeptHead();
+      allow update, delete: if isDeptHead() || isSiteAdmin();
     }
 
     match /rejectedWorks/{id} {

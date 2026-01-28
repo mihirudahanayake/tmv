@@ -9,7 +9,7 @@ import {
 } from 'firebase/firestore';
 import { FaSpinner } from 'react-icons/fa';
 import Header from '../components/Header';
-import { db } from '../firebase/config';
+import { auth, db } from '../firebase/config';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { fanOutUserNotifications } from '../utils/fanOutUserNotifications';
 import { WORK_DEPARTMENTS, formatWorkDepartmentLabel } from '../constants/workDepartments';
@@ -102,12 +102,15 @@ const AdminNotifications = () => {
         return;
       }
 
+      const senderUid = auth.currentUser?.uid || null;
+
       // Keep a global record for dept heads / history.
-      await addDoc(collection(db, 'notifications'), {
+      const broadcastRef = await addDoc(collection(db, 'notifications'), {
         type: 'admin-message',
         source: 'admin',
         audience: 'user',
-        senderId: profile?.id || null,
+        senderId: profile?.id || senderUid,
+        senderUid,
         senderName: profile?.name || profile?.email || 'Admin',
         title: titleText,
         message: messageText,
@@ -122,7 +125,9 @@ const AdminNotifications = () => {
         type: 'admin-message',
         source: 'admin',
         audience: 'user',
-        senderId: profile?.id || null,
+        senderId: profile?.id || senderUid,
+        senderUid,
+        broadcastId: broadcastRef.id,
         senderName: profile?.name || profile?.email || 'Admin',
         title: titleText,
         message: messageText,
