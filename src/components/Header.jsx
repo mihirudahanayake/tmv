@@ -65,7 +65,7 @@ const Header = ({ userType, isDarkMode, toggleDarkMode }) => {
       <nav className="container mx-auto px-4 py-4">
         <div className="flex items-center justify-between">
           <h1 className="text-lg sm:text-xl md:text-2xl font-bold">
-            Videography Manager
+            Media User Management
           </h1>
 
           <div className="flex items-center gap-4">
