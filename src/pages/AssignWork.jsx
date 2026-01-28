@@ -15,7 +15,6 @@ import {
   FaFileAlt,
   FaAlignLeft,
   FaCalendarAlt,
-  FaExclamationCircle,
   FaUsers,
   FaSearch,
   FaBox
@@ -37,7 +36,6 @@ const AssignWork = () => {
     description: '',
     date: '',
     deadline: '',
-    priority: 'medium',
     assignedUsers: [], // [{ userId, roles: ['videography'] }]
     assignedItems: [] // [itemId, itemId, ...]
   });
@@ -106,7 +104,7 @@ const AssignWork = () => {
   const generateAndDownloadTaskImage = async ({ task, usersMap = {}, itemsMap = {} }) => {
     try {
       // Extract data from task object
-      const { id, title, description, date, deadline, priority, assignedUserDetails = [], assignedItems = [], userAcceptance = {}, roleCompletion = {} } = task;
+      const { id, title, description, date, deadline, assignedUserDetails = [], assignedItems = [], userAcceptance = {}, roleCompletion = {} } = task;
       
       // Helper: Compute derived status (matching WorkList pattern)
       const getDerivedStatus = () => {
@@ -464,7 +462,6 @@ const AssignWork = () => {
         date: formData.date || null,
         deadline: formData.deadline || null,
         dateType, // to know which one admin intended
-        priority: formData.priority,
         department,
         assignedUsers: formData.assignedUsers.map((u) => u.userId),
         assignedUserDetails: formData.assignedUsers,
@@ -561,7 +558,6 @@ if (phones.length > 0) {
         description: formData.description,
         date: formData.date || null,
         deadline: formData.deadline || null,
-        priority: formData.priority,
         assignedUserDetails: formData.assignedUsers,
         assignedItems: formData.assignedItems,
         status: 'pending',
@@ -573,7 +569,6 @@ if (phones.length > 0) {
         description: '',
         date: '',
         deadline: '',
-        priority: 'medium',
         assignedUsers: [],
         assignedItems: []
       });
@@ -771,23 +766,6 @@ if (phones.length > 0) {
                 </p>
               </div>
 
-              <div>
-                <label className="flex items-center gap-2 text-gray-700 font-semibold mb-2 text-sm sm:text-base">
-                  <FaExclamationCircle />
-                  <span>Priority</span>
-                </label>
-                <select
-                  name="priority"
-                  value={formData.priority}
-                  onChange={handleChange}
-                  className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 text-sm sm:text-base"
-                >
-                  <option value="low">Low</option>
-                  <option value="medium">Medium</option>
-                  <option value="high">High</option>
-                  <option value="urgent">Urgent</option>
-                </select>
-              </div>
             </div>
 
             {/* Assign users */}

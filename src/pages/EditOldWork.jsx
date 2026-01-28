@@ -7,7 +7,6 @@ import {
   FaFileAlt,
   FaAlignLeft,
   FaCalendarAlt,
-  FaExclamationCircle,
   FaUsers,
   FaSearch,
   FaBox
@@ -146,7 +145,6 @@ const EditOldWork = () => {
         description: formData.description,
         date: formData.date || null,
         deadline: formData.deadline || null,
-        priority: formData.priority,
         department: formData.department || 'videography',
         assignedUsers: formData.assignedUsers || [],
         assignedUserDetails: formData.assignedUserDetails || [],
@@ -248,23 +246,6 @@ const EditOldWork = () => {
                   className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 text-sm sm:text-base"
                 />
               </div>
-            </div>
-            <div>
-              <label className="flex items-center gap-2 text-gray-700 font-semibold mb-2 text-sm sm:text-base">
-                <FaExclamationCircle />
-                <span>Priority</span>
-              </label>
-              <select
-                name="priority"
-                value={formData.priority}
-                onChange={handleChange}
-                className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 text-sm sm:text-base"
-              >
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-                <option value="urgent">Urgent</option>
-              </select>
             </div>
             {/* Assign users */}
             <div>

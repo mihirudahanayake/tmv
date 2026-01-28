@@ -93,7 +93,6 @@ const AdminRejectDetails = () => {
         title: task.title,
         description: task.description,
         date: task.date,
-        priority: task.priority,
         assignedUserDetails: task.assignedUserDetails,
         assignedItems: task.assignedItems,
         rejectionReason: rejection.reason,

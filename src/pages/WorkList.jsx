@@ -2,12 +2,14 @@ import { useState, useEffect } from 'react';
 import { collection, getDocs, doc, updateDoc, query, where } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../firebase/config';
+import * as XLSX from 'xlsx';
 import {
   FaCalendarAlt,
   FaUsers,
   FaSpinner,
   FaSearch,
   FaCheck,
+  FaFileExcel,
   FaBox,
   FaHourglassHalf,
   FaTimes
@@ -95,6 +97,102 @@ const WorkList = () => {
     } catch (err) {
       console.error('Failed to mark task complete:', err);
     }
+  };
+
+  const formatDateForExport = (value) => {
+    if (!value) return '';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return String(value);
+    return d.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  };
+
+  const exportTasksToExcel = (rowsSource, filenameBase) => {
+    const rows = (rowsSource || []).map((task) => {
+      const derivedStatus = getDerivedStatus(task);
+      const userDetailsLocal = task.assignedUserDetails || [];
+      const assignedUsers = task.assignedUsers || userDetailsLocal.map((d) => d.userId);
+
+      const assignedUserNames = assignedUsers
+        .map((uid) => users[uid]?.name || 'Unknown')
+        .join(', ');
+      const assignedUserCards = assignedUsers
+        .map((uid) => users[uid]?.cardNumber || '')
+        .filter(Boolean)
+        .join(', ');
+
+      const assignedRoles = userDetailsLocal
+        .map((d) => {
+          const name = users[d.userId]?.name || 'Unknown';
+          const roles = (d.roles || []).join(', ');
+          return roles ? `${name}: ${roles}` : `${name}`;
+        })
+        .join(' | ');
+
+      const assignedItems = (task.assignedItems || [])
+        .map((itemId) => {
+          const item = items[itemId];
+          if (!item) return '';
+          const label = item.itemName || 'Item';
+          const no = item.itemNo ? ` (${item.itemNo})` : '';
+          return `${label}${no}`;
+        })
+        .filter(Boolean)
+        .join(', ');
+
+      return {
+        'Task ID': task.id || '',
+        Department: formatWorkDepartmentLabel(task.department || department),
+        Title: task.title || '',
+        Description: task.description || '',
+        Date: formatDateForExport(task.date),
+        Deadline: formatDateForExport(task.deadline),
+        Status: derivedStatus,
+        'Assigned Users': assignedUserNames,
+        'Assigned Cards': assignedUserCards,
+        Roles: assignedRoles,
+        Items: assignedItems
+      };
+    });
+
+    const sheet = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, sheet, 'WorkList');
+
+    const today = new Date().toISOString().slice(0, 10);
+    const safeDept = String(department || 'department').replace(/[^a-z0-9_-]/gi, '_');
+    const filename = `${filenameBase}_${safeDept}_${today}.xlsx`;
+    XLSX.writeFile(wb, filename);
+  };
+
+  const handleDownloadExcelAll = () => {
+    exportTasksToExcel(tasks, 'worklist_all');
+  };
+
+  const handleDownloadExcelDateRange = () => {
+    if (!startDate && !endDate) {
+      alert('Please select a start date or end date first.');
+      return;
+    }
+
+    const inRange = (task) => {
+      if (!task?.date) return false;
+      const d = new Date(task.date);
+      if (Number.isNaN(d.getTime())) return false;
+      const iso = new Date(d.getTime() - d.getTimezoneOffset() * 60000)
+        .toISOString()
+        .slice(0, 10);
+      if (startDate && iso < startDate) return false;
+      if (endDate && iso > endDate) return false;
+      return true;
+    };
+
+    const rows = tasks.filter(inRange).sort((a, b) => {
+      const da = a.date ? new Date(a.date).getTime() : 0;
+      const dbt = b.date ? new Date(b.date).getTime() : 0;
+      return dbt - da;
+    });
+
+    exportTasksToExcel(rows, 'worklist_date_range');
   };
 
   const normalizedSearch = searchText.trim().toLowerCase();
@@ -250,9 +348,6 @@ const WorkList = () => {
             <h3 className="text-lg sm:text-xl font-semibold text-gray-800">
               {task.title || 'Task'}
             </h3>
-            <p className="mt-1 text-xs sm:text-sm text-gray-500 capitalize">
-              Priority: {task.priority || 'medium'}
-            </p>
           </div>
           <span
             className={`px-2 sm:px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(
@@ -512,6 +607,25 @@ const WorkList = () => {
                 <option value="all">All status</option>
               </select>
             </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={handleDownloadExcelAll}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded bg-emerald-600 text-white text-xs sm:text-sm hover:bg-emerald-700"
+            >
+              <FaFileExcel />
+              Download Excel (All)
+            </button>
+            <button
+              type="button"
+              onClick={handleDownloadExcelDateRange}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs sm:text-sm hover:bg-emerald-100"
+            >
+              <FaFileExcel />
+              Download Excel (Date Range)
+            </button>
           </div>
         </div>
 
