@@ -88,6 +88,11 @@ const AdminNotifications = () => {
 
       // Keep a global record for dept heads / history.
       await addDoc(collection(db, 'notifications'), {
+        type: 'admin-message',
+        source: 'admin',
+        audience: 'user',
+        senderId: profile?.id || null,
+        senderName: profile?.name || profile?.email || 'Admin',
         title: titleText,
         message: messageText,
         target: sendMode === 'all' ? 'all' : 'user',
@@ -105,6 +110,11 @@ const AdminNotifications = () => {
         chunk.forEach((uid) => {
           const ref = doc(collection(db, 'users', uid, 'notifications'));
           batch.set(ref, {
+            type: 'admin-message',
+            source: 'admin',
+            audience: 'user',
+            senderId: profile?.id || null,
+            senderName: profile?.name || profile?.email || 'Admin',
             title: titleText,
             message: messageText,
             target: 'user',

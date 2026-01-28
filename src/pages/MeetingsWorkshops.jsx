@@ -134,7 +134,7 @@ const MeetingsWorkshops = () => {
           : '';
         setAttendanceError((prev) => ({
           ...prev,
-          [event.id]: `You are ~${Math.round(distance)}m away. Must be within ${REQUIRED_RADIUS_METERS}m.${accuracyText}`
+          [event.id]: `You should be within the meeting or workshop to mark attendance...`
         }));
         return;
       }
@@ -255,9 +255,9 @@ const MeetingsWorkshops = () => {
                       {!!attendanceError[event.id] && !userAttended && !isEnded && (
                         <div className="text-xs text-red-600 mt-1">{attendanceError[event.id]}</div>
                       )}
-                      {userLocation && locationMeta?.accuracy && !userAttended && !isEnded && (
+                      {/* {userLocation && locationMeta?.accuracy && !userAttended && !isEnded && (
                         <div className="text-[11px] text-gray-500 mt-1">Current GPS accuracy: ~{Math.round(locationMeta.accuracy)}m</div>
-                      )}
+                      )} */}
                     </>
                   )}
                 </li>

@@ -103,6 +103,8 @@ const NotificationDetails = () => {
         return 'Work marked done';
       case 'undo-done':
         return 'Work status changed';
+      case 'admin-message':
+        return 'Admin message';
       default:
         return 'Notification';
     }
@@ -129,6 +131,9 @@ const NotificationDetails = () => {
           <p className="text-sm font-semibold text-gray-800 mb-1">
             {typeLabel}
           </p>
+          {notification.title && (
+            <p className="text-sm text-gray-800 mb-1">{notification.title}</p>
+          )}
           <p className="text-xs text-gray-600 mb-1">
             ID: {notification.id}
           </p>

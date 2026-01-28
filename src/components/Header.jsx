@@ -48,7 +48,7 @@ const Header = ({ userType, isDarkMode, toggleDarkMode }) => {
       { path: '/assign-work', label: 'Assign Work', icon: <FaTasks /> },
       { path: '/work-list', label: 'Work List', icon: <FaList /> },
       { path: '/inventory', label: 'Inventory', icon: <FaBox /> },
-      { path: '/notifications', label: 'Notifications', icon: <FaBell /> }
+      { path: '/notifications', label: 'Notification History', icon: <FaBell /> }
     );
   }
 

@@ -8,53 +8,55 @@ import {
   onSnapshot,
   doc,
   updateDoc,
-  getDocs,
 } from 'firebase/firestore';
 import { FaUserPlus, FaTasks, FaCalendarAlt } from 'react-icons/fa';
 import { FaRegHandshake } from 'react-icons/fa6';
 import Header from '../components/Header';
 import { db } from '../firebase/config';
+import { useUserProfile } from '../hooks/useUserProfile';
 
 const Homepage = () => {
   const navigate = useNavigate();
   const [popup, setPopup] = useState(null); // { id, type, workId, userName, createdAt }
+  const { profile, loading: loadingProfile } = useUserProfile();
+  const [department, setDepartment] = useState('videography');
 
-  // TEMP: one-time read to verify connection and data
   useEffect(() => {
-    const run = async () => {
-      try {
-        const snap = await getDocs(collection(db, 'notifications'));
-        console.log('Notifications count:', snap.size);
-        snap.forEach((d) => console.log('Notif doc:', d.id, d.data()));
-      } catch (e) {
-        console.error('Test read of notifications failed:', e);
-      }
-    };
-    run();
-  }, []);
+    if (!loadingProfile && profile?.managedDepartments?.length) {
+      setDepartment(profile.managedDepartments[0]);
+    }
+  }, [loadingProfile, profile]);
 
   // listen for unread notifications
   useEffect(() => {
     console.log('Admin notification listener mounted');
 
-    const q = query(
-      collection(db, 'notifications'),
-      where('read', '==', false),
-      orderBy('createdAt', 'desc')
-    );
+    if (loadingProfile) return;
 
-    const unsub = onSnapshot(
-      q,
+    const isAdminActivity = (data) => {
+      return ['accept', 'reject', 'done', 'undo-done'].includes(data?.type);
+    };
+
+    const makeQuery = (deptValue) =>
+      query(
+        collection(db, 'notifications'),
+        where('department', '==', deptValue),
+        where('read', '==', false),
+        orderBy('createdAt', 'desc')
+      );
+
+    const qMain = makeQuery(department);
+
+    const unsubMain = onSnapshot(
+      qMain,
       (snap) => {
         console.log('Notification snapshot size:', snap.size);
         snap.docChanges().forEach((change) => {
           console.log('Notif change:', change.type, change.doc.id);
           if (change.type === 'added') {
             const data = change.doc.data();
-            setPopup({
-              id: change.doc.id, // Firestore doc id
-              ...data,
-            });
+            if (!isAdminActivity(data)) return;
+            setPopup({ id: change.doc.id, ...data });
           }
         });
       },
@@ -63,11 +65,30 @@ const Homepage = () => {
       }
     );
 
+    let unsubLegacy = null;
+    if (department === 'videography') {
+      const qLegacy = makeQuery(null);
+      unsubLegacy = onSnapshot(
+        qLegacy,
+        (snap) => {
+          snap.docChanges().forEach((change) => {
+            if (change.type === 'added') {
+              const data = change.doc.data();
+              if (!isAdminActivity(data)) return;
+              setPopup({ id: change.doc.id, ...data });
+            }
+          });
+        },
+        (err) => console.error('Legacy notification listener error:', err)
+      );
+    }
+
     return () => {
       console.log('Admin notification listener unsubscribed');
-      unsub();
+      unsubMain();
+      if (unsubLegacy) unsubLegacy();
     };
-  }, []);
+  }, [loadingProfile, department]);
 
   // CLICK: mark read + open details page for this notification
   const handleClickNotification = async () => {

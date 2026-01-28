@@ -181,16 +181,21 @@ const Home = () => {
     const q = query(
       collection(db, 'users', user.uid, 'notifications'),
       where('read', '==', false),
-      limit(1)
+      limit(10)
     );
 
     const unsub = onSnapshot(q, (snap) => {
-      if (!snap.empty) {
-        const d = snap.docs[0];
-        setPopup({ id: d.id, ...d.data() });
-      } else {
+      if (snap.empty) {
         setPopup(null);
+        return;
       }
+
+      const docs = snap.docs
+        .map((d) => ({ id: d.id, ...d.data() }))
+        // Only show admin-sent notifications in the popup
+        .filter((n) => n.source === 'admin' || n.type === 'admin-message');
+
+      setPopup(docs[0] || null);
     });
 
     return () => unsub();
@@ -234,19 +239,11 @@ const Home = () => {
       await addDoc(collection(db, 'notifications'), {
         department: task.department || 'videography',
         type: 'accept',
+        source: 'user-action',
+        audience: 'admin',
         workId: task.id,
         userId: user.uid,
         userName: user.displayName || '',
-        createdAt: serverTimestamp(),
-        read: false,
-      });
-
-      // user history notification
-      await addDoc(collection(db, 'users', user.uid, 'notifications'), {
-        type: 'accept',
-        workId: task.id,
-        title: task.title || 'Work accepted',
-        message: 'You accepted this work.',
         createdAt: serverTimestamp(),
         read: false,
       });
@@ -296,19 +293,11 @@ const Home = () => {
       await addDoc(collection(db, 'notifications'), {
         department: selectedTask.department || 'videography',
         type: 'reject',
+        source: 'user-action',
+        audience: 'admin',
         workId: selectedTask.id,
         userId: user.uid,
         userName: user.displayName || '',
-        createdAt: serverTimestamp(),
-        read: false,
-      });
-
-      // user history notification
-      await addDoc(collection(db, 'users', user.uid, 'notifications'), {
-        type: 'reject',
-        workId: selectedTask.id,
-        title: selectedTask.title || 'Work rejected',
-        message: 'You rejected this work.',
         createdAt: serverTimestamp(),
         read: false,
       });
@@ -368,18 +357,11 @@ const Home = () => {
         await addDoc(collection(db, 'notifications'), {
           department: task.department || 'videography',
           type: 'done',
+          source: 'user-action',
+          audience: 'admin',
           workId: task.id,
           userId: user.uid,
           userName: user.displayName || '',
-          createdAt: serverTimestamp(),
-          read: false,
-        });
-        // user history
-        await addDoc(collection(db, 'users', user.uid, 'notifications'), {
-          type: 'done',
-          workId: task.id,
-          title: task.title || 'Work done',
-          message: 'All your roles for this work are marked done.',
           createdAt: serverTimestamp(),
           read: false,
         });
@@ -388,18 +370,11 @@ const Home = () => {
         await addDoc(collection(db, 'notifications'), {
           department: task.department || 'videography',
           type: 'undo-done',
+          source: 'user-action',
+          audience: 'admin',
           workId: task.id,
           userId: user.uid,
           userName: user.displayName || '',
-          createdAt: serverTimestamp(),
-          read: false,
-        });
-        // user history
-        await addDoc(collection(db, 'users', user.uid, 'notifications'), {
-          type: 'undo-done',
-          workId: task.id,
-          title: task.title || 'Work status changed',
-          message: 'You undid a previously completed work status.',
           createdAt: serverTimestamp(),
           read: false,
         });
@@ -540,13 +515,7 @@ const renderTeamMembers = (task) => {
 
   const renderUserPopupText = () => {
     if (!popup) return '';
-    if (popup.title) return popup.title;
-    if (popup.type === 'accept') return 'You accepted a work.';
-    if (popup.type === 'reject') return 'You rejected a work.';
-    if (popup.type === 'done') return 'All your roles for a work are done.';
-    if (popup.type === 'undo-done')
-      return 'You changed a previously completed work.';
-    return 'New notification.';
+    return popup.title || 'New notification';
   };
 
 

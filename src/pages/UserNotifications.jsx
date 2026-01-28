@@ -29,7 +29,10 @@ const UserNotifications = () => {
     );
 
     const unsub = onSnapshot(q, (snap) => {
-      const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      const list = snap.docs
+        .map((d) => ({ id: d.id, ...d.data() }))
+        // Only show admin-sent notifications to users
+        .filter((n) => n.source === 'admin' || n.type === 'admin-message');
       setNotifs(list);
       setLoading(false);
     });
@@ -47,7 +50,7 @@ const UserNotifications = () => {
     } catch (e) {
       console.error('Failed to mark notif read', e);
     }
-    navigate(`/notifications/${notif.id}`);
+    navigate(`/user/notifications/${notif.id}`);
   };
 
   return (
