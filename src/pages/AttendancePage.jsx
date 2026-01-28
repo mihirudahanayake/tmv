@@ -11,6 +11,8 @@ const AttendancePage = () => {
   const [marking, setMarking] = useState(false);
   const [success, setSuccess] = useState('');
 
+  const REQUIRED_RADIUS_METERS = 6;
+
   useEffect(() => {
     // Get current user (assume auth is available globally)
     const u = window?.auth?.currentUser;
@@ -33,19 +35,23 @@ const AttendancePage = () => {
   }, []);
 
   const getLocation = () => {
-    if (!navigator.geolocation) {
-      setError('Geolocation is not supported.');
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setLocation({
-          latitude: pos.coords.latitude,
-          longitude: pos.coords.longitude,
-        });
-      },
-      () => setError('Failed to get your location.')
-    );
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject(new Error('Geolocation is not supported.'));
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          resolve({
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+            accuracy: pos.coords.accuracy
+          });
+        },
+        () => reject(new Error('Failed to get your location.')),
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+      );
+    });
   };
 
   const isNear = (eventLat, eventLng, userLat, userLng) => {
@@ -60,36 +66,42 @@ const AttendancePage = () => {
         Math.cos(toRad(eventLat)) *
         Math.sin(dLng / 2) * Math.sin(dLng / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c < 8; // 8 meters
+    return R * c <= REQUIRED_RADIUS_METERS;
   };
 
   const handleMarkAttendance = async (event) => {
     setMarking(true);
     setError('');
     setSuccess('');
-    getLocation();
-    if (!location) {
-      setError('Please allow location access and try again.');
-      setMarking(false);
-      return;
-    }
-    if (!isNear(event.latitude, event.longitude, location.latitude, location.longitude)) {
-      setError('You are not at the required location.');
-      setMarking(false);
-      return;
-    }
     try {
+      const loc = await getLocation();
+      setLocation({ latitude: loc.latitude, longitude: loc.longitude });
+
+      const eventLat = Number.parseFloat(event?.latitude);
+      const eventLng = Number.parseFloat(event?.longitude);
+      if (!Number.isFinite(eventLat) || !Number.isFinite(eventLng)) {
+        setError('Event location is not set. Ask an admin to add latitude/longitude.');
+        return;
+      }
+
+      if (!isNear(eventLat, eventLng, loc.latitude, loc.longitude)) {
+        const accuracyText = Number.isFinite(loc.accuracy) ? ` (GPS accuracy ~${Math.round(loc.accuracy)}m)` : '';
+        setError(`You must be within ${REQUIRED_RADIUS_METERS}m of the event location.${accuracyText}`);
+        return;
+      }
+
       const ref = doc(db, 'events', event.id);
       await updateDoc(ref, {
         [`attendance.${user.uid}`]: {
           markedAt: new Date().toISOString(),
-          latitude: location.latitude,
-          longitude: location.longitude,
+          latitude: loc.latitude,
+          longitude: loc.longitude,
+          accuracy: loc.accuracy,
         },
       });
       setSuccess('Attendance marked!');
     } catch (err) {
-      setError('Failed to mark attendance.');
+      setError(err?.message || 'Failed to mark attendance.');
     } finally {
       setMarking(false);
     }

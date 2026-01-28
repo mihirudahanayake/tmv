@@ -11,9 +11,13 @@ const MeetingsWorkshops = () => {
   const [userType, setUserType] = useState('user');
   const [user, setUser] = useState(null);
   const [userLocation, setUserLocation] = useState(null);
+  const [locationMeta, setLocationMeta] = useState(null); // { accuracy }
   const [attending, setAttending] = useState({}); // eventId -> true/false
   const [attendanceLoading, setAttendanceLoading] = useState({}); // eventId -> true/false
+  const [attendanceError, setAttendanceError] = useState({}); // eventId -> string
   const { isDarkMode, toggleDarkMode } = useDarkMode();
+
+  const REQUIRED_RADIUS_METERS = 6;
 
   // Get userType and user from Firestore (same as Home.jsx)
   useEffect(() => {
@@ -39,9 +43,11 @@ const MeetingsWorkshops = () => {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setLocationMeta({ accuracy: pos.coords.accuracy });
       },
       (err) => {
         setUserLocation(null);
+        setLocationMeta(null);
       },
       { enableHighAccuracy: true, timeout: 10000 }
     );
@@ -79,23 +85,76 @@ const MeetingsWorkshops = () => {
     return R * c;
   }
 
+  const getCurrentLocation = () => {
+    return new Promise((resolve, reject) => {
+      if (!('geolocation' in navigator)) {
+        reject(new Error('Geolocation is not supported on this device/browser.'));
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          resolve({
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            accuracy: pos.coords.accuracy
+          });
+        },
+        (err) => {
+          reject(err || new Error('Failed to get your location.'));
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+      );
+    });
+  };
+
   // Mark attendance
   const handleMarkAttendance = async (event) => {
     if (!user) return;
     setAttendanceLoading((prev) => ({ ...prev, [event.id]: true }));
+    setAttendanceError((prev) => ({ ...prev, [event.id]: '' }));
     try {
+      const eventLat = Number.parseFloat(event?.latitude);
+      const eventLng = Number.parseFloat(event?.longitude);
+      if (!Number.isFinite(eventLat) || !Number.isFinite(eventLng)) {
+        setAttendanceError((prev) => ({
+          ...prev,
+          [event.id]: 'Event location is not set. Ask an admin to add latitude/longitude.'
+        }));
+        return;
+      }
+
+      const loc = await getCurrentLocation();
+      setUserLocation({ lat: loc.lat, lng: loc.lng });
+      setLocationMeta({ accuracy: loc.accuracy });
+
+      const distance = getDistanceMeters(loc.lat, loc.lng, eventLat, eventLng);
+      if (!Number.isFinite(distance) || distance > REQUIRED_RADIUS_METERS) {
+        const accuracyText = Number.isFinite(loc.accuracy)
+          ? ` (GPS accuracy ~${Math.round(loc.accuracy)}m)`
+          : '';
+        setAttendanceError((prev) => ({
+          ...prev,
+          [event.id]: `You are ~${Math.round(distance)}m away. Must be within ${REQUIRED_RADIUS_METERS}m.${accuracyText}`
+        }));
+        return;
+      }
+
       const eventRef = doc(db, 'events', event.id);
       await updateDoc(eventRef, {
         [`attendance.${user.uid}`]: {
           timestamp: new Date().toISOString(),
-          lat: userLocation?.lat,
-          lng: userLocation?.lng
+          lat: loc.lat,
+          lng: loc.lng,
+          accuracy: loc.accuracy
         },
         users: arrayUnion(user.uid)
       });
       setAttending((prev) => ({ ...prev, [event.id]: true }));
     } catch (err) {
-      alert('Failed to mark attendance.');
+      setAttendanceError((prev) => ({
+        ...prev,
+        [event.id]: err?.message || 'Failed to mark attendance. Please allow location access.'
+      }));
     } finally {
       setAttendanceLoading((prev) => ({ ...prev, [event.id]: false }));
     }
@@ -191,10 +250,13 @@ const MeetingsWorkshops = () => {
                         </button>
                       )}
                       {!userLocation && !userAttended && !isEnded && (
-                        <div className="text-xs text-red-500 mt-1">Location permission required to mark attendance.</div>
+                        <div className="text-xs text-red-500 mt-1">Location permission is required to mark attendance.</div>
                       )}
-                      {userLocation && event.latitude && event.longitude && !canMark && !userAttended && !isEnded && (
-                        <div className="text-xs text-yellow-600 mt-1">You must be within place of the meeting/workshop location to mark attendance.</div>
+                      {!!attendanceError[event.id] && !userAttended && !isEnded && (
+                        <div className="text-xs text-red-600 mt-1">{attendanceError[event.id]}</div>
+                      )}
+                      {userLocation && locationMeta?.accuracy && !userAttended && !isEnded && (
+                        <div className="text-[11px] text-gray-500 mt-1">Current GPS accuracy: ~{Math.round(locationMeta.accuracy)}m</div>
                       )}
                     </>
                   )}
