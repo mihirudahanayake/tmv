@@ -21,12 +21,14 @@ export const useUserProfile = () => {
 
       try {
         const snap = await getDoc(doc(db, 'users', user.uid));
-        const data = snap.exists() ? { id: user.uid, ...snap.data() } : { id: user.uid };
+        const data = snap.exists()
+          ? { id: user.uid, email: user.email || '', ...snap.data() }
+          : { id: user.uid, email: user.email || '' };
         const role = normalizeRole(data);
         const managedDepartments = getManagedDepartments(data);
         setProfile({ ...data, role, managedDepartments });
       } catch {
-        setProfile({ id: user.uid, role: 'member', managedDepartments: [] });
+        setProfile({ id: user.uid, email: user.email || '', role: 'member', managedDepartments: [] });
       } finally {
         setLoading(false);
       }

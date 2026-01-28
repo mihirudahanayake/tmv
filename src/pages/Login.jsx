@@ -6,7 +6,7 @@ import { signInWithEmailAndPassword } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase/config';
 import { initPushForUser } from '../hooks/usePushNotifications';
-import { normalizeRole } from '../utils/authz';
+import { normalizeRole, SITE_ADMIN_EMAIL } from '../utils/authz';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -54,6 +54,11 @@ const Login = () => {
 
       // Store user info in localStorage with uid
       localStorage.setItem('user', JSON.stringify(userData));
+
+      if ((user.email || '').toLowerCase() === SITE_ADMIN_EMAIL) {
+        navigate('/site-admin');
+        return;
+      }
 
       if (role === 'superAdmin') {
         navigate('/super-admin');

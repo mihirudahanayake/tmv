@@ -1,11 +1,18 @@
 export const Roles = {
+  SITE_ADMIN: 'siteAdmin',
   SUPER_ADMIN: 'superAdmin',
   DEPARTMENT_HEAD: 'departmentHead',
   MEMBER: 'member'
 };
 
+export const SITE_ADMIN_EMAIL = 'mihirumilanka11@gmail.com';
+
 export const normalizeRole = (userDoc) => {
+  const email = (userDoc?.email || '').toString().toLowerCase();
+  if (email && email === SITE_ADMIN_EMAIL) return Roles.SITE_ADMIN;
+
   const role = userDoc?.role;
+  if (role === Roles.SITE_ADMIN) return Roles.SITE_ADMIN;
   if (role === Roles.SUPER_ADMIN) return Roles.SUPER_ADMIN;
   if (role === Roles.DEPARTMENT_HEAD) return Roles.DEPARTMENT_HEAD;
   if (role === Roles.MEMBER) return Roles.MEMBER;
@@ -36,4 +43,7 @@ export const getManagedDepartments = (userDoc) => {
   return ['videography'];
 };
 
-export const canEdit = (userDoc) => normalizeRole(userDoc) === Roles.DEPARTMENT_HEAD;
+export const canEdit = (userDoc) => {
+  const role = normalizeRole(userDoc);
+  return role === Roles.DEPARTMENT_HEAD || role === Roles.SITE_ADMIN;
+};

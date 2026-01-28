@@ -5,11 +5,18 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isSiteAdmin() {
+      return signedIn()
+        && request.auth.token.email != null
+        && request.auth.token.email == 'mihirumilanka11@gmail.com';
+    }
+
     function myUserDoc() {
       return signedIn() ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data : {};
     }
 
     function myRole() {
+      if (isSiteAdmin()) return 'siteAdmin';
       return (myUserDoc().role != null)
         ? myUserDoc().role
         : (myUserDoc().userType == 'admin')
@@ -51,6 +58,7 @@ service cloud.firestore {
 
     function canReadUserDoc(targetUserId, targetData) {
       if (!signedIn()) return false;
+      if (isSiteAdmin()) return true;
       if (isSuperAdmin()) return true;
       if (targetUserId == request.auth.uid) return true;
 
@@ -62,13 +70,16 @@ service cloud.firestore {
       }
 
       // Members: users that share at least one work department
-      return (target.data.departments is list)
+      return (targetData.departments is list)
         ? myDepartments().hasAny(targetData.departments)
         : false;
     }
 
     match /users/{userId} {
       allow read: if canReadUserDoc(userId, resource.data);
+
+      // Site admin can manage roles/departments.
+      allow update: if isSiteAdmin();
 
       // Department heads can create member profiles within their managed department.
       allow create: if isDeptHead()

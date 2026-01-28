@@ -4,6 +4,7 @@ import { useIdleLogout } from './hooks/useIdleLogout';
 // your existing imports
 import DeptHeadRoute from './components/DeptHeadRoute.jsx';
 import SuperAdminRoute from './components/SuperAdminRoute.jsx';
+import SiteAdminRoute from './components/SiteAdminRoute.jsx';
 import Homepage from './pages/Homepage.jsx';
 import Home from './pages/Home.jsx';
 import Welcome from './pages/Welcome.jsx';
@@ -29,6 +30,7 @@ import UserNotificationDetail from './pages/UserNotificationDetail';
 import NotificationDetails from './pages/NotificationDetails';
 import EditOldWork from './pages/EditOldWork.jsx';
 import SuperAdminDashboard from './pages/SuperAdminDashboard.jsx';
+import SiteAdminDashboard from './pages/SiteAdminDashboard.jsx';
 
 const AppShell = () => {
   useIdleLogout(); // idle timer active for all routes
@@ -184,6 +186,16 @@ const AppShell = () => {
           <SuperAdminRoute>
             <SuperAdminDashboard />
           </SuperAdminRoute>
+        }
+      />
+
+      {/* site admin (can manage roles) */}
+      <Route
+        path="/site-admin"
+        element={
+          <SiteAdminRoute>
+            <SiteAdminDashboard />
+          </SiteAdminRoute>
         }
       />
 

@@ -26,7 +26,9 @@ const Header = ({ userType, isDarkMode, toggleDarkMode }) => {
       ? '/admin-home'
       : userType === 'superAdmin'
         ? '/super-admin'
-        : '/home';
+        : userType === 'siteAdmin'
+          ? '/site-admin'
+          : '/home';
 
 
   const navItems = [
@@ -52,6 +54,10 @@ const Header = ({ userType, isDarkMode, toggleDarkMode }) => {
 
   if (userType === 'superAdmin') {
     // read-only: no edit menus
+  }
+
+  if (userType === 'siteAdmin') {
+    // role management lives on /site-admin (homePath)
   }
 
   return (
