@@ -12,6 +12,7 @@ import Header from '../components/Header';
 import { db } from '../firebase/config';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { fanOutUserNotifications } from '../utils/fanOutUserNotifications';
+import { WORK_DEPARTMENTS, formatWorkDepartmentLabel } from '../constants/workDepartments';
 
 const AdminNotifications = () => {
   const { profile, loading: loadingProfile } = useUserProfile();
@@ -41,11 +42,17 @@ const AdminNotifications = () => {
 
       setLoadingUsers(true);
       try {
-        const snap = await getDocs(
-          query(collection(db, 'users'), where('departments', 'array-contains', department))
-        );
-        const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-        setUsers(list);
+        // Support both new RBAC field (`departments: []`) and legacy (`department: string`).
+        const [snapNew, snapLegacy] = await Promise.all([
+          getDocs(query(collection(db, 'users'), where('departments', 'array-contains', department))),
+          getDocs(query(collection(db, 'users'), where('department', '==', department))),
+        ]);
+
+        const usersMap = new Map();
+        snapNew.docs.forEach((d) => usersMap.set(d.id, { id: d.id, ...d.data() }));
+        snapLegacy.docs.forEach((d) => usersMap.set(d.id, { id: d.id, ...d.data() }));
+
+        setUsers(Array.from(usersMap.values()));
       } catch (e) {
         console.error(e);
         setError('Failed to load users.');
@@ -56,6 +63,11 @@ const AdminNotifications = () => {
 
     loadUsers();
   }, [loadingProfile, department]);
+
+  const allowedDepartments =
+    Array.isArray(profile?.managedDepartments) && profile.managedDepartments.length
+      ? profile.managedDepartments
+      : WORK_DEPARTMENTS;
 
   const toggleUserSelection = (userId) => {
     setSelectedUserIds((prev) =>
@@ -84,6 +96,11 @@ const AdminNotifications = () => {
       const messageText = message.trim();
 
       const targetUserIds = sendMode === 'all' ? users.map((u) => u.id) : selectedUserIds;
+
+      if (targetUserIds.length === 0) {
+        setError('No users found for the selected department.');
+        return;
+      }
 
       // Keep a global record for dept heads / history.
       await addDoc(collection(db, 'notifications'), {
@@ -140,6 +157,27 @@ const AdminNotifications = () => {
           {successMsg && (
             <div className="p-2 rounded bg-green-100 text-green-700 text-sm">{successMsg}</div>
           )}
+
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Department</label>
+            <select
+              value={department}
+              onChange={(e) => {
+                setDepartment(e.target.value);
+                setSelectedUserIds([]);
+              }}
+              className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {allowedDepartments.map((d) => (
+                <option key={d} value={d}>
+                  {formatWorkDepartmentLabel(d)}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-500 mt-1">
+              {loadingUsers ? 'Loading users…' : `Users in this department: ${users.length}`}
+            </p>
+          </div>
 
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1">Title</label>
@@ -216,6 +254,16 @@ const AdminNotifications = () => {
                 </div>
               )}
             </div>
+          )}
+
+          {sendMode === 'all' && (
+            <p className="text-xs text-gray-600">
+              This will send to <b>{users.length}</b> user(s) in <b>{formatWorkDepartmentLabel(department)}</b>.
+            </p>
+          )}
+
+          {sendMode === 'selected' && (
+            <p className="text-xs text-gray-600">Selected users: <b>{selectedUserIds.length}</b></p>
           )}
 
           <button

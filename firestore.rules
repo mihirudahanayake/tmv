@@ -35,7 +35,19 @@ service cloud.firestore {
     }
 
     function myDepartments() {
-      return (myUserDoc().departments is list) ? myUserDoc().departments : [];
+      return (myUserDoc().departments is list)
+        ? myUserDoc().departments
+        : (myUserDoc().department != null)
+          ? [myUserDoc().department]
+          : [];
+    }
+
+    function departmentsFromUserData(d) {
+      return (d.departments is list)
+        ? d.departments
+        : (d.department != null)
+          ? [d.department]
+          : [];
     }
 
     function myManagedDepartments() {
@@ -52,6 +64,22 @@ service cloud.firestore {
       return (res.data.department != null) ? res.data.department : 'videography';
     }
 
+    function allowedWorkDepts() {
+      // Keep in sync with src/constants/workDepartments.js
+      return ['videography', 'photography', 'graphic_design', 'announcing', 'content_writing', 'editing'];
+    }
+
+    function isValidWorkDept(dept) {
+      return dept != null && allowedWorkDepts().hasAny([dept]);
+    }
+
+    function isValidWorkDeptList(listVal) {
+      return (listVal is list)
+        && listVal.size() > 0
+        && listVal.size() <= 10
+        && listVal.hasOnly(allowedWorkDepts());
+    }
+
     function canManageDept(dept) {
       return isDeptHead() && myManagedDepartments().hasAny([dept]);
     }
@@ -64,15 +92,11 @@ service cloud.firestore {
 
       // Department heads: only users inside their managed department(s)
       if (isDeptHead()) {
-        return (targetData.departments is list)
-          ? myManagedDepartments().hasAny(targetData.departments)
-          : false;
+        return myManagedDepartments().hasAny(departmentsFromUserData(targetData));
       }
 
       // Members: users that share at least one work department
-      return (targetData.departments is list)
-        ? myDepartments().hasAny(targetData.departments)
-        : false;
+      return myDepartments().hasAny(departmentsFromUserData(targetData));
     }
 
     match /users/{userId} {
@@ -92,9 +116,17 @@ service cloud.firestore {
       allow update: if signedIn() && userId == request.auth.uid
         && request.resource.data.role == resource.data.role
         && request.resource.data.userType == resource.data.userType
-        && request.resource.data.departments == resource.data.departments
         && request.resource.data.managedDepartments == resource.data.managedDepartments
-        && request.resource.data.firstPriority == resource.data.firstPriority;
+        && (
+          // Allow updating work departments, but only to known department values.
+          (request.resource.data.departments == resource.data.departments)
+          || isValidWorkDeptList(request.resource.data.departments)
+        )
+        && (
+          (request.resource.data.firstPriority == resource.data.firstPriority)
+          || request.resource.data.firstPriority == null
+          || isValidWorkDept(request.resource.data.firstPriority)
+        );
 
       // Department heads can update users in their managed department, but cannot grant elevated roles.
       allow update: if isDeptHead()
@@ -110,8 +142,8 @@ service cloud.firestore {
       match /notifications/{notifId} {
         allow read: if signedIn() && userId == request.auth.uid;
 
-        // Dept heads can create notifications for users in their managed department.
-        allow create: if isDeptHead() && canReadUserDoc(
+        // Dept heads (and site admin) can create notifications for users they can read.
+        allow create: if (isDeptHead() || isSiteAdmin()) && canReadUserDoc(
           userId,
           get(/databases/$(database)/documents/users/$(userId)).data
         );

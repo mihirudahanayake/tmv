@@ -17,7 +17,10 @@ const MeetingsWorkshops = () => {
   const [attendanceError, setAttendanceError] = useState({}); // eventId -> string
   const { isDarkMode, toggleDarkMode } = useDarkMode();
 
-  const REQUIRED_RADIUS_METERS = 20;
+  // Strict geofence requirement
+  const REQUIRED_RADIUS_METERS = 6;
+  // If GPS accuracy is worse than this, marking attendance becomes unreliable.
+  const MAX_ALLOWED_ACCURACY_METERS = 25;
 
   // Get userType and user from Firestore (same as Home.jsx)
   useEffect(() => {
@@ -37,7 +40,7 @@ const MeetingsWorkshops = () => {
     fetchUserType();
   }, []);
 
-  // Get user location
+  // Get an initial user location (best-effort). The mark-attendance flow always refreshes.
   useEffect(() => {
     if (!('geolocation' in navigator)) return;
     navigator.geolocation.getCurrentPosition(
@@ -45,11 +48,11 @@ const MeetingsWorkshops = () => {
         setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
         setLocationMeta({ accuracy: pos.coords.accuracy });
       },
-      (err) => {
+      () => {
         setUserLocation(null);
         setLocationMeta(null);
       },
-      { enableHighAccuracy: true, timeout: 10000 }
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
     );
   }, []);
 
@@ -85,24 +88,51 @@ const MeetingsWorkshops = () => {
     return R * c;
   }
 
-  const getCurrentLocation = () => {
+  const getBestLocation = ({ maxWaitMs = 15000, sampleWindowMs = 8000 } = {}) => {
     return new Promise((resolve, reject) => {
       if (!('geolocation' in navigator)) {
         reject(new Error('Geolocation is not supported on this device/browser.'));
         return;
       }
-      navigator.geolocation.getCurrentPosition(
+
+      let best = null;
+      let resolved = false;
+
+      const finish = () => {
+        if (resolved) return;
+        resolved = true;
+        if (watchId != null) navigator.geolocation.clearWatch(watchId);
+        if (best) return resolve(best);
+        reject(new Error('Failed to get your location. Please allow location access.'));
+      };
+
+      const timeoutId = setTimeout(finish, maxWaitMs);
+      const windowId = setTimeout(finish, sampleWindowMs);
+
+      const watchId = navigator.geolocation.watchPosition(
         (pos) => {
-          resolve({
+          const sample = {
             lat: pos.coords.latitude,
             lng: pos.coords.longitude,
-            accuracy: pos.coords.accuracy
-          });
+            accuracy: pos.coords.accuracy,
+          };
+          if (!best || (Number.isFinite(sample.accuracy) && sample.accuracy < (best.accuracy ?? Infinity))) {
+            best = sample;
+          }
+
+          // If we already have a strong fix, resolve early.
+          if (Number.isFinite(sample.accuracy) && sample.accuracy <= 10) {
+            clearTimeout(timeoutId);
+            clearTimeout(windowId);
+            finish();
+          }
         },
         (err) => {
+          clearTimeout(timeoutId);
+          clearTimeout(windowId);
           reject(err || new Error('Failed to get your location.'));
         },
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+        { enableHighAccuracy: true, maximumAge: 0, timeout: maxWaitMs }
       );
     });
   };
@@ -123,18 +153,23 @@ const MeetingsWorkshops = () => {
         return;
       }
 
-      const loc = await getCurrentLocation();
+      const loc = await getBestLocation({ maxWaitMs: 15000, sampleWindowMs: 9000 });
       setUserLocation({ lat: loc.lat, lng: loc.lng });
       setLocationMeta({ accuracy: loc.accuracy });
 
-      const distance = getDistanceMeters(loc.lat, loc.lng, eventLat, eventLng);
-      if (!Number.isFinite(distance) || distance > REQUIRED_RADIUS_METERS) {
-        const accuracyText = Number.isFinite(loc.accuracy)
-          ? ` (GPS accuracy ~${Math.round(loc.accuracy)}m)`
-          : '';
+      if (Number.isFinite(loc.accuracy) && loc.accuracy > MAX_ALLOWED_ACCURACY_METERS) {
         setAttendanceError((prev) => ({
           ...prev,
-          [event.id]: `You should be within the meeting or workshop to mark attendance...`
+          [event.id]: `GPS accuracy is too low (~${Math.round(loc.accuracy)}m). Enable high accuracy and try again near an open area.`
+        }));
+        return;
+      }
+
+      const distance = getDistanceMeters(loc.lat, loc.lng, eventLat, eventLng);
+      if (!Number.isFinite(distance) || distance > REQUIRED_RADIUS_METERS) {
+        setAttendanceError((prev) => ({
+          ...prev,
+          [event.id]: `Too far to mark attendance. Distance ~${Math.round(distance)}m (need within ${REQUIRED_RADIUS_METERS}m).${Number.isFinite(loc.accuracy) ? ` GPS accuracy ~${Math.round(loc.accuracy)}m.` : ''}`
         }));
         return;
       }

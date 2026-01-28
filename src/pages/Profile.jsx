@@ -1,10 +1,18 @@
 import { useEffect, useState } from 'react';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import { onAuthStateChanged, updatePassword, signOut } from 'firebase/auth';
+import {
+  onAuthStateChanged,
+  updatePassword,
+  signOut,
+  updateEmail,
+  reauthenticateWithCredential,
+  EmailAuthProvider,
+} from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { auth, db } from '../firebase/config';
 import Header from '../components/Header';
+import { WORK_DEPARTMENTS, formatWorkDepartmentLabel } from '../constants/workDepartments';
 
 const storage = getStorage();
 
@@ -15,6 +23,7 @@ const Profile = () => {
 
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [isChangingEmail, setIsChangingEmail] = useState(false);
 
   const [saving, setSaving] = useState(false);
   const [passSaving, setPassSaving] = useState(false);
@@ -22,9 +31,16 @@ const Profile = () => {
   const [successMsg, setSuccessMsg] = useState('');
   const [passError, setPassError] = useState('');
   const [passSuccess, setPassSuccess] = useState('');
+  const [emailSaving, setEmailSaving] = useState(false);
+  const [emailError, setEmailError] = useState('');
+  const [emailSuccess, setEmailSuccess] = useState('');
   const [passwordForm, setPasswordForm] = useState({
     newPassword: '',
     confirmPassword: '',
+  });
+  const [emailForm, setEmailForm] = useState({
+    newEmail: '',
+    currentPassword: '',
   });
 
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -69,6 +85,17 @@ const Profile = () => {
   const handleFieldChange = (e) => {
     if (!isEditingProfile) return;
     const { name, value } = e.target;
+
+    // Keep legacy `department` and RBAC `departments` array in sync.
+    if (name === 'department') {
+      setUserData((prev) => ({
+        ...prev,
+        department: value,
+        departments: [value],
+      }));
+      return;
+    }
+
     setUserData((prev) => ({ ...prev, [name]: value }));
   };
 
@@ -97,7 +124,7 @@ const Profile = () => {
 
     try {
       const userRef = doc(db, 'users', userData.id);
-      const { id, userType, createdAt, email, firstPriority, ...editable } = userData;
+      const { id, userType, createdAt, email, ...editable } = userData;
       await updateDoc(userRef, editable);
       setSuccessMsg('Profile updated successfully.');
       setIsEditingProfile(false);
@@ -122,6 +149,69 @@ const Profile = () => {
     setPassSuccess('');
     setPasswordForm({ newPassword: '', confirmPassword: '' });
     setIsChangingPassword(false);
+  };
+
+  const startChangeEmail = () => {
+    setEmailError('');
+    setEmailSuccess('');
+    setEmailForm({ newEmail: userData?.email || '', currentPassword: '' });
+    setIsChangingEmail(true);
+  };
+
+  const cancelChangeEmail = () => {
+    setEmailError('');
+    setEmailSuccess('');
+    setEmailForm({ newEmail: '', currentPassword: '' });
+    setIsChangingEmail(false);
+  };
+
+  const handleEmailChange = async (e) => {
+    e.preventDefault();
+    setEmailError('');
+    setEmailSuccess('');
+
+    const newEmail = (emailForm.newEmail || '').trim();
+    if (!newEmail) {
+      setEmailError('New email is required.');
+      return;
+    }
+
+    const user = auth.currentUser;
+    if (!user || !user.email) {
+      setEmailError('You are not logged in.');
+      return;
+    }
+
+    if (newEmail.toLowerCase() === user.email.toLowerCase()) {
+      setEmailError('New email is the same as current email.');
+      return;
+    }
+
+    if (!emailForm.currentPassword) {
+      setEmailError('Current password is required to change email.');
+      return;
+    }
+
+    setEmailSaving(true);
+    try {
+      const credential = EmailAuthProvider.credential(user.email, emailForm.currentPassword);
+      await reauthenticateWithCredential(user, credential);
+      await updateEmail(user, newEmail);
+
+      // Keep user doc in sync (optional, but useful for admin lists)
+      await updateDoc(doc(db, 'users', user.uid), { email: newEmail });
+
+      setUserData((prev) => (prev ? { ...prev, email: newEmail } : prev));
+      setOriginalData((prev) => (prev ? { ...prev, email: newEmail } : prev));
+      setEmailSuccess('Email updated successfully.');
+      setIsChangingEmail(false);
+      setEmailForm({ newEmail: '', currentPassword: '' });
+    } catch (err) {
+      console.error(err);
+      setEmailError(err?.message || 'Failed to update email.');
+    } finally {
+      setEmailSaving(false);
+    }
   };
 
   const handlePasswordChange = async (e) => {
@@ -494,17 +584,120 @@ const Profile = () => {
                   </label>
                   <select
                     name="department"
-                    value={userData.department || 'videography'}
+                    value={(userData.departments && userData.departments[0]) || userData.department || 'videography'}
                     onChange={handleFieldChange}
                     className={inputClass}
                     disabled={!isEditingProfile}
                   >
-                    <option value="videography">Videography</option>
-                    <option value="photography">Photography</option>
+                    {WORK_DEPARTMENTS.map((d) => (
+                      <option key={d} value={d}>
+                        {formatWorkDepartmentLabel(d)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                    First priority department
+                  </label>
+                  <select
+                    name="firstPriority"
+                    value={
+                      userData.firstPriority ||
+                      (userData.departments && userData.departments[0]) ||
+                      userData.department ||
+                      'videography'
+                    }
+                    onChange={handleFieldChange}
+                    className={inputClass}
+                    disabled={!isEditingProfile}
+                  >
+                    {WORK_DEPARTMENTS.map((d) => (
+                      <option key={d} value={d}>
+                        {formatWorkDepartmentLabel(d)}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
             </form>
+
+            {/* Change email section */}
+            <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 space-y-3 mb-6">
+              <div className="flex justify-between items-center mb-1">
+                <h2 className="text-lg font-semibold text-gray-800">Change email</h2>
+                {!isChangingEmail ? (
+                  <button
+                    type="button"
+                    onClick={startChangeEmail}
+                    className="text-sm px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-700"
+                  >
+                    Change
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={cancelChangeEmail}
+                    className="text-sm px-3 py-1 rounded bg-gray-300 text-gray-800 hover:bg-gray-400"
+                  >
+                    Cancel
+                  </button>
+                )}
+              </div>
+
+              {emailError && (
+                <div className="p-2 rounded bg-red-100 text-red-700 text-sm">{emailError}</div>
+              )}
+              {emailSuccess && (
+                <div className="p-2 rounded bg-green-100 text-green-700 text-sm">{emailSuccess}</div>
+              )}
+
+              {isChangingEmail && (
+                <form onSubmit={handleEmailChange} className="space-y-3 mt-2">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">
+                      New email
+                    </label>
+                    <input
+                      type="email"
+                      value={emailForm.newEmail}
+                      onChange={(e) =>
+                        setEmailForm((prev) => ({ ...prev, newEmail: e.target.value }))
+                      }
+                      className={inputClass}
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">
+                      Current password
+                    </label>
+                    <input
+                      type="password"
+                      value={emailForm.currentPassword}
+                      onChange={(e) =>
+                        setEmailForm((prev) => ({ ...prev, currentPassword: e.target.value }))
+                      }
+                      className={inputClass}
+                      required
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Required by Firebase to confirm it’s you.
+                    </p>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={emailSaving}
+                    className="w-full bg-blue-600 text-white py-2 rounded font-semibold text-sm hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {emailSaving ? 'Updating...' : 'Update email'}
+                  </button>
+                </form>
+              )}
+            </div>
 
             {/* Change password section (unchanged) */}
             <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 space-y-3">
