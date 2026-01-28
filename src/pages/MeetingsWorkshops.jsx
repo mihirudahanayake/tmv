@@ -18,7 +18,7 @@ const MeetingsWorkshops = () => {
   const { isDarkMode, toggleDarkMode } = useDarkMode();
 
   // Strict geofence requirement
-  const REQUIRED_RADIUS_METERS = 15;
+  const REQUIRED_RADIUS_METERS = 50;
   // If GPS accuracy is worse than this, marking attendance becomes unreliable.
   const MAX_ALLOWED_ACCURACY_METERS = 25;
 
@@ -169,7 +169,7 @@ const MeetingsWorkshops = () => {
       if (!Number.isFinite(distance) || distance > REQUIRED_RADIUS_METERS) {
         setAttendanceError((prev) => ({
           ...prev,
-          [event.id]: `You should be within meeting or workshop to mark attendance. Distance ~${Math.round(distance)}m (need within ${REQUIRED_RADIUS_METERS}m).${Number.isFinite(loc.accuracy) ? ` GPS accuracy ~${Math.round(loc.accuracy)}m.` : ''}`
+          [event.id]: `You should be within meeting or workshop to mark attendance. Distance ~${Math.round(distance)}m.${Number.isFinite(loc.accuracy) ? ` GPS accuracy ~${Math.round(loc.accuracy)}m.` : ''}`
         }));
         return;
       }
