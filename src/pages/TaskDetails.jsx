@@ -7,6 +7,8 @@ import {
   deleteDoc,
   collection,
   getDocs,
+  query,
+  where,
   addDoc
 } from 'firebase/firestore';
 
@@ -38,32 +40,35 @@ const TaskDetails = () => {
     const load = async () => {
       setLoading(true);
       try {
-        const usersSnap = await getDocs(collection(db, 'users'));
-        const usersData = usersSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-        
-        // Sort users alphabetically by name
-        usersData.sort((a, b) => {
-          const nameA = (a.name || '').toLowerCase();
-          const nameB = (b.name || '').toLowerCase();
-          return nameA.localeCompare(nameB);
-        });
-        setUsers(usersData);
-
-        const itemsSnap = await getDocs(collection(db, 'inventory'));
-        const itemsData = itemsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-        itemsData.sort((a, b) => {
-          const nameA = (a.itemName || '').toLowerCase();
-          const nameB = (b.itemName || '').toLowerCase();
-          return nameA.localeCompare(nameB);
-        });
-        setItems(itemsData);
-
         const taskSnap = await getDoc(doc(db, 'works', taskId));
         if (taskSnap.exists()) {
           const data = { id: taskSnap.id, ...taskSnap.data() };
           setTask(data);
           setAssignedUserDetails(data.assignedUserDetails || []);
           setAssignedItems(data.assignedItems || []);
+
+          const dept = data.department || 'videography';
+
+          const usersSnap = await getDocs(
+            query(collection(db, 'users'), where('departments', 'array-contains', dept))
+          );
+          const usersData = usersSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          usersData.sort((a, b) => {
+            const nameA = (a.name || '').toLowerCase();
+            const nameB = (b.name || '').toLowerCase();
+            return nameA.localeCompare(nameB);
+          });
+          setUsers(usersData);
+
+          const itemsSnap = await getDocs(collection(db, 'inventory'));
+          const itemsData = itemsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          itemsData.sort((a, b) => {
+            const nameA = (a.itemName || '').toLowerCase();
+            const nameB = (b.itemName || '').toLowerCase();
+            return nameA.localeCompare(nameB);
+          });
+          setItems(itemsData);
+
           // admin page: cache any images for assigned inventory items
           (async () => {
             try {

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, addDoc, getDocs, updateDoc, deleteDoc, doc } from 'firebase/firestore';
+import { collection, addDoc, getDoc, getDocs, updateDoc, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
@@ -12,16 +12,26 @@ const AdminCreateEvent = () => {
       // event.attendance is an object: { userId: { timestamp, lat, lng } }
       if (!event.attendance) return;
       const userIds = Object.keys(event.attendance);
-      // Fetch user name and registrationNumber from 'users' collection
-      const userSnaps = await getDocs(collection(db, 'users'));
+      // Fetch user name and registrationNumber from users/{uid} (department-safe)
       const userMap = {};
-      userSnaps.forEach(docSnap => {
-        const data = docSnap.data();
-        userMap[docSnap.id] = {
-          name: data.name || docSnap.id,
-          registrationNumber: data.registrationNumber || ""
-        };
-      });
+      await Promise.all(
+        userIds.map(async (uid) => {
+          try {
+            const snap = await getDoc(doc(db, 'users', uid));
+            if (snap.exists()) {
+              const data = snap.data();
+              userMap[uid] = {
+                name: data.name || uid,
+                registrationNumber: data.registrationNumber || '',
+              };
+              return;
+            }
+          } catch {
+            // If rules prevent reading this user, fallback to uid.
+          }
+          userMap[uid] = { name: uid, registrationNumber: '' };
+        })
+      );
       const attendeesList = userIds.map(uid => ({
         userId: uid,
         name: userMap[uid]?.name || uid,
@@ -48,35 +58,7 @@ const AdminCreateEvent = () => {
   const [editLocationName, setEditLocationName] = useState('');
   const [editDateTime, setEditDateTime] = useState('');
   const [eventLoading, setEventLoading] = useState(false);
-  const [showAttendees, setShowAttendees] = useState(false);
-  const [attendees, setAttendees] = useState([]);
-  const [attendeesLoading, setAttendeesLoading] = useState(false);
-  const [attendeesEventTitle, setAttendeesEventTitle] = useState('');
   const navigate = useNavigate();
-
-  // Helper to fetch attendees for a meeting event
-  const handleShowAttendees = async (event) => {
-    setShowAttendees(true);
-    setAttendees([]);
-    setAttendeesLoading(true);
-    setAttendeesEventTitle(event.title);
-    try {
-      // event.attendance is an object: { userId: { timestamp, lat, lng } }
-      if (event.attendance) {
-        const userIds = Object.keys(event.attendance);
-        // Optionally fetch user names from 'users' collection
-        const userSnaps = await Promise.all(userIds.map(uid =>
-          getDocs(collection(db, 'users')).then(snap => snap.docs.find(d => d.id === uid)?.data()?.name || uid)
-        ));
-          // Removed attendees state update
-      } else {
-        setAttendees([]);
-      }
-    } catch {
-      setAttendees([]);
-    }
-    setAttendeesLoading(false);
-  };
   // Fetch events for admin list
   useEffect(() => {
     const fetchEvents = async () => {

@@ -4,25 +4,39 @@ import {
   getDocs,
   doc,
   updateDoc,
+  query,
+  where,
   Timestamp
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import Header from '../components/Header';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { useUserProfile } from '../hooks/useUserProfile';
 
 const PostingDates = () => {
+  const { profile, loading: loadingProfile } = useUserProfile();
   const [tasks, setTasks] = useState([]);
   const [savingId, setSavingId] = useState(null);
   const [filter, setFilter] = useState('');
   const [userDetails, setUserDetails] = useState({}); // userId -> user data
   const [selectedIds, setSelectedIds] = useState(new Set());
+  const [department, setDepartment] = useState('videography');
+
+  useEffect(() => {
+    if (!loadingProfile && profile?.managedDepartments?.length) {
+      setDepartment(profile.managedDepartments[0]);
+    }
+  }, [loadingProfile, profile]);
 
   // Load users
   useEffect(() => {
     const loadUsers = async () => {
       try {
-        const snap = await getDocs(collection(db, 'users'));
+        if (loadingProfile) return;
+        const snap = await getDocs(
+          query(collection(db, 'users'), where('departments', 'array-contains', department))
+        );
         const map = {};
         snap.docs.forEach((d) => {
           map[d.id] = d.data();
@@ -33,32 +47,42 @@ const PostingDates = () => {
       }
     };
     loadUsers();
-  }, []);
+  }, [loadingProfile, department]);
 
   // Load works
   useEffect(() => {
     const load = async () => {
       try {
-        const snap = await getDocs(collection(db, 'works'));
-        const list = snap.docs.map((d) => {
-          const data = d.data();
-          return {
-            id: d.id,
-            title: data.title || 'Video',
-            description: data.description || '',
-            workDate: data.date ? new Date(data.date) : null,
-            postingDate: data.postingDate ? data.postingDate.toDate() : null,
-            posted: !!data.posted,
-            assignedUserDetails: data.assignedUserDetails || [],
-          };
+        if (loadingProfile) return;
+
+        const snaps = [];
+        snaps.push(await getDocs(query(collection(db, 'works'), where('department', '==', department))));
+        if (department === 'videography') {
+          snaps.push(await getDocs(query(collection(db, 'works'), where('department', '==', null))));
+        }
+
+        const dedup = new Map();
+        snaps.forEach((snap) => {
+          snap.docs.forEach((d) => {
+            const data = d.data();
+            dedup.set(d.id, {
+              id: d.id,
+              title: data.title || 'Video',
+              description: data.description || '',
+              workDate: data.date ? new Date(data.date) : null,
+              postingDate: data.postingDate ? data.postingDate.toDate() : null,
+              posted: !!data.posted,
+              assignedUserDetails: data.assignedUserDetails || [],
+            });
+          });
         });
-        setTasks(list);
+        setTasks(Array.from(dedup.values()));
       } catch (err) {
         console.error('Failed to load works', err);
       }
     };
     load();
-  }, []);
+  }, [loadingProfile, department]);
 
   const handleDateChange = (id, value) => {
     setTasks((prev) =>

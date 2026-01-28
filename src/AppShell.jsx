@@ -2,7 +2,8 @@
 import { Routes, Route } from 'react-router-dom';
 import { useIdleLogout } from './hooks/useIdleLogout';
 // your existing imports
-import AdminRoute from './components/AdminRoute.jsx';
+import DeptHeadRoute from './components/DeptHeadRoute.jsx';
+import SuperAdminRoute from './components/SuperAdminRoute.jsx';
 import Homepage from './pages/Homepage.jsx';
 import Home from './pages/Home.jsx';
 import Welcome from './pages/Welcome.jsx';
@@ -27,6 +28,7 @@ import UserNotifications from './pages/UserNotifications';
 import UserNotificationDetail from './pages/UserNotificationDetail';
 import NotificationDetails from './pages/NotificationDetails';
 import EditOldWork from './pages/EditOldWork.jsx';
+import SuperAdminDashboard from './pages/SuperAdminDashboard.jsx';
 
 const AppShell = () => {
   useIdleLogout(); // idle timer active for all routes
@@ -43,84 +45,84 @@ const AppShell = () => {
       <Route
         path="/admin-home"
         element={
-          <AdminRoute>
+          <DeptHeadRoute>
             <Homepage />
-          </AdminRoute>
+          </DeptHeadRoute>
         }
       />
       <Route
         path="/create-user"
         element={
-          <AdminRoute>
+          <DeptHeadRoute>
             <CreateUser />
-          </AdminRoute>
+          </DeptHeadRoute>
         }
       />
       <Route
         path="/assign-work"
         element={
-          <AdminRoute>
+          <DeptHeadRoute>
             <AssignWork />
-          </AdminRoute>
+          </DeptHeadRoute>
         }
       />
       <Route
         path="/work-list"
         element={
-          <AdminRoute>
+          <DeptHeadRoute>
             <WorkList />
-          </AdminRoute>
+          </DeptHeadRoute>
         }
       />
       <Route path="/profile" element={<Profile />} />
       <Route
         path="/manage-users"
         element={
-          <AdminRoute>
+          <DeptHeadRoute>
             <ManageUsers />
-          </AdminRoute>
+          </DeptHeadRoute>
         }
       />
       <Route
         path="/users/:userId"
         element={
-          <AdminRoute>
+          <DeptHeadRoute>
             <UserDetails />
-          </AdminRoute>
+          </DeptHeadRoute>
         }
       />
       <Route
         path="/tasks/:taskId"
         element={
-          <AdminRoute>
+          <DeptHeadRoute>
             <TaskDetails />
-          </AdminRoute>
+          </DeptHeadRoute>
         }
       />
       <Route path="/task-history" element={<TaskHistory />} />
       <Route
         path="/inventory"
         element={
-          <AdminRoute>
+          <DeptHeadRoute>
             <Inventory />
-          </AdminRoute>
+          </DeptHeadRoute>
         }
       />
       <Route
         path="/admin-reject-details"
         element={
-          <AdminRoute>
+          <DeptHeadRoute>
             <AdminRejectDetails />
-          </AdminRoute>
+          </DeptHeadRoute>
         }
       />
       <Route path="/user-reject-details" element={<UserRejectDetails />} />
       <Route
         path="/posting-dates"
         element={
-          <AdminRoute>
+          <DeptHeadRoute>
             <PostingDates />
-          </AdminRoute>
+          </DeptHeadRoute>
         }
       />
 
@@ -128,25 +130,25 @@ const AppShell = () => {
       <Route
         path="/notifications"
         element={
-          <AdminRoute>
+          <DeptHeadRoute>
             <NotificationHistory />
-          </AdminRoute>
+          </DeptHeadRoute>
         }
       />
       <Route
         path="/admin/notifications"
         element={
-          <AdminRoute>
+          <DeptHeadRoute>
             <AdminNotifications />
-          </AdminRoute>
+          </DeptHeadRoute>
         }
       />
       <Route
         path="/admin/notifications/:notifId"
         element={
-          <AdminRoute>
+          <DeptHeadRoute>
             <NotificationDetails />
-          </AdminRoute>
+          </DeptHeadRoute>
         }
       />
 
@@ -160,18 +162,28 @@ const AppShell = () => {
       <Route
         path="/add-old-work"
         element={
-          <AdminRoute>
+          <DeptHeadRoute>
             <AddOldWork />
-          </AdminRoute>
+          </DeptHeadRoute>
         }
       />
 
       <Route
         path="/edit-old-work/:id"
         element={
-          <AdminRoute>
+          <DeptHeadRoute>
             <EditOldWork />
-          </AdminRoute>
+          </DeptHeadRoute>
+        }
+      />
+
+      {/* super admin (read-only) */}
+      <Route
+        path="/super-admin"
+        element={
+          <SuperAdminRoute>
+            <SuperAdminDashboard />
+          </SuperAdminRoute>
         }
       />
 

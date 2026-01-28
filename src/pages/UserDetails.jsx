@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import Header from '../components/Header';
 import { FaCalendarAlt, FaSpinner, FaCheck } from 'react-icons/fa';
+import { useUserProfile } from '../hooks/useUserProfile';
 
 
 const UserDetails = () => {
   const { userId } = useParams();
   const navigate = useNavigate();
+  const { profile, loading: loadingProfile } = useUserProfile();
   const [user, setUser] = useState(null);
   const [works, setWorks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -21,16 +23,37 @@ const UserDetails = () => {
           setUser({ id: userId, ...userSnap.data() });
         }
 
-        const worksSnap = await getDocs(collection(db, 'works'));
-        const allWorks = worksSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        if (loadingProfile) return;
+        const dept = (profile?.managedDepartments || [])[0] || 'videography';
 
-        const userWorks = allWorks.filter((w) => {
-          if (!w.assignedUsers) return false;
-          if (Array.isArray(w.assignedUsers)) {
-            return w.assignedUsers.includes(userId);
-          }
-          return w.assignedUsers === userId;
+        const snaps = [];
+        snaps.push(
+          await getDocs(
+            query(
+              collection(db, 'works'),
+              where('department', '==', dept),
+              where('assignedUsers', 'array-contains', userId)
+            )
+          )
+        );
+        if (dept === 'videography') {
+          snaps.push(
+            await getDocs(
+              query(
+                collection(db, 'works'),
+                where('department', '==', null),
+                where('assignedUsers', 'array-contains', userId)
+              )
+            )
+          );
+        }
+
+        const dedup = new Map();
+        snaps.forEach((snap) => {
+          snap.docs.forEach((d) => dedup.set(d.id, { id: d.id, ...d.data() }));
         });
+
+        const userWorks = Array.from(dedup.values());
 
         userWorks.sort((a, b) => {
           const da = a.date ? new Date(a.date).getTime() : 0;
@@ -47,7 +70,7 @@ const UserDetails = () => {
     };
 
     load();
-  }, [userId]);
+  }, [userId, loadingProfile, profile]);
 
   const getUserRoles = (work) => {
     const details = work.assignedUserDetails || [];

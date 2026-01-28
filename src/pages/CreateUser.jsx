@@ -3,8 +3,12 @@ import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase/config';
 import Header from '../components/Header';
+import { useUserProfile } from '../hooks/useUserProfile';
+import { formatWorkDepartmentLabel } from '../constants/workDepartments';
 
 const CreateUser = () => {
+  const { profile } = useUserProfile();
+  const managedDept = (profile?.managedDepartments || [])[0] || 'videography';
   const [formData, setFormData] = useState({
     name: '',
     batch: '',
@@ -39,14 +43,15 @@ const CreateUser = () => {
         batch: formData.batch,
         email: formData.email,
         phoneNo: formData.phoneNo,
-        departments: formData.departments,
-        firstPriority: formData.firstPriority,
+        departments: [managedDept],
+        firstPriority: managedDept,
         studyDepartment: formData.studyDepartment,
         gender: formData.gender,
         registrationNumber: formData.registrationNumber,
         cardNumber: formData.cardNumber,
         birthday: formData.birthday,
         userType: 'user',
+        role: 'member',
         createdAt: new Date().toISOString(),
       });
 
@@ -56,8 +61,8 @@ const CreateUser = () => {
         batch: '',
         email: '',
         phoneNo: '',
-        departments: ['videography'],
-        firstPriority: 'videography',
+        departments: [managedDept],
+        firstPriority: managedDept,
         studyDepartment: '',
         gender: '',
         registrationNumber: '',
@@ -94,6 +99,17 @@ const CreateUser = () => {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-gray-700 font-semibold mb-2 text-sm sm:text-base">
+                Work Department
+              </label>
+              <input
+                type="text"
+                value={formatWorkDepartmentLabel(managedDept)}
+                disabled
+                className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded bg-gray-100 text-sm sm:text-base"
+              />
+            </div>
             <div>
               <label className="block text-gray-700 font-semibold mb-2 text-sm sm:text-base">
                 Name <span className="text-red-500">*</span>
@@ -146,46 +162,6 @@ const CreateUser = () => {
                 className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
                 placeholder="07XXXXXXXX"
               />
-            </div>
-            <div>
-              <label className="block text-gray-700 font-semibold mb-2 text-sm sm:text-base">Departments (work)</label>
-              <div className="flex gap-4">
-                {['videography', 'photography'].map((dept) => (
-                  <label key={dept} className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={formData.departments.includes(dept)}
-                      onChange={() => {
-                        setFormData((prev) => {
-                          const exists = prev.departments.includes(dept);
-                          const next = exists
-                            ? prev.departments.filter((d) => d !== dept)
-                            : [...prev.departments, dept];
-                          let nextFirst = prev.firstPriority;
-                          if (!next.includes(nextFirst)) {
-                            nextFirst = next[0] || '';
-                          }
-                          return { ...prev, departments: next, firstPriority: nextFirst };
-                        });
-                      }}
-                    />
-                    <span className="capitalize">{dept}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-            <div>
-              <label className="block text-gray-700 font-semibold mb-2 text-sm sm:text-base">First Priority Department</label>
-              <select
-                name="firstPriority"
-                value={formData.firstPriority}
-                onChange={handleChange}
-                className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
-              >
-                {formData.departments.map((dept) => (
-                  <option key={dept} value={dept}>{dept}</option>
-                ))}
-              </select>
             </div>
             <div>
               <label className="block text-gray-700 font-semibold mb-2 text-sm sm:text-base">Department in Study</label>

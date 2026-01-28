@@ -6,10 +6,13 @@ import { useNavigate } from 'react-router-dom';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase/config';
+import { WORK_DEPARTMENTS } from '../constants/workDepartments';
 
-const ADMIN_EMAIL = 'mihirudahanayake@gmail.com';
-
-const WORK_DEPARTMENTS = ['videography', 'photography'];
+// Configure emails that should get elevated roles.
+// - departmentHead: can manage and assign work inside their managed department(s)
+// - superAdmin: read-only across all departments
+const DEPT_HEAD_EMAILS = ['mihirudahanayake@gmail.com'];
+const SUPER_ADMIN_EMAILS = [];
 
 const Signup = () => {
   const navigate = useNavigate();
@@ -89,7 +92,17 @@ const Signup = () => {
       );
 
       const user = userCredential.user;
-      const userType = user.email === ADMIN_EMAIL ? 'admin' : 'user';
+
+      let role = 'member';
+      let managedDepartments = [];
+      if (SUPER_ADMIN_EMAILS.includes(user.email)) {
+        role = 'superAdmin';
+      } else if (DEPT_HEAD_EMAILS.includes(user.email)) {
+        role = 'departmentHead';
+        managedDepartments = ['videography'];
+      }
+
+      const userType = role === 'departmentHead' ? 'admin' : role === 'superAdmin' ? 'superAdmin' : 'user';
 
       await setDoc(doc(db, 'users', user.uid), {
         name: form.name,
@@ -98,6 +111,8 @@ const Signup = () => {
         // work fields
         departments: form.departments,
         firstPriority: form.firstPriority,
+        role,
+        managedDepartments,
         // study / personal
         batch: form.batch,
         studyDepartment: form.studyDepartment,
@@ -109,7 +124,9 @@ const Signup = () => {
         createdAt: new Date().toISOString()
       });
 
-      if (userType === 'admin') {
+      if (role === 'superAdmin') {
+        navigate('/super-admin');
+      } else if (userType === 'admin') {
         navigate('/admin-home');
       } else {
         navigate('/home');

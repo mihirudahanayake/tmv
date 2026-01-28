@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   collection,
   getDocs,
+  getDoc,
   doc,
   updateDoc,
   query,
@@ -64,19 +65,20 @@ const Home = () => {
 
   // Set userType based on logged-in user
   const [userType, setUserType] = useState('user');
+  const [myDepartments, setMyDepartments] = useState([]);
 
   useEffect(() => {
     if (!user) return;
     const fetchUserType = async () => {
       try {
-        const snap = await getDocs(collection(db, 'users'));
-        const found = snap.docs.find((docSnap) => docSnap.id === user.uid);
-        if (found) {
-          const data = found.data();
-          setUserType(data.userType || 'user');
-        }
+        const profileSnap = await getDoc(doc(db, 'users', user.uid));
+        if (!profileSnap.exists()) return;
+        const data = profileSnap.data();
+        setUserType(data.userType || 'user');
+        setMyDepartments(Array.isArray(data.departments) ? data.departments : []);
       } catch (err) {
         setUserType('user');
+        setMyDepartments([]);
       }
     };
     fetchUserType();
@@ -98,14 +100,13 @@ const Home = () => {
     const loadTasks = async () => {
       setLoadingTasks(true);
       try {
-        const snap = await getDocs(collection(db, 'works'));
-        const all = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-
-        const mine = all.filter(
-          (t) =>
-            Array.isArray(t.assignedUsers) &&
-            t.assignedUsers.includes(user.uid)
+        const snap = await getDocs(
+          query(
+            collection(db, 'works'),
+            where('assignedUsers', 'array-contains', user.uid)
+          )
         );
+        const mine = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
         mine.sort((a, b) => {
           const da = a.date ? new Date(a.date).getTime() : 0;
@@ -135,11 +136,27 @@ const Home = () => {
   useEffect(() => {
     const loadUsers = async () => {
       try {
-        const usersSnap = await getDocs(collection(db, 'users'));
-        const usersMap = {};
-        usersSnap.docs.forEach((docSnap) => {
-          usersMap[docSnap.id] = docSnap.data();
-        });
+        if (!user) return;
+
+        let usersMap = {};
+
+        if (Array.isArray(myDepartments) && myDepartments.length) {
+          const usersSnap = await getDocs(
+            query(
+              collection(db, 'users'),
+              where('departments', 'array-contains-any', myDepartments)
+            )
+          );
+          usersSnap.docs.forEach((docSnap) => {
+            usersMap[docSnap.id] = docSnap.data();
+          });
+        } else {
+          const selfSnap = await getDoc(doc(db, 'users', user.uid));
+          if (selfSnap.exists()) {
+            usersMap[user.uid] = selfSnap.data();
+          }
+        }
+
         setUserDetails(usersMap);
       } catch (err) {
         console.error('Error loading users:', err);
@@ -147,7 +164,7 @@ const Home = () => {
     };
 
     loadUsers();
-  }, []);
+  }, [user, myDepartments]);
 
   const showToast = (msg) => {
     setToast(msg);
@@ -255,6 +272,7 @@ useEffect(() => {
 
       // global admin notification
       await addDoc(collection(db, 'notifications'), {
+        department: task.department || 'videography',
         type: 'accept',
         workId: task.id,
         userId: user.uid,
@@ -316,6 +334,7 @@ useEffect(() => {
 
       // global admin notification
       await addDoc(collection(db, 'notifications'), {
+        department: selectedTask.department || 'videography',
         type: 'reject',
         workId: selectedTask.id,
         userId: user.uid,
@@ -387,6 +406,7 @@ useEffect(() => {
       if (allDoneNow && !allDoneBefore) {
         // global admin notification
         await addDoc(collection(db, 'notifications'), {
+          department: task.department || 'videography',
           type: 'done',
           workId: task.id,
           userId: user.uid,
@@ -406,6 +426,7 @@ useEffect(() => {
       } else if (!allDoneNow && allDoneBefore) {
         // global admin notification
         await addDoc(collection(db, 'notifications'), {
+          department: task.department || 'videography',
           type: 'undo-done',
           workId: task.id,
           userId: user.uid,

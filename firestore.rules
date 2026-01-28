@@ -1,9 +1,193 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // TEMP: Allow all reads/writes for local development
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function myUserDoc() {
+      return signedIn() ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data : {};
+    }
+
+    function myRole() {
+      return (myUserDoc().role != null)
+        ? myUserDoc().role
+        : (myUserDoc().userType == 'admin')
+          ? 'departmentHead'
+          : (myUserDoc().userType == 'superAdmin')
+            ? 'superAdmin'
+            : 'member';
+    }
+
+    function isSuperAdmin() {
+      return signedIn() && myRole() == 'superAdmin';
+    }
+
+    function isDeptHead() {
+      return signedIn() && myRole() == 'departmentHead';
+    }
+
+    function myDepartments() {
+      return (myUserDoc().departments is list) ? myUserDoc().departments : [];
+    }
+
+    function myManagedDepartments() {
+      if (!isDeptHead()) return [];
+      return (myUserDoc().managedDepartments is list && myUserDoc().managedDepartments.size() > 0)
+        ? myUserDoc().managedDepartments
+        : (myUserDoc().firstPriority != null)
+          ? [myUserDoc().firstPriority]
+          : ['videography'];
+    }
+
+    function workDept(res) {
+      // Legacy fallback: missing department treated as videography
+      return (res.data.department != null) ? res.data.department : 'videography';
+    }
+
+    function canManageDept(dept) {
+      return isDeptHead() && myManagedDepartments().hasAny([dept]);
+    }
+
+    function canReadUserDoc(targetUserId, targetData) {
+      if (!signedIn()) return false;
+      if (isSuperAdmin()) return true;
+      if (targetUserId == request.auth.uid) return true;
+
+      // Department heads: only users inside their managed department(s)
+      if (isDeptHead()) {
+        return (targetData.departments is list)
+          ? myManagedDepartments().hasAny(targetData.departments)
+          : false;
+      }
+
+      // Members: users that share at least one work department
+      return (target.data.departments is list)
+        ? myDepartments().hasAny(targetData.departments)
+        : false;
+    }
+
+    match /users/{userId} {
+      allow read: if canReadUserDoc(userId, resource.data);
+
+      // Department heads can create member profiles within their managed department.
+      allow create: if isDeptHead()
+        && request.resource.data.role == 'member'
+        && request.resource.data.userType == 'user'
+        && (request.resource.data.departments is list)
+        && myManagedDepartments().hasAny(request.resource.data.departments);
+
+      // Users can update their own profile but cannot change role or departments.
+      allow update: if signedIn() && userId == request.auth.uid
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.userType == resource.data.userType
+        && request.resource.data.departments == resource.data.departments
+        && request.resource.data.managedDepartments == resource.data.managedDepartments
+        && request.resource.data.firstPriority == resource.data.firstPriority;
+
+      // Department heads can update users in their managed department, but cannot grant elevated roles.
+      allow update: if isDeptHead()
+        && (resource.data.departments is list)
+        && myManagedDepartments().hasAny(resource.data.departments)
+        && request.resource.data.role == 'member'
+        && request.resource.data.userType == 'user'
+        && (request.resource.data.departments is list)
+        && myManagedDepartments().hasAny(request.resource.data.departments);
+
+      allow delete: if false;
+
+      match /notifications/{notifId} {
+        allow read: if signedIn() && userId == request.auth.uid;
+
+        // Dept heads can create notifications for users in their managed department.
+        allow create: if isDeptHead() && canReadUserDoc(
+          userId,
+          get(/databases/$(database)/documents/users/$(userId)).data
+        );
+
+        // Users can update their own (e.g., mark read).
+        allow update: if signedIn() && userId == request.auth.uid;
+        allow delete: if false;
+      }
+    }
+
+    match /works/{workId} {
+      allow read: if signedIn() && (
+        isSuperAdmin()
+        || canManageDept(workDept(resource))
+        || ((resource.data.assignedUsers is list) && resource.data.assignedUsers.hasAny([request.auth.uid]))
+      );
+
+      allow create: if isDeptHead()
+        && request.resource.data.department != null
+        && canManageDept(request.resource.data.department);
+
+      // Department heads can fully update works within their department.
+      allow update, delete: if canManageDept(workDept(resource));
+
+      // Assigned users can update limited fields (acceptance/completion/rejections) without changing assignment.
+      allow update: if signedIn()
+        && (resource.data.assignedUsers is list)
+        && resource.data.assignedUsers.hasAny([request.auth.uid])
+        && request.resource.data.title == resource.data.title
+        && request.resource.data.description == resource.data.description
+        && request.resource.data.department == resource.data.department
+        && request.resource.data.assignedUsers == resource.data.assignedUsers
+        && request.resource.data.assignedUserDetails == resource.data.assignedUserDetails
+        && request.resource.data.assignedItems == resource.data.assignedItems
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.priority == resource.data.priority
+        && request.resource.data.date == resource.data.date
+        && request.resource.data.deadline == resource.data.deadline
+        && request.resource.data.dateType == resource.data.dateType
+        && request.resource.data.status == resource.data.status;
+    }
+
+    match /inventory/{itemId} {
+      allow read: if signedIn();
+      allow write: if isDeptHead();
+    }
+
+    match /events/{eventId} {
+      allow read: if signedIn();
+      allow write: if isDeptHead();
+    }
+
+    match /notifications/{notifId} {
+      allow read: if isDeptHead() || isSuperAdmin();
+      allow create: if signedIn();
+      allow update, delete: if isDeptHead();
+    }
+
+    match /rejectedWorks/{id} {
+      function rejectedDeptFrom(d) {
+        return (d.department != null) ? d.department : 'videography';
+      }
+
+      allow read: if signedIn() && (
+        isSuperAdmin()
+        || canManageDept(rejectedDeptFrom(resource.data))
+        || (resource.data.userId == request.auth.uid)
+      );
+      allow create: if isDeptHead() && canManageDept(rejectedDeptFrom(request.resource.data));
+      allow update, delete: if canManageDept(rejectedDeptFrom(resource.data));
+    }
+
+    match /mail/{id} {
+      allow read: if false;
+      allow create: if isDeptHead();
+      allow update, delete: if false;
+    }
+
+    match /whatsapp/{id} {
+      allow read: if false;
+      allow create: if isDeptHead();
+      allow update, delete: if false;
+    }
+
+    // Default deny
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if false;
     }
   }
 }

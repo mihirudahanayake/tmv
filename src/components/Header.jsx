@@ -21,7 +21,12 @@ const Header = ({ userType, isDarkMode, toggleDarkMode }) => {
 
   const isActive = (path) => location.pathname === path;
 
-  const homePath = userType === 'admin' ? '/admin-home' : '/home';
+  const homePath =
+    userType === 'admin'
+      ? '/admin-home'
+      : userType === 'superAdmin'
+        ? '/super-admin'
+        : '/home';
 
 
   const navItems = [
@@ -43,6 +48,10 @@ const Header = ({ userType, isDarkMode, toggleDarkMode }) => {
       { path: '/inventory', label: 'Inventory', icon: <FaBox /> },
       { path: '/notifications', label: 'Notifications', icon: <FaBell /> }
     );
+  }
+
+  if (userType === 'superAdmin') {
+    // read-only: no edit menus
   }
 
   return (

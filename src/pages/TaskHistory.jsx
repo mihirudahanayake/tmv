@@ -25,15 +25,14 @@ const TaskHistory = () => {
       setLoading(true);
       try {
         // Fetch completed works
-        const worksSnap = await getDocs(collection(db, 'works'));
-        const allTasks = worksSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-
-        const completed = allTasks.filter(
-          (t) =>
-            t.status === 'complete' &&
-            Array.isArray(t.assignedUsers) &&
-            t.assignedUsers.includes(user.uid)
+        const worksSnap = await getDocs(
+          query(
+            collection(db, 'works'),
+            where('assignedUsers', 'array-contains', user.uid),
+            where('status', '==', 'complete')
+          )
         );
+        const completed = worksSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
         completed.sort((a, b) => {
           const da = a.date ? new Date(a.date).getTime() : 0;

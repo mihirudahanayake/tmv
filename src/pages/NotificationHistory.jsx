@@ -4,6 +4,7 @@ import {
   collection,
   getDocs,
   query,
+  where,
   orderBy,
   writeBatch,
   doc,
@@ -13,23 +14,53 @@ import { useNavigate } from 'react-router-dom';
 import { FaBell, FaCheckCircle, FaCircle } from 'react-icons/fa';
 import { db } from '../firebase/config';
 import Header from '../components/Header';
+import { useUserProfile } from '../hooks/useUserProfile';
 
 const NotificationHistory = () => {
+  const { profile, loading: loadingProfile } = useUserProfile();
   const [notifs, setNotifs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
+  const [department, setDepartment] = useState('videography');
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!loadingProfile && profile?.managedDepartments?.length) {
+      setDepartment(profile.managedDepartments[0]);
+    }
+  }, [loadingProfile, profile]);
 
   const load = async () => {
     setLoading(true);
     try {
-      const q = query(
-        collection(db, 'notifications'),
-        orderBy('createdAt', 'desc')
+      const snaps = [];
+      snaps.push(
+        await getDocs(
+          query(
+            collection(db, 'notifications'),
+            where('department', '==', department),
+            orderBy('createdAt', 'desc')
+          )
+        )
       );
-      const snap = await getDocs(q);
-      const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      setNotifs(list);
+
+      if (department === 'videography') {
+        snaps.push(
+          await getDocs(
+            query(
+              collection(db, 'notifications'),
+              where('department', '==', null),
+              orderBy('createdAt', 'desc')
+            )
+          )
+        );
+      }
+
+      const dedup = new Map();
+      snaps.forEach((snap) => {
+        snap.docs.forEach((d) => dedup.set(d.id, { id: d.id, ...d.data() }));
+      });
+      setNotifs(Array.from(dedup.values()));
     } catch (e) {
       console.error('Failed to load notifications', e);
     } finally {
@@ -38,8 +69,9 @@ const NotificationHistory = () => {
   };
 
   useEffect(() => {
+    if (loadingProfile) return;
     load();
-  }, []);
+  }, [loadingProfile, department]);
 
   const formatTypeText = (n) => {
     const who = n.userName || 'A user';

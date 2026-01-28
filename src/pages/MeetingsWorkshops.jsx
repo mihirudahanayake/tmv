@@ -3,7 +3,6 @@ import { collection, onSnapshot, query, doc, updateDoc, getDoc, arrayUnion } fro
 import { db } from '../firebase/config';
 import Header from '../components/Header';
 import { useDarkMode } from '../context/DarkModeContext';
-import { collection as fbCollection, getDocs } from 'firebase/firestore';
 import { FaSpinner } from 'react-icons/fa';
 
 const MeetingsWorkshops = () => {
@@ -23,12 +22,10 @@ const MeetingsWorkshops = () => {
     if (!localUser || !localUser.uid) return;
     const fetchUserType = async () => {
       try {
-        const snap = await getDocs(fbCollection(db, 'users'));
-        const found = snap.docs.find((docSnap) => docSnap.id === localUser.uid);
-        if (found) {
-          const data = found.data();
-          setUserType(data.userType || 'user');
-        }
+        const profileSnap = await getDoc(doc(db, 'users', localUser.uid));
+        if (!profileSnap.exists()) return;
+        const data = profileSnap.data();
+        setUserType(data.userType || 'user');
       } catch (err) {
         setUserType('user');
       }

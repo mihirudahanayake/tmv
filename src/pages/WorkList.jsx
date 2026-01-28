@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc, query, where } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../firebase/config';
 import {
@@ -13,12 +13,16 @@ import {
   FaTimes
 } from 'react-icons/fa';
 import Header from '../components/Header';
+import { useUserProfile } from '../hooks/useUserProfile';
+import { formatWorkDepartmentLabel } from '../constants/workDepartments';
 
 const WorkList = () => {
+  const { profile, loading: loadingProfile } = useUserProfile();
   const [tasks, setTasks] = useState([]);
   const [users, setUsers] = useState({});
   const [items, setItems] = useState({});
   const [loading, setLoading] = useState(true);
+  const [department, setDepartment] = useState('videography');
 
   const [searchText, setSearchText] = useState('');
   const [startDate, setStartDate] = useState('');
@@ -28,13 +32,22 @@ const WorkList = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
+    if (!loadingProfile && profile?.managedDepartments?.length) {
+      setDepartment(profile.managedDepartments[0]);
+    }
+  }, [loadingProfile, profile]);
+
+  useEffect(() => {
+    if (loadingProfile) return;
     fetchData();
-  }, []);
+  }, [loadingProfile, department]);
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const usersSnapshot = await getDocs(collection(db, 'users'));
+      const usersSnapshot = await getDocs(
+        query(collection(db, 'users'), where('departments', 'array-contains', department))
+      );
       const usersMap = {};
       usersSnapshot.docs.forEach((d) => {
         usersMap[d.id] = d.data();
@@ -48,12 +61,23 @@ const WorkList = () => {
       });
       setItems(itemsMap);
 
-      const worksSnapshot = await getDocs(collection(db, 'works'));
-      const worksData = worksSnapshot.docs.map((d) => ({
-        id: d.id,
-        ...d.data()
-      }));
-      setTasks(worksData);
+      const worksSnaps = [];
+      worksSnaps.push(
+        await getDocs(query(collection(db, 'works'), where('department', '==', department)))
+      );
+
+      // Legacy fallback: old works without department are treated as videography.
+      if (department === 'videography') {
+        worksSnaps.push(await getDocs(query(collection(db, 'works'), where('department', '==', null))));
+      }
+
+      const dedup = new Map();
+      worksSnaps.forEach((snap) => {
+        snap.docs.forEach((d) => {
+          dedup.set(d.id, { id: d.id, ...d.data() });
+        });
+      });
+      setTasks(Array.from(dedup.values()));
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -443,6 +467,10 @@ const WorkList = () => {
           <h2 className="text-xl sm:text-2xl font-bold text-gray-800">
             All Tasks
           </h2>
+
+          <p className="text-sm text-gray-600">
+            Department: <span className="font-semibold">{formatWorkDepartmentLabel(department)}</span>
+          </p>
 
           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
             <div className="relative flex-1 min-w-0">

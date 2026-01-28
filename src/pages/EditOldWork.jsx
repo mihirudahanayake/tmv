@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { doc, getDoc, updateDoc, deleteDoc, getDocs, collection } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, deleteDoc, getDocs, collection, query, where } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import Header from '../components/Header';
 import {
@@ -28,23 +28,7 @@ const EditOldWork = () => {
   const [userSearch, setUserSearch] = useState('');
   const [itemSearch, setItemSearch] = useState('');
     useEffect(() => {
-      // fetch users and items for selectors
-      const fetchUsers = async () => {
-        setUsersLoading(true);
-        setUsersError('');
-        try {
-          const querySnapshot = await getDocs(collection(db, 'users'));
-          const usersData = querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-          usersData.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-          setUsers(usersData);
-        } catch (error) {
-          setUsersError('Failed to load users');
-          setUsers([]);
-          console.error('Error fetching users:', error);
-        } finally {
-          setUsersLoading(false);
-        }
-      };
+      // fetch items for selectors
       const fetchItems = async () => {
         setItemsLoading(true);
         setItemsError('');
@@ -61,9 +45,33 @@ const EditOldWork = () => {
           setItemsLoading(false);
         }
       };
-      fetchUsers();
       fetchItems();
     }, []);
+
+    useEffect(() => {
+      // fetch users for selectors (filtered by work department)
+      const fetchUsers = async () => {
+        setUsersLoading(true);
+        setUsersError('');
+        try {
+          const dept = formData?.department || 'videography';
+          const querySnapshot = await getDocs(
+            query(collection(db, 'users'), where('departments', 'array-contains', dept))
+          );
+          const usersData = querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+          usersData.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+          setUsers(usersData);
+        } catch (error) {
+          setUsersError('Failed to load users');
+          setUsers([]);
+          console.error('Error fetching users:', error);
+        } finally {
+          setUsersLoading(false);
+        }
+      };
+
+      fetchUsers();
+    }, [formData?.department]);
     const handleUserSelection = (userId) => {
       setFormData((prev) => {
         const existing = (prev.assignedUserDetails || []).find((u) => u.userId === userId);
@@ -139,6 +147,7 @@ const EditOldWork = () => {
         date: formData.date || null,
         deadline: formData.deadline || null,
         priority: formData.priority,
+        department: formData.department || 'videography',
         assignedUsers: formData.assignedUsers || [],
         assignedUserDetails: formData.assignedUserDetails || [],
         assignedItems: formData.assignedItems || [],

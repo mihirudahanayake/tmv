@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
 import * as XLSX from 'xlsx';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../firebase/config';
 import Header from '../components/Header';
 import { FaUser, FaEnvelope, FaSpinner, FaSearch } from 'react-icons/fa';
+import { useUserProfile } from '../hooks/useUserProfile';
 
 const ManageUsers = () => {
+  const { profile, loading: loadingProfile } = useUserProfile();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchText, setSearchText] = useState('');
@@ -18,7 +20,14 @@ const ManageUsers = () => {
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        const snap = await getDocs(collection(db, 'users'));
+        if (loadingProfile) return;
+
+        const managed = Array.isArray(profile?.managedDepartments) ? profile.managedDepartments : [];
+        const dept = managed[0] || 'videography';
+
+        const snap = await getDocs(
+          query(collection(db, 'users'), where('departments', 'array-contains', dept))
+        );
         const data = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
         setUsers(data);
       } catch (err) {
@@ -29,7 +38,7 @@ const ManageUsers = () => {
     };
 
     fetchUsers();
-  }, []);
+  }, [loadingProfile, profile]);
 
   const normalizedSearch = searchText.trim().toLowerCase();
 

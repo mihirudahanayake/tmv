@@ -1,17 +1,23 @@
 import { useEffect, useState } from 'react';
 import {
-  collection,
-  getDocs,
   addDoc,
+  collection,
   doc,
-  writeBatch,
+  getDocs,
+  query,
   serverTimestamp,
+  where,
+  writeBatch,
 } from 'firebase/firestore';
-import { db } from '../firebase/config';
-import Header from '../components/Header';
 import { FaSpinner } from 'react-icons/fa';
+import Header from '../components/Header';
+import { db } from '../firebase/config';
+import { useUserProfile } from '../hooks/useUserProfile';
 
 const AdminNotifications = () => {
+  const { profile, loading: loadingProfile } = useUserProfile();
+
+  const [department, setDepartment] = useState('videography');
   const [users, setUsers] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
 
@@ -25,9 +31,20 @@ const AdminNotifications = () => {
   const [error, setError] = useState('');
 
   useEffect(() => {
+    if (!loadingProfile && profile?.managedDepartments?.length) {
+      setDepartment(profile.managedDepartments[0]);
+    }
+  }, [loadingProfile, profile]);
+
+  useEffect(() => {
     const loadUsers = async () => {
+      if (loadingProfile) return;
+
+      setLoadingUsers(true);
       try {
-        const snap = await getDocs(collection(db, 'users'));
+        const snap = await getDocs(
+          query(collection(db, 'users'), where('departments', 'array-contains', department))
+        );
         const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
         setUsers(list);
       } catch (e) {
@@ -39,13 +56,11 @@ const AdminNotifications = () => {
     };
 
     loadUsers();
-  }, []);
+  }, [loadingProfile, department]);
 
   const toggleUserSelection = (userId) => {
     setSelectedUserIds((prev) =>
-      prev.includes(userId)
-        ? prev.filter((id) => id !== userId)
-        : [...prev, userId]
+      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
     );
   };
 
@@ -71,18 +86,18 @@ const AdminNotifications = () => {
           title: title.trim(),
           body: message.trim(),
           target: 'all',
+          department,
           createdAt: serverTimestamp(),
         });
       } else {
         const batch = writeBatch(db);
         selectedUserIds.forEach((uid) => {
-          const ref = doc(
-            collection(db, 'users', uid, 'notifications')
-          );
+          const ref = doc(collection(db, 'users', uid, 'notifications'));
           batch.set(ref, {
             title: title.trim(),
             body: message.trim(),
             target: 'user',
+            department,
             userId: uid,
             createdAt: serverTimestamp(),
           });
@@ -108,29 +123,16 @@ const AdminNotifications = () => {
       <Header userType="admin" />
 
       <main className="container mx-auto px-4 py-6 sm:py-8 max-w-3xl">
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-4">
-          Send notifications
-        </h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-4">Send notifications</h1>
 
-        <form
-          onSubmit={handleSubmit}
-          className="bg-white rounded-lg shadow-md p-4 sm:p-6 space-y-4"
-        >
-          {error && (
-            <div className="p-2 rounded bg-red-100 text-red-700 text-sm">
-              {error}
-            </div>
-          )}
+        <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-md p-4 sm:p-6 space-y-4">
+          {error && <div className="p-2 rounded bg-red-100 text-red-700 text-sm">{error}</div>}
           {successMsg && (
-            <div className="p-2 rounded bg-green-100 text-green-700 text-sm">
-              {successMsg}
-            </div>
+            <div className="p-2 rounded bg-green-100 text-green-700 text-sm">{successMsg}</div>
           )}
 
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">
-              Title
-            </label>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Title</label>
             <input
               type="text"
               value={title}
@@ -141,9 +143,7 @@ const AdminNotifications = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">
-              Message
-            </label>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Message</label>
             <textarea
               value={message}
               onChange={(e) => setMessage(e.target.value)}
@@ -154,9 +154,7 @@ const AdminNotifications = () => {
           </div>
 
           <div>
-            <p className="block text-sm font-semibold text-gray-700 mb-1">
-              Send to
-            </p>
+            <p className="block text-sm font-semibold text-gray-700 mb-1">Send to</p>
             <div className="flex flex-col sm:flex-row gap-3">
               <label className="inline-flex items-center gap-2 text-sm">
                 <input
@@ -183,9 +181,7 @@ const AdminNotifications = () => {
 
           {sendMode === 'selected' && (
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Select users
-              </label>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">Select users</label>
 
               {loadingUsers ? (
                 <div className="flex items-center gap-2 text-gray-600 text-sm">
@@ -194,16 +190,9 @@ const AdminNotifications = () => {
                 </div>
               ) : (
                 <div className="max-h-60 overflow-y-auto border rounded p-2 space-y-1 bg-gray-50">
-                  {users.length === 0 && (
-                    <p className="text-xs text-gray-600">
-                      No users found.
-                    </p>
-                  )}
+                  {users.length === 0 && <p className="text-xs text-gray-600">No users found.</p>}
                   {users.map((u) => (
-                    <label
-                      key={u.id}
-                      className="flex items-center gap-2 text-xs sm:text-sm cursor-pointer"
-                    >
+                    <label key={u.id} className="flex items-center gap-2 text-xs sm:text-sm cursor-pointer">
                       <input
                         type="checkbox"
                         checked={selectedUserIds.includes(u.id)}

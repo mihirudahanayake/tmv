@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
 const EventAttendees = () => {
@@ -25,10 +25,17 @@ const EventAttendees = () => {
         setEvent(eventData);
         if (eventData.attendance) {
           const userIds = Object.keys(eventData.attendance);
-          // Optionally fetch user names from 'users' collection
-          const usersSnap = await getDocs(collection(db, 'users'));
           const usersMap = {};
-          usersSnap.forEach(d => { usersMap[d.id] = d.data().name; });
+          await Promise.all(
+            userIds.map(async (uid) => {
+              try {
+                const snap = await getDoc(doc(db, 'users', uid));
+                usersMap[uid] = snap.exists() ? snap.data()?.name || uid : uid;
+              } catch {
+                usersMap[uid] = uid;
+              }
+            })
+          );
           setAttendees(userIds.map(uid => ({
             userId: uid,
             name: usersMap[uid] || uid,

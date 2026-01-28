@@ -1,9 +1,11 @@
 
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { collection, addDoc, getDocs } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import Header from '../components/Header';
+import { useUserProfile } from '../hooks/useUserProfile';
+import { WORK_DEPARTMENTS, formatWorkDepartmentLabel } from '../constants/workDepartments';
 import {
   FaFileAlt,
   FaAlignLeft,
@@ -17,8 +19,10 @@ import {
 const WORK_ROLES = ['videography', 'editing'];
 
 const AddOldWork = () => {
+  const { profile, loading: loadingProfile } = useUserProfile();
   const [users, setUsers] = useState([]);
   const [items, setItems] = useState([]);
+  const [department, setDepartment] = useState('videography');
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -36,13 +40,22 @@ const AddOldWork = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
+    if (!loadingProfile && profile?.managedDepartments?.length) {
+      setDepartment(profile.managedDepartments[0]);
+    }
+  }, [loadingProfile, profile]);
+
+  useEffect(() => {
+    if (loadingProfile) return;
     fetchUsers();
     fetchItems();
-  }, []);
+  }, [loadingProfile, department]);
 
   const fetchUsers = async () => {
     try {
-      const querySnapshot = await getDocs(collection(db, 'users'));
+      const querySnapshot = await getDocs(
+        query(collection(db, 'users'), where('departments', 'array-contains', department))
+      );
       const usersData = querySnapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data()
@@ -124,6 +137,7 @@ const AddOldWork = () => {
         deadline: formData.deadline || null,
         dateType,
         priority: formData.priority,
+        department,
         assignedUsers: formData.assignedUsers.map((u) => u.userId),
         assignedUserDetails: formData.assignedUsers,
         assignedItems: formData.assignedItems,
@@ -149,6 +163,11 @@ const AddOldWork = () => {
     }
   };
 
+  const allowedDepartments =
+    Array.isArray(profile?.managedDepartments) && profile.managedDepartments.length
+      ? profile.managedDepartments
+      : WORK_DEPARTMENTS;
+
   return (
     <div className="min-h-screen bg-gray-100">
       <Header userType="admin" />
@@ -159,6 +178,23 @@ const AddOldWork = () => {
             <div className="mb-4 p-3 rounded text-sm bg-green-100 text-green-700">{message}</div>
           )}
           <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-gray-700 font-semibold mb-2 text-sm sm:text-base">
+                Department
+              </label>
+              <select
+                value={department}
+                onChange={(e) => setDepartment(e.target.value)}
+                className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 text-sm sm:text-base"
+              >
+                {allowedDepartments.map((dept) => (
+                  <option key={dept} value={dept}>
+                    {formatWorkDepartmentLabel(dept)}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div>
               <label className="flex items-center gap-2 text-gray-700 font-semibold mb-2 text-sm sm:text-base">
                 <FaFileAlt />

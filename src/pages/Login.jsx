@@ -6,6 +6,7 @@ import { signInWithEmailAndPassword } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase/config';
 import { initPushForUser } from '../hooks/usePushNotifications';
+import { normalizeRole } from '../utils/authz';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -42,17 +43,21 @@ const Login = () => {
       const profileSnap = await getDoc(profileRef);
 
       let userType = 'user';
+      let role = 'member';
       let userData = { uid: user.uid, email: user.email };
       if (profileSnap.exists()) {
         const data = profileSnap.data();
         userType = data.userType || 'user';
+        role = normalizeRole(data);
         userData = { ...userData, ...data };
       }
 
       // Store user info in localStorage with uid
       localStorage.setItem('user', JSON.stringify(userData));
 
-      if (userType === 'admin') {
+      if (role === 'superAdmin') {
+        navigate('/super-admin');
+      } else if (userType === 'admin') {
         navigate('/admin-home');
       } else {
         navigate('/home');

@@ -1,24 +1,36 @@
 import { useState, useEffect } from 'react';
-import { collection, getDocs, doc, updateDoc, addDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc, addDoc, query, where } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { FaSpinner, FaCheck, FaTimes } from 'react-icons/fa';
 import Header from '../components/Header';
+import { useUserProfile } from '../hooks/useUserProfile';
 
 const AdminRejectDetails = () => {
+  const { profile, loading: loadingProfile } = useUserProfile();
   const [tasks, setTasks] = useState([]);
   const [users, setUsers] = useState({});
   const [approved, setApproved] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [department, setDepartment] = useState('videography');
 
   useEffect(() => {
+    if (!loadingProfile && profile?.managedDepartments?.length) {
+      setDepartment(profile.managedDepartments[0]);
+    }
+  }, [loadingProfile, profile]);
+
+  useEffect(() => {
+    if (loadingProfile) return;
     fetchData();
-  }, []);
+  }, [loadingProfile, department]);
 
   const fetchData = async () => {
     setLoading(true);
     try {
       // load users
-      const usersSnap = await getDocs(collection(db, 'users'));
+      const usersSnap = await getDocs(
+        query(collection(db, 'users'), where('departments', 'array-contains', department))
+      );
       const usersMap = {};
       usersSnap.docs.forEach((d) => {
         usersMap[d.id] = d.data();
@@ -26,8 +38,15 @@ const AdminRejectDetails = () => {
       setUsers(usersMap);
 
       // load works with pending rejections
-      const worksSnap = await getDocs(collection(db, 'works'));
-      const allTasks = worksSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      const worksSnaps = [];
+      worksSnaps.push(await getDocs(query(collection(db, 'works'), where('department', '==', department))));
+      if (department === 'videography') {
+        worksSnaps.push(await getDocs(query(collection(db, 'works'), where('department', '==', null))));
+      }
+      const allTasks = [];
+      worksSnaps.forEach((snap) => {
+        snap.docs.forEach((d) => allTasks.push({ id: d.id, ...d.data() }));
+      });
 
       const tasksWithRejections = allTasks.filter((t) => {
         const rejections = t.rejections || {};
@@ -38,11 +57,16 @@ const AdminRejectDetails = () => {
       setTasks(tasksWithRejections);
 
       // load approved rejections from rejectedWorks
-      const rejectedSnap = await getDocs(collection(db, 'rejectedWorks'));
-      const rejectedData = rejectedSnap.docs.map((d) => ({
-        id: d.id,
-        ...d.data()
-      }));
+      const rejectedSnaps = [];
+      rejectedSnaps.push(await getDocs(query(collection(db, 'rejectedWorks'), where('department', '==', department))));
+      if (department === 'videography') {
+        rejectedSnaps.push(await getDocs(query(collection(db, 'rejectedWorks'), where('department', '==', null))));
+      }
+
+      const rejectedData = [];
+      rejectedSnaps.forEach((snap) => {
+        snap.docs.forEach((d) => rejectedData.push({ id: d.id, ...d.data() }));
+      });
       rejectedData.sort((a, b) => {
         const da = a.approvedAt ? new Date(a.approvedAt).getTime() : 0;
         const dbt = b.approvedAt ? new Date(b.approvedAt).getTime() : 0;
@@ -63,6 +87,7 @@ const AdminRejectDetails = () => {
 
       // store approved rejection in rejectedWorks
       await addDoc(collection(db, 'rejectedWorks'), {
+        department: task.department || 'videography',
         workId: taskId,
         userId,
         title: task.title,
