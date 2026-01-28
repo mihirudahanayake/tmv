@@ -2,17 +2,16 @@ import { useEffect, useState } from 'react';
 import {
   addDoc,
   collection,
-  doc,
   getDocs,
   query,
   serverTimestamp,
   where,
-  writeBatch,
 } from 'firebase/firestore';
 import { FaSpinner } from 'react-icons/fa';
 import Header from '../components/Header';
 import { db } from '../firebase/config';
 import { useUserProfile } from '../hooks/useUserProfile';
+import { fanOutUserNotifications } from '../utils/fanOutUserNotifications';
 
 const AdminNotifications = () => {
   const { profile, loading: loadingProfile } = useUserProfile();
@@ -102,31 +101,19 @@ const AdminNotifications = () => {
       });
 
       // Fan-out to per-user notifications so users can mark read individually.
-      const chunkSize = 450; // Firestore batch limit is 500
-      for (let i = 0; i < targetUserIds.length; i += chunkSize) {
-        const batch = writeBatch(db);
-        const chunk = targetUserIds.slice(i, i + chunkSize);
-
-        chunk.forEach((uid) => {
-          const ref = doc(collection(db, 'users', uid, 'notifications'));
-          batch.set(ref, {
-            type: 'admin-message',
-            source: 'admin',
-            audience: 'user',
-            senderId: profile?.id || null,
-            senderName: profile?.name || profile?.email || 'Admin',
-            title: titleText,
-            message: messageText,
-            target: 'user',
-            department,
-            userId: uid,
-            createdAt: serverTimestamp(),
-            read: false,
-          });
-        });
-
-        await batch.commit();
-      }
+      await fanOutUserNotifications(db, targetUserIds, {
+        type: 'admin-message',
+        source: 'admin',
+        audience: 'user',
+        senderId: profile?.id || null,
+        senderName: profile?.name || profile?.email || 'Admin',
+        title: titleText,
+        message: messageText,
+        target: 'user',
+        department,
+        createdAt: serverTimestamp(),
+        read: false,
+      });
 
       setSuccessMsg('Notification(s) sent successfully.');
       setTitle('');

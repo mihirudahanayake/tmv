@@ -1,11 +1,12 @@
 
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { collection, addDoc, getDocs, query, where } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, serverTimestamp, where } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import Header from '../components/Header';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { WORK_DEPARTMENTS, formatWorkDepartmentLabel } from '../constants/workDepartments';
+import { fanOutUserNotifications } from '../utils/fanOutUserNotifications';
 import {
   FaFileAlt,
   FaAlignLeft,
@@ -128,7 +129,7 @@ const AddOldWork = () => {
     setMessage('');
     // date, deadline, and description are now optional
     try {
-      await addDoc(collection(db, 'works'), {
+      const workRef = await addDoc(collection(db, 'works'), {
         title: formData.title,
         description: formData.description,
         date: formData.date || null,
@@ -141,6 +142,20 @@ const AddOldWork = () => {
         status: 'old work', // 'old work' is now a status type
         createdAt: new Date().toISOString(),
       });
+
+      const assignedUserIds = formData.assignedUsers.map((u) => u.userId);
+      await fanOutUserNotifications(db, assignedUserIds, {
+        type: 'task-assigned',
+        source: 'admin',
+        audience: 'user',
+        workId: workRef.id,
+        department,
+        title: 'New work assigned',
+        message: `You were assigned to: ${formData.title}`,
+        createdAt: serverTimestamp(),
+        read: false,
+      });
+
       setMessage('Old work added successfully!');
       setFormData({
         title: '',

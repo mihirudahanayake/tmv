@@ -9,12 +9,14 @@ import {
   getDocs,
   query,
   where,
-  addDoc
+  addDoc,
+  serverTimestamp
 } from 'firebase/firestore';
 
 import { db } from '../firebase/config';
 import Header from '../components/Header';
 import { FaCalendarAlt, FaSpinner, FaTrash, FaBox, FaSearch, FaUsers } from 'react-icons/fa';
+import { fanOutUserNotifications } from '../utils/fanOutUserNotifications';
 
 const WORK_ROLES = ['videography', 'editing'];
 
@@ -460,6 +462,19 @@ const handleSave = async (e) => {
       const newlyAddedIds = newUserIds.filter((uid) => !oldUserIds.includes(uid));
 
       if (newlyAddedIds.length > 0) {
+        // Per-user popup notification (stays unread until user marks read)
+        await fanOutUserNotifications(db, newlyAddedIds, {
+          type: 'task-assigned',
+          source: 'admin',
+          audience: 'user',
+          workId: task.id,
+          department: task.department || 'videography',
+          title: 'New work assigned',
+          message: `You were assigned to: ${task.title}`,
+          createdAt: serverTimestamp(),
+          read: false,
+        });
+
         const contactPromises = newlyAddedIds.map(async (uid) => {
           const snap = await getDoc(doc(db, 'users', uid));
           const data = snap.data();

@@ -7,7 +7,8 @@ import {
   getDoc,
   query,
   where,
-  doc
+  doc,
+  serverTimestamp
 } from 'firebase/firestore';
 
 import { db } from '../firebase/config';
@@ -22,6 +23,7 @@ import {
 import Header from '../components/Header';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { WORK_DEPARTMENTS, formatWorkDepartmentLabel } from '../constants/workDepartments';
+import { fanOutUserNotifications } from '../utils/fanOutUserNotifications';
 
 const WORK_ROLES = ['videography', 'editing'];
 
@@ -468,6 +470,21 @@ const AssignWork = () => {
         assignedItems: formData.assignedItems,
         createdAt: new Date().toISOString(),
         status: 'pending'
+      });
+
+      // Create per-user notifications for assigned users (persistent home popup until marked read)
+      const assignedUserIds = formData.assignedUsers.map((u) => u.userId);
+      await fanOutUserNotifications(db, assignedUserIds, {
+        type: 'task-assigned',
+        source: 'admin',
+        audience: 'user',
+        workId: workRef.id,
+        department,
+        title: 'New work assigned',
+        message: `You were assigned to: ${formData.title}`,
+        senderName: profile?.name || profile?.email || 'Admin',
+        createdAt: serverTimestamp(),
+        read: false,
       });
 
       // 2) Get emails and phone numbers of assigned users from `users` collection
