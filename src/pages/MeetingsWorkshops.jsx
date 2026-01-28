@@ -17,7 +17,7 @@ const MeetingsWorkshops = () => {
   const [attendanceError, setAttendanceError] = useState({}); // eventId -> string
   const { isDarkMode, toggleDarkMode } = useDarkMode();
 
-  const REQUIRED_RADIUS_METERS = 6;
+  const REQUIRED_RADIUS_METERS = 20;
 
   // Get userType and user from Firestore (same as Home.jsx)
   useEffect(() => {

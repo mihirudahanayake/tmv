@@ -49,6 +49,7 @@ const AdminCreateEvent = () => {
   const [dateTime, setDateTime] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [events, setEvents] = useState([]);
   const [editId, setEditId] = useState(null);
   const [editTitle, setEditTitle] = useState('');
@@ -128,6 +129,7 @@ const AdminCreateEvent = () => {
     e.preventDefault();
     setLoading(true);
     setError('');
+    setSuccess('');
     try {
       await addDoc(collection(db, 'events'), {
         title,
@@ -138,7 +140,13 @@ const AdminCreateEvent = () => {
         dateTime,
         createdAt: new Date(),
       });
-      navigate('/');
+      setSuccess('Event created successfully.');
+      setTitle('');
+      setType([]);
+      setLatitude('');
+      setLongitude('');
+      setLocationName('');
+      setDateTime('');
     } catch (err) {
       setError('Failed to create event.');
     } finally {
@@ -194,6 +202,7 @@ const AdminCreateEvent = () => {
           </div>
         </div>
         {error && <div className="text-red-600 text-sm font-semibold">{error}</div>}
+        {success && <div className="text-green-700 text-sm font-semibold">{success}</div>}
         <div>
           <label className="block mb-2 font-semibold text-blue-700">Date & Time</label>
           <input
