@@ -10,6 +10,7 @@ import {
   onSnapshot,
   addDoc,
   serverTimestamp,
+  limit,
 } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { db, auth } from '../firebase/config';
@@ -27,11 +28,13 @@ import {
 } from 'react-icons/fa';
 import { useDarkMode } from '../context/DarkModeContext';
 import { useIdleLogout } from '../hooks/useIdleLogout';
+import { useNavigate } from 'react-router-dom';
 
 // --- Meetings/Workshops for user ---
 // (Place this inside the Home component, after all imports)
 
 const Home = () => {
+  const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [items, setItems] = useState({}); // itemId -> item data
@@ -171,82 +174,39 @@ const Home = () => {
     setTimeout(() => setToast(''), 4000);
   };
 
-// real-time listener for this user's notifications (subcollection) with auto-hide
-useEffect(() => {
-  if (!user) return;
-
-  const q = query(
-    collection(db, 'users', user.uid, 'notifications'),
-    where('read', '==', false)
-  );
-
-  const unsub = onSnapshot(q, (snap) => {
-    snap.docChanges().forEach((change) => {
-      if (change.type === 'added') {
-        const data = change.doc.data();
-        const notif = {
-          id: change.doc.id,
-          ...data,
-        };
-        setPopup(notif);
-
-        // Show device notification for assigned
-        if (
-          notif.type === 'assigned' &&
-          'Notification' in window &&
-          Notification.permission === 'granted'
-        ) {
-          new Notification(notif.title || 'New Work Assigned', {
-            body: notif.message || 'You have been assigned a new work.',
-            icon: '/icon-192.png',
-          });
-        }
-
-        // auto-hide after 5s and mark as read
-        setTimeout(async () => {
-          try {
-            await updateDoc(
-              doc(db, 'users', user.uid, 'notifications', notif.id),
-              { read: true }
-            );
-          } catch (e) {
-            console.error('Failed to mark user notification read', e);
-          }
-          setPopup((current) =>
-            current && current.id === notif.id ? null : current
-          );
-        }, 5000);
-      }
-    });
-  });
-
-  return () => unsub();
-}, [user]);
-
-
-  // NEW: real-time listener for this user's notifications (subcollection)
+  // Persistent unread notification popup (stays until user marks read)
   useEffect(() => {
     if (!user) return;
 
     const q = query(
       collection(db, 'users', user.uid, 'notifications'),
-      where('read', '==', false)
+      where('read', '==', false),
+      limit(1)
     );
 
     const unsub = onSnapshot(q, (snap) => {
-      snap.docChanges().forEach((change) => {
-        if (change.type === 'added') {
-          const data = change.doc.data();
-          setPopup({
-            id: change.doc.id,
-            ...data,
-          });
-        }
-      });
+      if (!snap.empty) {
+        const d = snap.docs[0];
+        setPopup({ id: d.id, ...d.data() });
+      } else {
+        setPopup(null);
+      }
     });
 
     return () => unsub();
   }, [user]);
+
+  const markPopupRead = async () => {
+    if (!user || !popup?.id) return;
+    try {
+      await updateDoc(doc(db, 'users', user.uid, 'notifications', popup.id), {
+        read: true,
+        readAt: serverTimestamp(),
+      });
+    } catch (e) {
+      console.error('Failed to mark notification read', e);
+    }
+  };
 
   const statusOf = (task) => task.status || 'incomplete';
 
@@ -601,16 +561,33 @@ const renderTeamMembers = (task) => {
 
       {/* User popup notification */}
       {popup && (
-        <div
-          className="fixed bottom-4 right-4 z-50 max-w-xs text-left bg-white dark:bg-slate-900 shadow-xl rounded-xl border border-gray-200 dark:border-slate-700 px-4 py-3 text-sm"
-        >
-          <p className="font-semibold text-gray-800 dark:text-gray-100 mb-1">
-            {renderUserPopupText()}
-          </p>
-          {popup.message && (
-            <p className="text-gray-600 dark:text-gray-300 text-xs mb-1">{popup.message}</p>
-          )}
-          <p className="text-gray-500 dark:text-gray-400 text-xs">Notification</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-slate-700 p-5">
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">New notification</p>
+            <h3 className="text-lg font-bold text-gray-800 dark:text-gray-100 mb-2">
+              {renderUserPopupText()}
+            </h3>
+            {popup.message && (
+              <p className="text-sm text-gray-700 dark:text-gray-300 mb-4">{popup.message}</p>
+            )}
+
+            <div className="flex flex-col sm:flex-row gap-2 sm:justify-end">
+              <button
+                type="button"
+                onClick={() => navigate('/user/notifications')}
+                className="px-4 py-2 rounded-lg bg-gray-200 text-gray-800 text-sm font-semibold hover:bg-gray-300 dark:bg-slate-800 dark:text-gray-100 dark:hover:bg-slate-700"
+              >
+                View all
+              </button>
+              <button
+                type="button"
+                onClick={markPopupRead}
+                className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700"
+              >
+                Mark as read
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

@@ -27,7 +27,7 @@ const WorkList = () => {
   const [searchText, setSearchText] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [statusFilter, setStatusFilter] = useState('accepted'); // NEW: default accepted
+  const [statusFilter, setStatusFilter] = useState('all');
 
   const navigate = useNavigate();
 

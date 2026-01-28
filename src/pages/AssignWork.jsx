@@ -31,6 +31,7 @@ const AssignWork = () => {
   const [users, setUsers] = useState([]);
   const [items, setItems] = useState([]);
   const [department, setDepartment] = useState('videography');
+  const [lastCreatedTask, setLastCreatedTask] = useState(null);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -443,6 +444,7 @@ const AssignWork = () => {
     e.preventDefault();
     setLoading(true);
     setMessage({ type: '', text: '' });
+    setLastCreatedTask(null);
 
     // Require at least one of date / deadline to be filled
     if (!formData.date && !formData.deadline) {
@@ -552,39 +554,20 @@ if (phones.length > 0) {
       }
 
       setMessage({ type: 'success', text: 'Work assigned successfully!' });
-      // Auto-generate and download a task details image for the admin
-      try {
-        // Convert users array to map (like WorkList does)
-        const usersMap = {};
-        users.forEach((u) => {
-          usersMap[u.id] = u;
-        });
-        // Convert items array to map (like WorkList does)
-        const itemsMap = {};
-        items.forEach((it) => {
-          itemsMap[it.id] = it;
-        });
-
-        generateAndDownloadTaskImage({
-          task: {
-            id: workRef.id,
-            title: formData.title,
-            description: formData.description,
-            date: formData.date || null,
-            deadline: formData.deadline || null,
-            priority: formData.priority,
-            assignedUserDetails: formData.assignedUsers,
-            assignedItems: formData.assignedItems,
-            status: 'pending',
-            userAcceptance: {}, // New assignments default to pending acceptance
-            roleCompletion: {} // New assignments have no completed roles
-          },
-          usersMap,
-          itemsMap
-        });
-      } catch (e) {
-        console.warn('failed to generate task image', e);
-      }
+      // Allow optional download after create
+      setLastCreatedTask({
+        id: workRef.id,
+        title: formData.title,
+        description: formData.description,
+        date: formData.date || null,
+        deadline: formData.deadline || null,
+        priority: formData.priority,
+        assignedUserDetails: formData.assignedUsers,
+        assignedItems: formData.assignedItems,
+        status: 'pending',
+        userAcceptance: {},
+        roleCompletion: {},
+      });
       setFormData({
         title: '',
         description: '',
@@ -648,6 +631,37 @@ if (phones.length > 0) {
               }`}
             >
               {message.text}
+            </div>
+          )}
+
+          {message.type === 'success' && lastCreatedTask && (
+            <div className="mb-4">
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    const usersMap = {};
+                    users.forEach((u) => {
+                      usersMap[u.id] = u;
+                    });
+                    const itemsMap = {};
+                    items.forEach((it) => {
+                      itemsMap[it.id] = it;
+                    });
+
+                    await generateAndDownloadTaskImage({
+                      task: lastCreatedTask,
+                      usersMap,
+                      itemsMap,
+                    });
+                  } catch (e) {
+                    console.warn('failed to generate task image', e);
+                  }
+                }}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-semibold text-sm"
+              >
+                Download task image (optional)
+              </button>
             </div>
           )}
 

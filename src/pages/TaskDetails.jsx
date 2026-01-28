@@ -537,37 +537,6 @@ if (phones.length > 0) {
 }
       }
 
-      // Generate and download task image
-      try {
-        const usersMap = {};
-        users.forEach((u) => {
-          usersMap[u.id] = u;
-        });
-        const itemsMap = {};
-        items.forEach((it) => {
-          itemsMap[it.id] = it;
-        });
-
-        await generateAndDownloadTaskImage({
-          task: {
-            id: task.id,
-            title: task.title,
-            description: task.description,
-            date: task.date,
-            deadline: task.deadline,
-            assignedUserDetails,
-            assignedItems,
-            status: task.status || 'pending',
-            userAcceptance: task.userAcceptance || {},
-            roleCompletion: task.roleCompletion || {}
-          },
-          usersMap,
-          itemsMap
-        });
-      } catch (e) {
-        console.warn('failed to generate task image', e);
-      }
-
       setSuccess('Task updated successfully.');
       setEditing(false);
     } catch (err) {
@@ -594,6 +563,39 @@ if (phones.length > 0) {
       setError('Failed to delete task.');
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const handleDownloadTaskImage = async () => {
+    if (!task) return;
+    try {
+      const usersMap = {};
+      users.forEach((u) => {
+        usersMap[u.id] = u;
+      });
+      const itemsMap = {};
+      items.forEach((it) => {
+        itemsMap[it.id] = it;
+      });
+
+      await generateAndDownloadTaskImage({
+        task: {
+          id: task.id,
+          title: task.title,
+          description: task.description,
+          date: task.date,
+          deadline: task.deadline,
+          assignedUserDetails,
+          assignedItems,
+          status: task.status || 'pending',
+          userAcceptance: task.userAcceptance || {},
+          roleCompletion: task.roleCompletion || {},
+        },
+        usersMap,
+        itemsMap,
+      });
+    } catch (e) {
+      console.warn('failed to generate task image', e);
     }
   };
 
@@ -656,6 +658,14 @@ if (phones.length > 0) {
             Task details
           </h1>
           <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={handleDownloadTaskImage}
+              className="px-3 py-1 rounded bg-green-600 text-white text-sm hover:bg-green-700"
+              title="Download task image"
+            >
+              Download
+            </button>
             {!editing ? (
               <>
                 <button

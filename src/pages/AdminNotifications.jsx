@@ -81,27 +81,40 @@ const AdminNotifications = () => {
 
     setSending(true);
     try {
-      if (sendMode === 'all') {
-        await addDoc(collection(db, 'notifications'), {
-          title: title.trim(),
-          body: message.trim(),
-          target: 'all',
-          department,
-          createdAt: serverTimestamp(),
-        });
-      } else {
+      const titleText = title.trim();
+      const messageText = message.trim();
+
+      const targetUserIds = sendMode === 'all' ? users.map((u) => u.id) : selectedUserIds;
+
+      // Keep a global record for dept heads / history.
+      await addDoc(collection(db, 'notifications'), {
+        title: titleText,
+        message: messageText,
+        target: sendMode === 'all' ? 'all' : 'user',
+        department,
+        createdAt: serverTimestamp(),
+        read: false,
+      });
+
+      // Fan-out to per-user notifications so users can mark read individually.
+      const chunkSize = 450; // Firestore batch limit is 500
+      for (let i = 0; i < targetUserIds.length; i += chunkSize) {
         const batch = writeBatch(db);
-        selectedUserIds.forEach((uid) => {
+        const chunk = targetUserIds.slice(i, i + chunkSize);
+
+        chunk.forEach((uid) => {
           const ref = doc(collection(db, 'users', uid, 'notifications'));
           batch.set(ref, {
-            title: title.trim(),
-            body: message.trim(),
+            title: titleText,
+            message: messageText,
             target: 'user',
             department,
             userId: uid,
             createdAt: serverTimestamp(),
+            read: false,
           });
         });
+
         await batch.commit();
       }
 
