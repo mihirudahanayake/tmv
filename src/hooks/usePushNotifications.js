@@ -41,6 +41,7 @@ export async function initPushForUser(userId) {
   onMessage(messaging, (payload) => {
     const title = payload.notification?.title;
     const body = payload.notification?.body;
+    const url = payload.data?.url;
     if (!title) return;
     // try to cache any images sent in data payload (items)
     (async () => {
@@ -75,10 +76,28 @@ export async function initPushForUser(userId) {
           }
         }
 
-        new Notification(title, opts);
+        const n = new Notification(title, opts);
+        if (url) {
+          n.onclick = () => {
+            try {
+              window.open(url, '_blank', 'noopener,noreferrer');
+            } catch {
+              // ignore
+            }
+          };
+        }
       } catch (e) {
         // fallback: simple notification
-        new Notification(title, { body, icon: '/icon-192.png' });
+        const n = new Notification(title, { body, icon: '/icon-192.png' });
+        if (url) {
+          n.onclick = () => {
+            try {
+              window.open(url, '_blank', 'noopener,noreferrer');
+            } catch {
+              // ignore
+            }
+          };
+        }
       }
     })();
   });
