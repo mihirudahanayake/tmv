@@ -17,6 +17,8 @@ import { db } from '../firebase/config';
 import Header from '../components/Header';
 import { FaCalendarAlt, FaSpinner, FaTrash, FaBox, FaSearch, FaUsers } from 'react-icons/fa';
 import { fanOutUserNotifications } from '../utils/fanOutUserNotifications';
+import { useUserProfile } from '../hooks/useUserProfile';
+import { formatWorkDepartmentLabel } from '../constants/workDepartments';
 import {
   getWorkRolesForDepartment,
   getDefaultRolesForDepartment,
@@ -27,6 +29,7 @@ import {
 const TaskDetails = () => {
   const { taskId } = useParams();
   const navigate = useNavigate();
+  const { profile } = useUserProfile();
 
   const [task, setTask] = useState(null);
   const [users, setUsers] = useState([]);
@@ -502,6 +505,19 @@ const handleSave = async (e) => {
         const emails = contacts.map(c => c.email).filter(Boolean);
         const phones = contacts.map(c => c.phone).filter(Boolean);
 
+        const departmentLabel = formatWorkDepartmentLabel(task.department || 'videography');
+        const websiteName = 'Media Manager';
+        const websiteUrl = 'https://tmv.fotmv.online/';
+        const departmentHeadTitle = `Head of ${departmentLabel} Department.`;
+
+        const senderName = profile?.name || profile?.email || '';
+        const senderEmail = profile?.email || '';
+        const senderPhone =
+          profile?.phoneNo || profile?.phoneNumber || profile?.phone || '';
+        const senderPhoneHref = senderPhone
+          ? String(senderPhone).replace(/[^\d+]/g, '')
+          : '';
+
         // Create message content (used for both email and WhatsApp)
         const messageContent = {
           lines: [
@@ -528,19 +544,19 @@ if (emails.length > 0) {
       text:
         `You have been assigned to the work "${task.title}".\n\n` +
         linesText.join('\n') +
-        `\n\nKindly review and confirm the work by visiting the Media Manager website.`,
+        `\n\nKindly review and confirm the work by visiting the ${websiteName} website: ${websiteUrl}`,
       html: `<p>Hello,</p>
         <p>You have been assigned a work. Please find the details below:</p>
         ${linesHtml.join('')}
-        <p>Kindly review and confirm the work by visiting the <a href="https://tmv.fotmv.online/">Media Manager</a> Website</p>
+        <p>Kindly review and confirm the work by visiting the <a href="${websiteUrl}">${websiteName}</a> Website</p>
         <p>If you encounter any issues or need further assistance, feel free to contact me.</p>
         <p>Thank you.</p>
         <p>Best regards,</p>
         <p style="color:#A3A9AD">
-          <strong>Mihiru Dahanayake</strong><br>
-          <i>Head of Videography Department<br>FOT Media<br>Faculty Of Technology<br>Rajarata University of Sri Lanka<br>
-          <a href="tel:+94703426554" style="color:#0066cc; text-decoration:none;">070 342 6554</a><br>
-          <a href="mailto:mihirudahanayake@gmail.com" style="color:#0066cc; text-decoration:none;">mihiru.online@gmail.com</a></i><br>
+          <strong>${senderName}</strong><br>
+          <i>Department head<br>${departmentHeadTitle}<br>FOT Media<br>Faculty Of Technology<br>Rajarata University of Sri Lanka<br>
+          ${senderPhone ? `<a href="tel:${senderPhoneHref}" style="color:#0066cc; text-decoration:none;">${senderPhone}</a><br>` : ''}
+          ${senderEmail ? `<a href="mailto:${senderEmail}" style="color:#0066cc; text-decoration:none;">${senderEmail}</a>` : ''}</i><br>
         </p>`
     }
   });
@@ -552,13 +568,14 @@ if (phones.length > 0) {
     `Hello!\n\n` +
     `You have been assigned to a work:\n\n` +
     messageContent.lines.join('\n') +
-    `\n\nKindly review and confirm the work by visiting the Media Manager website: https://tmv.fotmv.online/\n\n` +
+    `\n\nKindly review and confirm the work by visiting the ${websiteName} website: ${websiteUrl}\n\n` +
     `If you encounter any issues, feel free to contact me.\n\n` +
     `Best regards,\n` +
-    `Mihiru Dahanayake\n` +
-    `Head of Videography Department\n` +
+    `${senderName}\n` +
+    `Department head\n` +
+    `${departmentHeadTitle}\n` +
     `FOT Media, \nFaculty of Technology, \nRajarata University of Sri Lanka\n` +
-    `070 342 6554`;
+    (senderPhone ? `${senderPhone}` : '');
 
   await addDoc(collection(db, 'whatsapp'), {
     to: phones,

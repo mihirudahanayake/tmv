@@ -18,6 +18,7 @@ import Header from '../components/Header';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { formatWorkDepartmentLabel } from '../constants/workDepartments';
 import { getWorkRolesForDepartment, normalizeRolesForDepartment } from '../constants/workRoles';
+import { Roles } from '../utils/authz';
 
 const WorkList = () => {
   const { profile, loading: loadingProfile } = useUserProfile();
@@ -35,7 +36,17 @@ const WorkList = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!loadingProfile && profile?.managedDepartments?.length) {
+    if (loadingProfile || !profile) return;
+
+    // Department Heads are locked to their department.
+    if (profile.role === Roles.DEPARTMENT_HEAD) {
+      const dept = (profile.managedDepartments || [])[0] || 'videography';
+      setDepartment(dept);
+      return;
+    }
+
+    // Others: default to first managed department if present.
+    if (profile?.managedDepartments?.length) {
       setDepartment(profile.managedDepartments[0]);
     }
   }, [loadingProfile, profile]);
@@ -48,8 +59,13 @@ const WorkList = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
+      const effectiveDepartment =
+        profile?.role === Roles.DEPARTMENT_HEAD
+          ? (profile?.managedDepartments || [])[0] || department
+          : department;
+
       const usersSnapshot = await getDocs(
-        query(collection(db, 'users'), where('departments', 'array-contains', department))
+        query(collection(db, 'users'), where('departments', 'array-contains', effectiveDepartment))
       );
       const usersMap = {};
       usersSnapshot.docs.forEach((d) => {
@@ -66,11 +82,11 @@ const WorkList = () => {
 
       const worksSnaps = [];
       worksSnaps.push(
-        await getDocs(query(collection(db, 'works'), where('department', '==', department)))
+        await getDocs(query(collection(db, 'works'), where('department', '==', effectiveDepartment)))
       );
 
       // Legacy fallback: old works without department are treated as videography.
-      if (department === 'videography') {
+      if (effectiveDepartment === 'videography') {
         worksSnaps.push(await getDocs(query(collection(db, 'works'), where('department', '==', null))));
       }
 
@@ -578,7 +594,11 @@ const WorkList = () => {
           </h2>
 
           <p className="text-sm text-gray-600">
-            Department: <span className="font-semibold">{formatWorkDepartmentLabel(department)}</span>
+            Department: <span className="font-semibold">{formatWorkDepartmentLabel(
+              profile?.role === Roles.DEPARTMENT_HEAD
+                ? ((profile?.managedDepartments || [])[0] || department)
+                : department
+            )}</span>
           </p>
 
           <div className="flex flex-col sm:flex-row sm:items-center gap-3">

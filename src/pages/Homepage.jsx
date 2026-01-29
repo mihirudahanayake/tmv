@@ -209,7 +209,7 @@ const Homepage = () => {
                 </h3>
               </div>
               <p className="text-gray-600 mb-4 text-sm sm:text-base">
-                Set posting dates, mark videos as posted, and view the posting
+                Set posting dates, mark as posted, and view the posting
                 queue.
               </p>
             </div>
