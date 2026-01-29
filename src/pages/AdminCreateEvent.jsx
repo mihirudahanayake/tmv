@@ -1,10 +1,22 @@
 import { useState, useEffect } from 'react';
-import { collection, addDoc, getDoc, getDocs, updateDoc, deleteDoc, doc } from 'firebase/firestore';
+import * as XLSX from 'xlsx';
+import {
+  collection,
+  addDoc,
+  getDoc,
+  getDocs,
+  updateDoc,
+  deleteDoc,
+  doc,
+  query,
+  where,
+} from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
 import { useDarkMode } from '../context/DarkModeContext';
 import { downloadAttendeesPDF } from '../utils/downloadAttendeesPDF';
+import { useUserProfile } from '../hooks/useUserProfile';
 
 const AdminCreateEvent = () => {
     // Download attendees as PDF for an event
@@ -41,6 +53,7 @@ const AdminCreateEvent = () => {
       downloadAttendeesPDF({ attendees: attendeesList, eventTitle: event.title, locationName: event.locationName, eventDateTime: event.dateTime });
     };
   const { isDarkMode, toggleDarkMode } = useDarkMode();
+  const { profile, loading: loadingProfile } = useUserProfile();
   const [title, setTitle] = useState('');
   const [type, setType] = useState([]); // array of types
   const [latitude, setLatitude] = useState('');
@@ -59,7 +72,85 @@ const AdminCreateEvent = () => {
   const [editLocationName, setEditLocationName] = useState('');
   const [editDateTime, setEditDateTime] = useState('');
   const [eventLoading, setEventLoading] = useState(false);
+  const [downloadingExcelId, setDownloadingExcelId] = useState(null);
   const navigate = useNavigate();
+
+  const safeFilename = (name) =>
+    (name || 'file')
+      .toString()
+      .trim()
+      .replace(/[\\/:*?"<>|]/g, '_')
+      .replace(/\s+/g, '_')
+      .slice(0, 80);
+
+  const getPhoneFromUser = (u) =>
+    u?.phoneNo || u?.phoneNumber || u?.phone || '';
+
+  const fetchUsersInManagedDepts = async () => {
+    const managed = Array.isArray(profile?.managedDepartments) ? profile.managedDepartments : [];
+    const depts = managed.length ? managed : ['videography'];
+
+    const userById = new Map();
+    for (const dept of depts) {
+      // New model
+      try {
+        const snap = await getDocs(
+          query(collection(db, 'users'), where('departments', 'array-contains', dept))
+        );
+        snap.docs.forEach((d) => userById.set(d.id, { id: d.id, ...d.data() }));
+      } catch {
+        // ignore
+      }
+
+      // Legacy model
+      try {
+        const snap = await getDocs(
+          query(collection(db, 'users'), where('department', '==', dept))
+        );
+        snap.docs.forEach((d) => userById.set(d.id, { id: d.id, ...d.data() }));
+      } catch {
+        // ignore
+      }
+    }
+
+    // Prefer exporting members/users (avoid exporting admins).
+    return Array.from(userById.values()).filter((u) => (u.userType || 'user') === 'user');
+  };
+
+  const handleDownloadNotAttendedExcel = async (event) => {
+    if (!event?.id) return;
+    if (loadingProfile) return;
+
+    setDownloadingExcelId(event.id);
+    try {
+      const attendees = new Set(Object.keys(event.attendance || {}));
+      const users = await fetchUsersInManagedDepts();
+      const notAttended = users.filter((u) => !attendees.has(u.id));
+
+      const rows = notAttended
+        .map((u) => ({
+          Name: u.name || '',
+          Card: u.cardNumber || '',
+          Phone: getPhoneFromUser(u) || '',
+          RegistrationNumber: u.registrationNumber || '',
+          Batch: u.batch || '',
+        }))
+        .sort((a, b) => (a.Name || '').localeCompare(b.Name || ''));
+
+      const sheet = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, sheet, 'NotAttended');
+
+      const today = new Date().toISOString().slice(0, 10);
+      const filename = `${safeFilename(event.title)}_not_attended_${today}.xlsx`;
+      XLSX.writeFile(wb, filename);
+    } catch (e) {
+      console.error('Failed to download not-attended Excel', e);
+      alert('Failed to download Excel. Check Firestore rules and try again.');
+    } finally {
+      setDownloadingExcelId(null);
+    }
+  };
   // Fetch events for admin list
   useEffect(() => {
     const fetchEvents = async () => {
@@ -324,6 +415,15 @@ const AdminCreateEvent = () => {
                         Download PDF
                       </button>
                     )}
+
+                    <button
+                      onClick={() => handleDownloadNotAttendedExcel(ev)}
+                      disabled={downloadingExcelId === ev.id || loadingProfile}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-semibold shadow disabled:opacity-50"
+                      title="Download Excel list of users who did not attend"
+                    >
+                      {downloadingExcelId === ev.id ? 'Preparing Excel...' : 'Not Attended (Excel)'}
+                    </button>
                   </div>
                 </>
               )}
