@@ -60,6 +60,7 @@ const AdminCreateEvent = () => {
   const [longitude, setLongitude] = useState('');
   const [locationName, setLocationName] = useState('');
   const [dateTime, setDateTime] = useState('');
+  const [needInPlace, setNeedInPlace] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -71,6 +72,7 @@ const AdminCreateEvent = () => {
   const [editLng, setEditLng] = useState('');
   const [editLocationName, setEditLocationName] = useState('');
   const [editDateTime, setEditDateTime] = useState('');
+  const [editNeedInPlace, setEditNeedInPlace] = useState(true);
   const [eventLoading, setEventLoading] = useState(false);
   const [downloadingExcelId, setDownloadingExcelId] = useState(null);
   const [downloadingAllAttendanceExcel, setDownloadingAllAttendanceExcel] = useState(false);
@@ -150,6 +152,8 @@ const AdminCreateEvent = () => {
 
       const regKey = (value) => (value || '').toString().trim();
 
+      const pad2 = (n) => String(n).padStart(2, '0');
+
       const getBatchFromRegistrationNumber = (value) => {
         const s = (value || '').toString().trim();
         if (!s) return '';
@@ -179,7 +183,8 @@ const AdminCreateEvent = () => {
 
           return (a.Name || '').localeCompare(b.Name || '');
         })
-        .map(({ _batch, ...exportRow }) => exportRow);
+        .map(({ _batch, ...exportRow }) => exportRow)
+        .map((exportRow, idx) => ({ No: pad2(idx + 1), ...exportRow }));
 
       const sheet = XLSX.utils.json_to_sheet(rows);
       const wb = XLSX.utils.book_new();
@@ -335,6 +340,7 @@ const AdminCreateEvent = () => {
     setEditLng(event.longitude);
     setEditLocationName(event.locationName || '');
     setEditDateTime(event.dateTime || '');
+    setEditNeedInPlace(event?.needInPlace !== false);
   };
 
   const handleEdit = async (e) => {
@@ -349,6 +355,7 @@ const AdminCreateEvent = () => {
         longitude: parseFloat(editLng),
         locationName: editLocationName,
         dateTime: editDateTime,
+        needInPlace: !!editNeedInPlace,
       });
       setEditId(null);
     } catch {}
@@ -392,6 +399,7 @@ const AdminCreateEvent = () => {
         longitude: parseFloat(longitude),
         locationName,
         dateTime,
+        needInPlace: !!needInPlace,
         createdAt: new Date(),
       });
       setSuccess('Event created successfully.');
@@ -401,6 +409,7 @@ const AdminCreateEvent = () => {
       setLongitude('');
       setLocationName('');
       setDateTime('');
+      setNeedInPlace(true);
     } catch (err) {
       setError('Failed to create event.');
     } finally {
@@ -457,6 +466,19 @@ const AdminCreateEvent = () => {
               /> Workshop
             </label>
           </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <input
+            id="needInPlace"
+            type="checkbox"
+            checked={needInPlace}
+            onChange={(e) => setNeedInPlace(e.target.checked)}
+            className="accent-blue-600 w-5 h-5 rounded focus:ring-2 focus:ring-blue-400"
+          />
+          <label htmlFor="needInPlace" className="text-blue-800 font-medium">
+            Need in place (require location to mark attendance)
+          </label>
         </div>
         <div>
           <label className="block mb-2 font-semibold text-blue-700">Location Name</label>
@@ -547,6 +569,16 @@ const AdminCreateEvent = () => {
                     required
                     className="border px-2 py-1 rounded w-full mb-2"
                   />
+
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={editNeedInPlace}
+                      onChange={(e) => setEditNeedInPlace(e.target.checked)}
+                    />
+                    Need in place (require location)
+                  </label>
+
                   <div className="flex gap-2">
                     <input type="number" step="any" value={editLat} onChange={e => setEditLat(e.target.value)} placeholder="Latitude" className="border px-2 py-1 rounded w-1/2" />
                     <input type="number" step="any" value={editLng} onChange={e => setEditLng(e.target.value)} placeholder="Longitude" className="border px-2 py-1 rounded w-1/2" />
@@ -563,6 +595,9 @@ const AdminCreateEvent = () => {
                       {ev.title}
                     </span>
                     <span className="text-sm text-purple-700 font-semibold">{Array.isArray(ev.type) ? ev.type.join(', ') : ev.type}</span>
+                  </div>
+                  <div className="text-xs text-gray-600">
+                    Attendance mode: <span className="font-medium text-blue-800">{ev?.needInPlace !== false ? 'Need in place' : 'No location required'}</span>
                   </div>
                   <div className="text-xs text-gray-600">Location: <span className="font-medium text-blue-800">{ev.locationName ? `${ev.locationName} - ` : ''}{ev.latitude}, {ev.longitude}</span></div>
                   <div className="text-xs text-gray-600">Date & Time: <span className="font-medium text-blue-800">{ev.dateTime ? new Date(ev.dateTime).toLocaleString() : 'N/A'}</span></div>

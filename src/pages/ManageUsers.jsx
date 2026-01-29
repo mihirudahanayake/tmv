@@ -70,8 +70,12 @@ const ManageUsers = () => {
       const regB = (b.registrationNumber || '').toLowerCase();
       return regA.localeCompare(regB);
     });
+
+    const pad2 = (n) => String(n).padStart(2, '0');
+
     // Prepare data for Excel (remove userType and email, rename CardNumber to Card)
-    const data = sorted.map((u) => ({
+    const data = sorted.map((u, idx) => ({
+      No: pad2(idx + 1),
       Name: u.name || '',
       Card: u.cardNumber || '',
       Batch: u.batch || '',

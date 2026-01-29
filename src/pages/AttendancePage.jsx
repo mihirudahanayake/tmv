@@ -74,6 +74,19 @@ const AttendancePage = () => {
     setError('');
     setSuccess('');
     try {
+      const requiresPlace = event?.needInPlace !== false;
+      if (!requiresPlace) {
+        const ref = doc(db, 'events', event.id);
+        await updateDoc(ref, {
+          [`attendance.${user.uid}`]: {
+            markedAt: new Date().toISOString(),
+            mode: 'no_place',
+          },
+        });
+        setSuccess('Attendance marked!');
+        return;
+      }
+
       const loc = await getLocation();
       setLocation({ latitude: loc.latitude, longitude: loc.longitude });
 

@@ -143,6 +143,21 @@ const MeetingsWorkshops = () => {
     setAttendanceLoading((prev) => ({ ...prev, [event.id]: true }));
     setAttendanceError((prev) => ({ ...prev, [event.id]: '' }));
     try {
+      const requiresPlace = event?.needInPlace !== false;
+
+      if (!requiresPlace) {
+        const eventRef = doc(db, 'events', event.id);
+        await updateDoc(eventRef, {
+          [`attendance.${user.uid}`]: {
+            timestamp: new Date().toISOString(),
+            mode: 'no_place',
+          },
+          users: arrayUnion(user.uid)
+        });
+        setAttending((prev) => ({ ...prev, [event.id]: true }));
+        return;
+      }
+
       const eventLat = Number.parseFloat(event?.latitude);
       const eventLng = Number.parseFloat(event?.longitude);
       if (!Number.isFinite(eventLat) || !Number.isFinite(eventLng)) {

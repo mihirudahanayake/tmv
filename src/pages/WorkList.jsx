@@ -186,18 +186,21 @@ const WorkList = () => {
       ...(data || {})
     }));
 
+    const pad2 = (n) => String(n).padStart(2, '0');
+
     const rows = usersForRows
       .sort(
         (a, b) =>
           (a.registrationNumber || '').localeCompare(b.registrationNumber || '') ||
           (a.name || '').localeCompare(b.name || '')
       )
-      .map((u) => {
+      .map((u, idx) => {
         const userDepartments = Array.isArray(u.departments)
           ? u.departments.filter(Boolean).join(', ')
           : u.department || '';
 
         const row = {
+          No: pad2(idx + 1),
           'Registration Number': u.registrationNumber || '',
           Name: u.name || '',
           Card: u.cardNumber || '',
