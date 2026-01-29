@@ -73,6 +73,7 @@ const AdminCreateEvent = () => {
   const [editDateTime, setEditDateTime] = useState('');
   const [eventLoading, setEventLoading] = useState(false);
   const [downloadingExcelId, setDownloadingExcelId] = useState(null);
+  const [downloadingAllAttendanceExcel, setDownloadingAllAttendanceExcel] = useState(false);
   const navigate = useNavigate();
 
   const safeFilename = (name) =>
@@ -127,15 +128,58 @@ const AdminCreateEvent = () => {
       const users = await fetchUsersInManagedDepts();
       const notAttended = users.filter((u) => !attendees.has(u.id));
 
+      const batchRank = (value) => {
+        const s = (value || '').toString().trim();
+        if (!s) return Number.POSITIVE_INFINITY;
+
+        // Supports formats like: "20/21", "2020/2021", "20-21", "2020-2021"
+        const parts = s.split(/\s*[-/]\s*/).filter(Boolean);
+        if (!parts.length) return Number.POSITIVE_INFINITY;
+
+        const first = parts[0];
+        const digits = first.replace(/\D/g, '');
+        if (!digits) return Number.POSITIVE_INFINITY;
+
+        const n = Number(digits);
+        if (!Number.isFinite(n)) return Number.POSITIVE_INFINITY;
+
+        // Two-digit year -> assume 2000s (20 -> 2020)
+        if (digits.length <= 2) return 2000 + n;
+        return n;
+      };
+
+      const regKey = (value) => (value || '').toString().trim();
+
+      const getBatchFromRegistrationNumber = (value) => {
+        const s = (value || '').toString().trim();
+        if (!s) return '';
+        // Pattern: xxx/batch/xxx -> take the middle segment
+        const parts = s.split('/').map((p) => p.trim()).filter(Boolean);
+        if (parts.length >= 3) return parts[1];
+        return '';
+      };
+
       const rows = notAttended
         .map((u) => ({
+          _batch: getBatchFromRegistrationNumber(u.registrationNumber) || u.batch || '',
+          RegistrationNumber: u.registrationNumber || '',
           Name: u.name || '',
           Card: u.cardNumber || '',
           Phone: getPhoneFromUser(u) || '',
-          RegistrationNumber: u.registrationNumber || '',
-          Batch: u.batch || '',
         }))
-        .sort((a, b) => (a.Name || '').localeCompare(b.Name || ''));
+        .sort((a, b) => {
+          const ab = batchRank(a._batch);
+          const bb = batchRank(b._batch);
+          if (ab !== bb) return ab - bb;
+
+          const ar = regKey(a.RegistrationNumber);
+          const br = regKey(b.RegistrationNumber);
+          const regCmp = ar.localeCompare(br, undefined, { numeric: true, sensitivity: 'base' });
+          if (regCmp !== 0) return regCmp;
+
+          return (a.Name || '').localeCompare(b.Name || '');
+        })
+        .map(({ _batch, ...exportRow }) => exportRow);
 
       const sheet = XLSX.utils.json_to_sheet(rows);
       const wb = XLSX.utils.book_new();
@@ -149,6 +193,125 @@ const AdminCreateEvent = () => {
       alert('Failed to download Excel. Check Firestore rules and try again.');
     } finally {
       setDownloadingExcelId(null);
+    }
+  };
+
+  const handleDownloadAllMeetingsWorkshopsAttendanceExcel = async () => {
+    if (loadingProfile) return;
+    if (eventLoading) return;
+    if (!events?.length) {
+      alert('No events found.');
+      return;
+    }
+
+    setDownloadingAllAttendanceExcel(true);
+    try {
+      // Use only meeting/workshop events
+      const validEvents = (events || []).filter((ev) => {
+        const types = Array.isArray(ev.type) ? ev.type : [ev.type];
+        return types.includes('meeting') || types.includes('workshop');
+      });
+
+      // Collect all attendee ids across all events
+      const attendeeIds = new Set();
+      validEvents.forEach((ev) => {
+        Object.keys(ev.attendance || {}).forEach((uid) => attendeeIds.add(uid));
+      });
+
+      // Fetch user data for attendees (rules-safe)
+      const userMap = {};
+      await Promise.all(
+        Array.from(attendeeIds).map(async (uid) => {
+          try {
+            const snap = await getDoc(doc(db, 'users', uid));
+            if (snap.exists()) {
+              const data = snap.data();
+              userMap[uid] = {
+                name: data.name || uid,
+                registrationNumber: data.registrationNumber || '',
+              };
+              return;
+            }
+          } catch {
+            // ignore
+          }
+          userMap[uid] = { name: uid, registrationNumber: '' };
+        })
+      );
+
+      // Total attendance per user (count of events attended)
+      const totalAttendanceByUser = {};
+      validEvents.forEach((ev) => {
+        Object.keys(ev.attendance || {}).forEach((uid) => {
+          totalAttendanceByUser[uid] = (totalAttendanceByUser[uid] || 0) + 1;
+        });
+      });
+
+      const formatEventDate = (value) => {
+        if (!value) return '';
+        const d = new Date(value);
+        if (Number.isNaN(d.getTime())) return String(value);
+        return d.toLocaleString();
+      };
+
+      // Build rows: one row per attendance record
+      const rawRows = [];
+      validEvents
+        .slice()
+        .sort((a, b) => {
+          const da = a?.dateTime ? new Date(a.dateTime).getTime() : 0;
+          const dbt = b?.dateTime ? new Date(b.dateTime).getTime() : 0;
+          return da - dbt;
+        })
+        .forEach((ev) => {
+          const dateText = formatEventDate(ev.dateTime);
+          Object.keys(ev.attendance || {}).forEach((uid) => {
+            rawRows.push({
+              _reg: userMap[uid]?.registrationNumber || '',
+              _name: userMap[uid]?.name || uid,
+              RegistrationNumber: userMap[uid]?.registrationNumber || '',
+              Name: userMap[uid]?.name || uid,
+              Title: ev.title || 'Event',
+              Date: dateText,
+              TotalAttendance: totalAttendanceByUser[uid] || 0,
+            });
+          });
+        });
+
+      // Sort by reg number, then name, then date
+      rawRows.sort((a, b) => {
+        const regCmp = String(a._reg || '').localeCompare(String(b._reg || ''), undefined, {
+          numeric: true,
+          sensitivity: 'base',
+        });
+        if (regCmp !== 0) return regCmp;
+        const nameCmp = String(a._name || '').localeCompare(String(b._name || ''));
+        if (nameCmp !== 0) return nameCmp;
+        return String(a.Date || '').localeCompare(String(b.Date || ''));
+      });
+
+      const pad2 = (n) => String(n).padStart(2, '0');
+      const rows = rawRows.map((r, idx) => ({
+        No: pad2(idx + 1),
+        RegistrationNumber: r.RegistrationNumber,
+        Name: r.Name,
+        Title: r.Title,
+        Date: r.Date,
+        TotalAttendance: r.TotalAttendance,
+      }));
+
+      const sheet = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, sheet, 'Attendance');
+
+      const today = new Date().toISOString().slice(0, 10);
+      const filename = `all_meetings_workshops_attendance_${today}.xlsx`;
+      XLSX.writeFile(wb, filename);
+    } catch (e) {
+      console.error('Failed to download all attendance Excel', e);
+      alert('Failed to download Excel. Try again.');
+    } finally {
+      setDownloadingAllAttendanceExcel(false);
     }
   };
   // Fetch events for admin list
@@ -250,6 +413,19 @@ const AdminCreateEvent = () => {
       <Header userType="admin" isDarkMode={isDarkMode} toggleDarkMode={toggleDarkMode} />
       <div className="max-w-3xl mx-auto p-4 sm:p-8 bg-gradient-to-br from-blue-50 via-white to-purple-100 rounded-2xl shadow-2xl mt-10 border border-blue-100 mb-10">
         <h2 className="text-2xl sm:text-3xl font-extrabold mb-6 text-blue-800 tracking-tight drop-shadow">Create Meeting/Workshop</h2>
+
+        <div className="mb-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={handleDownloadAllMeetingsWorkshopsAttendanceExcel}
+            disabled={downloadingAllAttendanceExcel || loadingProfile || eventLoading}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-semibold shadow disabled:opacity-50"
+            title="Download Excel for all meetings/workshops attendance"
+          >
+            {downloadingAllAttendanceExcel ? 'Preparing Excel...' : 'Download All Attendance (Excel)'}
+          </button>
+        </div>
+
         <form onSubmit={handleSubmit} className="space-y-6 mb-10 bg-white rounded-xl shadow p-4 sm:p-6 border border-blue-100">
         <div>
           <label className="block mb-2 font-semibold text-blue-700">Title</label>

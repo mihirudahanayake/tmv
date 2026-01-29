@@ -17,7 +17,7 @@ import {
 import Header from '../components/Header';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { formatWorkDepartmentLabel } from '../constants/workDepartments';
-import { getWorkRolesForDepartment, normalizeRolesForDepartment } from '../constants/workRoles';
+import { getWorkRolesForDepartment, normalizeRolesForDepartment, formatWorkRoleLabel } from '../constants/workRoles';
 import { Roles } from '../utils/authz';
 
 const WorkList = () => {
@@ -124,56 +124,104 @@ const WorkList = () => {
   };
 
   const exportTasksToExcel = (rowsSource, filenameBase) => {
-    const rows = (rowsSource || []).map((task) => {
-      const derivedStatus = getDerivedStatus(task);
-      const userDetailsLocal = task.assignedUserDetails || [];
-      const assignedUsers = task.assignedUsers || userDetailsLocal.map((d) => d.userId);
+    // Per-user, per-task matrix (one row per user)
+    const normalizeDateKey = (value) => {
+      if (!value) return null;
+      const d = new Date(value);
+      if (Number.isNaN(d.getTime())) return null;
+      return new Date(d.getTime() - d.getTimezoneOffset() * 60000)
+        .toISOString()
+        .slice(0, 10);
+    };
 
-      const assignedUserNames = assignedUsers
-        .map((uid) => users[uid]?.name || 'Unknown')
-        .join(', ');
-      const assignedUserCards = assignedUsers
-        .map((uid) => users[uid]?.cardNumber || '')
-        .filter(Boolean)
-        .join(', ');
+    const getCompletionRolesForUser = (task, detailsRow) => {
+      const deptRoles = getWorkRolesForDepartment(task.department);
+      const stored = detailsRow?.roles || [];
 
-      const assignedRoles = userDetailsLocal
-        .map((d) => {
-          const name = users[d.userId]?.name || 'Unknown';
-          const roles = (d.roles || []).join(', ');
-          return roles ? `${name}: ${roles}` : `${name}`;
-        })
-        .join(' | ');
+      // single-role departments: keep compatibility with legacy stored roles
+      if (deptRoles.length === 1 && deptRoles[0] === 'done') {
+        if (stored.length && !stored.includes('done')) return stored;
+        return ['done'];
+      }
 
-      const assignedItems = (task.assignedItems || [])
-        .map((itemId) => {
-          const item = items[itemId];
-          if (!item) return '';
-          const label = item.itemName || 'Item';
-          const no = item.itemNo ? ` (${item.itemNo})` : '';
-          return `${label}${no}`;
-        })
-        .filter(Boolean)
-        .join(', ');
+      return normalizeRolesForDepartment(task.department, stored);
+    };
 
-      return {
-        'Task ID': task.id || '',
-        Department: formatWorkDepartmentLabel(task.department || department),
-        Title: task.title || '',
-        Description: task.description || '',
-        Date: formatDateForExport(task.date),
-        Deadline: formatDateForExport(task.deadline),
-        Status: derivedStatus,
-        'Assigned Users': assignedUserNames,
-        'Assigned Cards': assignedUserCards,
-        Roles: assignedRoles,
-        Items: assignedItems
-      };
+    const getUserCompletedRolesForTask = (task, userId) => {
+      const roleCompletion = task.roleCompletion || {};
+      const detailsRow = (task.assignedUserDetails || []).find(
+        (d) => d.userId === userId
+      );
+
+      // If no details row exists (legacy), assume department roles.
+      const roles = detailsRow
+        ? getCompletionRolesForUser(task, detailsRow)
+        : getWorkRolesForDepartment(task.department);
+
+      return (roles || []).filter(
+        (role) => roleCompletion[`${userId}_${role}`] === 'done'
+      );
+    };
+
+    const tasksSorted = [...(rowsSource || [])].sort((a, b) => {
+      const da = a?.date ? new Date(a.date).getTime() : a?.deadline ? new Date(a.deadline).getTime() : 0;
+      const dbt = b?.date ? new Date(b.date).getTime() : b?.deadline ? new Date(b.deadline).getTime() : 0;
+      return da - dbt;
     });
+
+    // Build unique column labels: "Title (dd/mm/yyyy)"
+    const usedLabels = new Map();
+    const taskColumns = tasksSorted.map((t) => {
+      const dateKey = normalizeDateKey(t.date || t.deadline);
+      const dateLabel = dateKey ? formatDateForExport(dateKey) : '';
+      const base = `${t.title || 'Work'}${dateLabel ? ` (${dateLabel})` : ''}`;
+      const count = (usedLabels.get(base) || 0) + 1;
+      usedLabels.set(base, count);
+      const label = count === 1 ? base : `${base} #${count}`;
+      return { id: t.id, task: t, label };
+    });
+
+    const usersForRows = Object.entries(users || {}).map(([id, data]) => ({
+      id,
+      ...(data || {})
+    }));
+
+    const rows = usersForRows
+      .sort(
+        (a, b) =>
+          (a.registrationNumber || '').localeCompare(b.registrationNumber || '') ||
+          (a.name || '').localeCompare(b.name || '')
+      )
+      .map((u) => {
+        const userDepartments = Array.isArray(u.departments)
+          ? u.departments.filter(Boolean).join(', ')
+          : u.department || '';
+
+        const row = {
+          'Registration Number': u.registrationNumber || '',
+          Name: u.name || '',
+          Card: u.cardNumber || '',
+          'Department(s)': userDepartments,
+        };
+
+        let totalWorks = 0;
+
+        taskColumns.forEach(({ task, label }) => {
+          const completedRoles = getUserCompletedRolesForTask(task, u.id);
+          const cellText = completedRoles.length
+            ? completedRoles.map(formatWorkRoleLabel).join(', ')
+            : '';
+          row[label] = cellText;
+          if (cellText) totalWorks += 1;
+        });
+
+        row['Total Works'] = totalWorks;
+        return row;
+      });
 
     const sheet = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, sheet, 'WorkList');
+    XLSX.utils.book_append_sheet(wb, sheet, 'Users');
 
     const today = new Date().toISOString().slice(0, 10);
     const safeDept = String(department || 'department').replace(/[^a-z0-9_-]/gi, '_');
