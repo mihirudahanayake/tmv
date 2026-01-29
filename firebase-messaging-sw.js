@@ -15,10 +15,20 @@ messaging.onBackgroundMessage((payload) => {
   console.log('[firebase-messaging-sw.js] background message ', payload);
 
   const notificationTitle = payload.notification?.title || 'Task update';
+  const url = payload?.data?.url;
   const notificationOptions = {
     body: payload.notification?.body || '',
-    icon: '/icon-192.png'   // put an icon image in public/
+    icon: '/icon-192.png',   // put an icon image in public/
+    data: url ? { url } : undefined,
   };
 
   self.registration.showNotification(notificationTitle, notificationOptions);
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = event.notification?.data?.url;
+  if (url) {
+    event.waitUntil(clients.openWindow(url));
+  }
 });
