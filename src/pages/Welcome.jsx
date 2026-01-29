@@ -5,6 +5,8 @@ import { FaSun, FaMoon } from 'react-icons/fa';
 const Welcome = () => {
   const navigate = useNavigate();
   const { isDarkMode, toggleDarkMode } = useDarkMode();
+  const currentYear = new Date().getFullYear();
+  const copyrightSymbol = '\u00A9';
 
   return (
     <div className={`min-h-screen transition-colors duration-300 flex items-center justify-center px-4 py-8 overflow-hidden ${
@@ -132,7 +134,7 @@ const Welcome = () => {
         <div className={`text-center mt-8 text-xs animate-fade-in ${
           isDarkMode ? 'text-gray-500' : 'text-gray-600'
         }`} style={{ animationDelay: '1.2s' }}>
-          © 2026 User Management System
+          {copyrightSymbol} {currentYear} Media Management System
         </div>
       </div>
     </div>
