@@ -528,11 +528,11 @@ if (emails.length > 0) {
       text:
         `You have been assigned to the work "${task.title}".\n\n` +
         linesText.join('\n') +
-        `\n\nKindly review and confirm the work by visiting the Videography Manager website.`,
+        `\n\nKindly review and confirm the work by visiting the Media Manager website.`,
       html: `<p>Hello,</p>
         <p>You have been assigned a work. Please find the details below:</p>
         ${linesHtml.join('')}
-        <p>Kindly review and confirm the work by visiting the <a href="https://tmv.fotmv.online/">Videography Manager</a> Website</p>
+        <p>Kindly review and confirm the work by visiting the <a href="https://tmv.fotmv.online/">Media Manager</a> Website</p>
         <p>If you encounter any issues or need further assistance, feel free to contact me.</p>
         <p>Thank you.</p>
         <p>Best regards,</p>
@@ -552,7 +552,7 @@ if (phones.length > 0) {
     `Hello!\n\n` +
     `You have been assigned to a work:\n\n` +
     messageContent.lines.join('\n') +
-    `\n\nKindly review and confirm the work by visiting the Videography Manager website: https://tmv.fotmv.online/\n\n` +
+    `\n\nKindly review and confirm the work by visiting the Media Manager website: https://tmv.fotmv.online/\n\n` +
     `If you encounter any issues, feel free to contact me.\n\n` +
     `Best regards,\n` +
     `Mihiru Dahanayake\n` +

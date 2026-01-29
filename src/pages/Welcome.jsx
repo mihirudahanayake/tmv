@@ -60,7 +60,7 @@ const Welcome = () => {
           <div className="text-center space-y-3">
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 mb-4 animate-pulse-glow relative">
               <div className="absolute inset-0 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 animate-spin-slow opacity-75"></div>
-              <span className="text-white font-bold text-2xl relative z-10">TMV</span>
+              <span className="text-white font-bold text-2xl relative z-10">TMS</span>
             </div>
             {/* New Year Wish */}
             {/* <div className={`mt-2 mb-4 text-xl font-bold flex flex-col items-center gap-2 ${isDarkMode ? 'text-yellow-200' : 'text-yellow-600'}`}>
