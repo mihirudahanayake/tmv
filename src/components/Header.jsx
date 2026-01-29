@@ -19,7 +19,8 @@ const Header = ({ userType, isDarkMode, toggleDarkMode }) => {
   const location = useLocation();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  const isActive = (path) => location.pathname === path;
+  const isActive = (path) =>
+    location.pathname === path || location.pathname.startsWith(`${path}/`);
 
   const homePath =
     userType === 'admin'
@@ -33,21 +34,28 @@ const Header = ({ userType, isDarkMode, toggleDarkMode }) => {
 
   const navItems = [
     { path: homePath, label: 'Home', icon: <FaHome /> },
-    { path: '/profile', label: 'Profile', icon: <FaUser /> },
     // Only show My Meetings / Workshops for users
     ...(userType === 'user' ? [
       { path: '/my-meetings', label: 'My Meetings / Workshops', icon: <FaCalendarAlt /> },
       { path: '/task-history', label: 'Task History', icon: <FaHistory /> },
-      { path: '/user-reject-details', label: 'My Rejections', icon: <FaTimes /> }
-    ] : [])
+      { path: '/user-reject-details', label: 'My Rejections', icon: <FaTimes /> },
+      { path: '/profile', label: 'Profile', icon: <FaUser /> },
+      { path: '/user/notifications', label: 'Notifications', icon: <FaBell /> }
+    ] : [
+      { path: '/profile', label: 'Profile', icon: <FaUser /> }
+    ])
   ];
 
   if (userType === 'admin') {
+    // Keep Profile right before notifications (same UX ordering as user).
+    const profileIndex = navItems.findIndex((i) => i.path === '/profile');
+    if (profileIndex !== -1) navItems.splice(profileIndex, 1);
+
     navItems.push(
       { path: '/manage-users', label: 'Manage Users', icon: <FaUserPlus /> },
-      { path: '/assign-work', label: 'Assign Work', icon: <FaTasks /> },
       { path: '/work-list', label: 'Work List', icon: <FaList /> },
       { path: '/inventory', label: 'Inventory', icon: <FaBox /> },
+      { path: '/profile', label: 'Profile', icon: <FaUser /> },
       { path: '/notifications', label: 'Notification History', icon: <FaBell /> }
     );
   }

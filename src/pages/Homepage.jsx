@@ -8,7 +8,7 @@ import {
   doc,
   updateDoc,
 } from 'firebase/firestore';
-import { FaUserPlus, FaTasks, FaCalendarAlt } from 'react-icons/fa';
+import { FaUserPlus, FaTasks, FaCalendarAlt, FaPaperPlane } from 'react-icons/fa';
 import { FaRegHandshake } from 'react-icons/fa6';
 import Header from '../components/Header';
 import { db } from '../firebase/config';
@@ -129,29 +129,16 @@ const Homepage = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
 
-
-            {/* Work list */}
-            <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-xl transition">
-              <div className="flex items-center gap-3 mb-4">
-                <FaTasks className="text-3xl sm:text-4xl text-blue-600" />
-                <h3 className="text-lg sm:text-xl font-semibold text-blue-600">
-                  Work List
-                </h3>
-              </div>
-              <p className="text-gray-600 mb-4 text-sm sm:text-base">
-                View all works, see user acceptance and progress, and manage
-                task status.
-              </p>
-              <button
-                onClick={() => navigate('/work-list')}
-                className="w-full bg-blue-600 text-white py-2 sm:py-3 px-4 rounded hover:bg-blue-700 transition font-medium"
-              >
-                Go to Work List
-              </button>
-            </div>
-
             {/* Work Assignment */}
-            <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-xl transition">
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => navigate('/assign-work')}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') navigate('/assign-work');
+              }}
+              className="bg-white rounded-lg shadow-md p-6 hover:shadow-xl transition cursor-pointer"
+            >
               <div className="flex items-center gap-3 mb-4">
                 <FaUserPlus className="text-3xl sm:text-4xl text-green-600" />
                 <h3 className="text-lg sm:text-xl font-semibold text-green-600">
@@ -161,16 +148,60 @@ const Homepage = () => {
               <p className="text-gray-600 mb-4 text-sm sm:text-base">
                 Create new work projects and assign team members to tasks.
               </p>
-              <button
-                onClick={() => navigate('/assign-work')}
-                className="w-full bg-green-600 text-white py-2 sm:py-3 px-4 rounded hover:bg-green-700 transition font-medium"
-              >
-                Go to Work Assignment
-              </button>
+            </div>
+
+            {/* Create Meeting/Workshop (moved, new color/icon) */}
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => navigate('/admin-create-event')}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') navigate('/admin-create-event');
+              }}
+              className="bg-white rounded-lg shadow-md p-6 hover:shadow-xl transition cursor-pointer"
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <FaRegHandshake className="text-3xl sm:text-4xl text-teal-600" />
+                <h3 className="text-lg sm:text-xl font-semibold text-teal-600">
+                  Create Meeting/Workshop
+                </h3>
+              </div>
+              <p className="text-gray-600 mb-4 text-sm sm:text-base">
+                Schedule a new meeting or workshop and set the location for attendance.
+              </p>
+            </div>
+
+            {/* Send Notifications */}
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => navigate('/admin/notifications')}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') navigate('/admin/notifications');
+              }}
+              className="bg-white rounded-lg shadow-md p-6 hover:shadow-xl transition cursor-pointer"
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <FaPaperPlane className="text-3xl sm:text-4xl text-orange-500" />
+                <h3 className="text-lg sm:text-xl font-semibold text-orange-500">
+                  Send Notifications
+                </h3>
+              </div>
+              <p className="text-gray-600 mb-4 text-sm sm:text-base">
+                Send announcements or messages to all members or selected users.
+              </p>
             </div>
 
             {/* Schedule Posting */}
-            <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-xl transition">
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => navigate('/posting-dates')}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') navigate('/posting-dates');
+              }}
+              className="bg-white rounded-lg shadow-md p-6 hover:shadow-xl transition cursor-pointer"
+            >
               <div className="flex items-center gap-3 mb-4">
                 <FaCalendarAlt className="text-3xl sm:text-4xl text-purple-600" />
                 <h3 className="text-lg sm:text-xl font-semibold text-purple-600">
@@ -181,50 +212,6 @@ const Homepage = () => {
                 Set posting dates, mark videos as posted, and view the posting
                 queue.
               </p>
-              <button
-                onClick={() => navigate('/posting-dates')}
-                className="w-full bg-purple-600 text-white py-2 sm:py-3 px-4 rounded hover:bg-purple-700 transition font-medium"
-              >
-                Go to Schedule Posting
-              </button>
-            </div>
-
-            {/* Create Meeting/Workshop (moved, new color/icon) */}
-            <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-xl transition">
-              <div className="flex items-center gap-3 mb-4">
-                <FaRegHandshake className="text-3xl sm:text-4xl text-teal-600" />
-                <h3 className="text-lg sm:text-xl font-semibold text-teal-600">
-                  Create Meeting/Workshop
-                </h3>
-              </div>
-              <p className="text-gray-600 mb-4 text-sm sm:text-base">
-                Schedule a new meeting or workshop and set the location for attendance.
-              </p>
-              <button
-                onClick={() => navigate('/admin-create-event')}
-                className="w-full bg-teal-600 text-white py-2 sm:py-3 px-4 rounded hover:bg-teal-700 transition font-medium"
-              >
-                Create Meeting/Workshop
-              </button>
-            </div>
-
-            {/* Send Notifications */}
-            <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-xl transition">
-              <div className="flex items-center gap-3 mb-4">
-                <FaTasks className="text-3xl sm:text-4xl text-orange-500" />
-                <h3 className="text-lg sm:text-xl font-semibold text-orange-500">
-                  Send Notifications
-                </h3>
-              </div>
-              <p className="text-gray-600 mb-4 text-sm sm:text-base">
-                Send announcements or messages to all members or selected users.
-              </p>
-              <button
-                onClick={() => navigate('/admin/notifications')}
-                className="w-full bg-orange-500 text-white py-2 sm:py-3 px-4 rounded hover:bg-orange-600 transition font-medium"
-              >
-                Go to Send Notifications
-              </button>
             </div>
           </div>
         </div>
