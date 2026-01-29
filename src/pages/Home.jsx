@@ -29,6 +29,11 @@ import {
 import { useDarkMode } from '../context/DarkModeContext';
 import { useIdleLogout } from '../hooks/useIdleLogout';
 import { useNavigate } from 'react-router-dom';
+import {
+  getWorkRolesForDepartment,
+  normalizeRolesForDepartment,
+  formatWorkRoleLabel,
+} from '../constants/workRoles';
 
 // --- Meetings/Workshops for user ---
 // (Place this inside the Home component, after all imports)
@@ -307,48 +312,106 @@ const Home = () => {
   };
 
   // roles helpers
-  const getUserRoles = (task) => {
+  const getStoredUserRoles = (task) => {
     if (!user) return [];
     const details = task.assignedUserDetails || [];
     const mine = details.find((d) => d.userId === user.uid);
     return mine?.roles || [];
   };
 
+  // Roles to use for completion checks.
+  // For single-role departments, this keeps backward compatibility:
+  // - if legacy tasks stored multiple roles, we still require/toggle all of them.
+  const getCompletionRoles = (task) => {
+    if (!user) return [];
+    const deptRoles = getWorkRolesForDepartment(task.department);
+    const stored = getStoredUserRoles(task);
+
+    if (deptRoles.length === 1 && deptRoles[0] === 'done') {
+      if (stored.length && !stored.includes('done')) return stored;
+      return ['done'];
+    }
+
+    return normalizeRolesForDepartment(task.department, stored);
+  };
+
+  // Roles to show in UI.
+  // For single-role departments, always show just one "Done" button.
+  const getUserRoles = (task) => {
+    const deptRoles = getWorkRolesForDepartment(task.department);
+    if (deptRoles.length === 1 && deptRoles[0] === 'done') return ['done'];
+    return normalizeRolesForDepartment(task.department, getStoredUserRoles(task));
+  };
+
   const isRoleDone = (task, role) => {
-    const key = `${user.uid}_${role}`;
-    return (task.roleCompletion || {})[key] === 'done';
+    if (!user) return false;
+    const roleCompletion = task.roleCompletion || {};
+
+    if (role === 'done') {
+      const completionRoles = getCompletionRoles(task);
+      if (!completionRoles.length) return false;
+      return completionRoles.every(
+        (r) => roleCompletion[`${user.uid}_${r}`] === 'done'
+      );
+    }
+
+    return roleCompletion[`${user.uid}_${role}`] === 'done';
   };
 
   const allRolesDone = (task) => {
-    const roles = getUserRoles(task);
-    if (!roles.length) return false;
-    return roles.every((r) => isRoleDone(task, r));
+    const completionRoles = getCompletionRoles(task);
+    if (!completionRoles.length) return false;
+    const roleCompletion = task.roleCompletion || {};
+    return completionRoles.every(
+      (r) => roleCompletion[`${user.uid}_${r}`] === 'done'
+    );
   };
 
   // TOGGLE ROLE + done / undo-done notifications
   const handleToggleRole = async (task, role) => {
     if (statusOf(task) === 'complete') return;
 
-    const key = `${user.uid}_${role}`;
     const roleCompletion = task.roleCompletion || {};
-    const isDone = roleCompletion[key] === 'done';
-
-    const nextCompletion = { ...roleCompletion };
-    if (isDone) {
-      delete nextCompletion[key];
-    } else {
-      nextCompletion[key] = 'done';
-    }
-
-    const roles = getUserRoles(task);
-    const allDoneNow =
-      roles.length > 0 &&
-      roles.every((r) => nextCompletion[`${user.uid}_${r}`] === 'done');
+    const completionRoles = getCompletionRoles(task);
 
     const allDoneBefore =
-      roles.length > 0 &&
-      roles.every(
-        (r) => (task.roleCompletion || {})[`${user.uid}_${r}`] === 'done'
+      completionRoles.length > 0 &&
+      completionRoles.every(
+        (r) => roleCompletion[`${user.uid}_${r}`] === 'done'
+      );
+
+    const nextCompletion = { ...roleCompletion };
+
+    const deptRoles = getWorkRolesForDepartment(task.department);
+    const isSingleDoneDept = deptRoles.length === 1 && deptRoles[0] === 'done';
+
+    if (isSingleDoneDept && role === 'done') {
+      if (allDoneBefore) {
+        completionRoles.forEach((r) => {
+          delete nextCompletion[`${user.uid}_${r}`];
+        });
+        delete nextCompletion[`${user.uid}_done`];
+      } else {
+        completionRoles.forEach((r) => {
+          nextCompletion[`${user.uid}_${r}`] = 'done';
+        });
+        // also set explicit done key for consistency going forward
+        nextCompletion[`${user.uid}_done`] = 'done';
+      }
+    } else {
+      const key = `${user.uid}_${role}`;
+      const isDone = roleCompletion[key] === 'done';
+      if (isDone) {
+        delete nextCompletion[key];
+      } else {
+        nextCompletion[key] = 'done';
+      }
+    }
+
+    const allDoneNow =
+      completionRoles.length > 0 &&
+      completionRoles.every(
+        (r) => nextCompletion[`${user.uid}_${r}`] === 'done'
       );
 
     try {
@@ -864,6 +927,7 @@ const renderTeamMembers = (task) => {
                           <div className="flex flex-wrap gap-2">
                             {roles.map((role) => {
                               const done = isRoleDone(task, role);
+                              const label = formatWorkRoleLabel(role);
                               return (
                                 <button
                                   key={role}
@@ -880,12 +944,12 @@ const renderTeamMembers = (task) => {
                                   {done ? (
                                     <>
                                       <FaUndo />
-                                      Undo {role}
+                                      Undo {label}
                                     </>
                                   ) : (
                                     <>
                                       <FaCheck />
-                                      Mark {role} as done
+                                      {role === 'done' ? label : `Mark ${label} as done`}
                                     </>
                                   )}
                                 </button>
@@ -966,7 +1030,7 @@ const renderTeamMembers = (task) => {
                               className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold bg-green-100 text-green-800 hover:bg-green-200 transition"
                             >
                               <FaUndo className="text-xs" />
-                              Undo {role}
+                              Undo {formatWorkRoleLabel(role)}
                             </button>
                           ))}
                         </div>

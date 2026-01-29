@@ -17,6 +17,7 @@ import {
 import Header from '../components/Header';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { formatWorkDepartmentLabel } from '../constants/workDepartments';
+import { getWorkRolesForDepartment, normalizeRolesForDepartment } from '../constants/workRoles';
 
 const WorkList = () => {
   const { profile, loading: loadingProfile } = useUserProfile();
@@ -229,8 +230,21 @@ const WorkList = () => {
     );
     if (!allAccepted) return 'pending';
 
+    const getCompletionRolesForUser = (detailsRow) => {
+      const deptRoles = getWorkRolesForDepartment(task.department);
+      const stored = detailsRow?.roles || [];
+
+      // single-role departments: keep compatibility with legacy stored roles
+      if (deptRoles.length === 1 && deptRoles[0] === 'done') {
+        if (stored.length && !stored.includes('done')) return stored;
+        return ['done'];
+      }
+
+      return normalizeRolesForDepartment(task.department, stored);
+    };
+
     const allRolesDone = userDetails.every((d) =>
-      (d.roles || []).every(
+      getCompletionRolesForUser(d).every(
         (role) => roleCompletion[`${d.userId}_${role}`] === 'done'
       )
     );

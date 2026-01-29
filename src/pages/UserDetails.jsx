@@ -5,6 +5,11 @@ import { db } from '../firebase/config';
 import Header from '../components/Header';
 import { FaCalendarAlt, FaSpinner, FaCheck } from 'react-icons/fa';
 import { useUserProfile } from '../hooks/useUserProfile';
+import {
+  getWorkRolesForDepartment,
+  normalizeRolesForDepartment,
+  formatWorkRoleLabel,
+} from '../constants/workRoles';
 
 
 const UserDetails = () => {
@@ -72,15 +77,42 @@ const UserDetails = () => {
     load();
   }, [userId, loadingProfile, profile]);
 
-  const getUserRoles = (work) => {
+  const getStoredUserRoles = (work) => {
     const details = work.assignedUserDetails || [];
     const mine = details.find((d) => d.userId === userId);
     return mine?.roles || [];
   };
 
+  const getCompletionRoles = (work) => {
+    const deptRoles = getWorkRolesForDepartment(work.department);
+    const stored = getStoredUserRoles(work);
+
+    if (deptRoles.length === 1 && deptRoles[0] === 'done') {
+      if (stored.length && !stored.includes('done')) return stored;
+      return ['done'];
+    }
+
+    return normalizeRolesForDepartment(work.department, stored);
+  };
+
+  const getUserRoles = (work) => {
+    const deptRoles = getWorkRolesForDepartment(work.department);
+    if (deptRoles.length === 1 && deptRoles[0] === 'done') return ['done'];
+    return normalizeRolesForDepartment(work.department, getStoredUserRoles(work));
+  };
+
   const isRoleDone = (work, role) => {
-    const key = `${userId}_${role}`;
-    return (work.roleCompletion || {})[key] === 'done';
+    const roleCompletion = work.roleCompletion || {};
+
+    if (role === 'done') {
+      const completionRoles = getCompletionRoles(work);
+      if (!completionRoles.length) return false;
+      return completionRoles.every(
+        (r) => roleCompletion[`${userId}_${r}`] === 'done'
+      );
+    }
+
+    return roleCompletion[`${userId}_${role}`] === 'done';
   };
 
   return (
@@ -233,7 +265,7 @@ const UserDetails = () => {
                                   {done && (
                                     <FaCheck className="text-xs" />
                                   )}
-                                  {role}
+                                  {formatWorkRoleLabel(role)}
                                 </span>
                               );
                             })}
