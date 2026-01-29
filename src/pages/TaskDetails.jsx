@@ -17,8 +17,12 @@ import { db } from '../firebase/config';
 import Header from '../components/Header';
 import { FaCalendarAlt, FaSpinner, FaTrash, FaBox, FaSearch, FaUsers } from 'react-icons/fa';
 import { fanOutUserNotifications } from '../utils/fanOutUserNotifications';
-
-const WORK_ROLES = ['videography', 'editing'];
+import {
+  getWorkRolesForDepartment,
+  getDefaultRolesForDepartment,
+  normalizeRolesForDepartment,
+  formatWorkRoleLabel,
+} from '../constants/workRoles';
 
 const TaskDetails = () => {
   const { taskId } = useParams();
@@ -37,6 +41,10 @@ const TaskDetails = () => {
   const [success, setSuccess] = useState('');
   const [itemSearch, setItemSearch] = useState('');
   const [userSearch, setUserSearch] = useState(''); // New user search state
+
+  const currentDepartment = task?.department || 'videography';
+  const workRoles = getWorkRolesForDepartment(currentDepartment);
+  const hasMultipleRoles = workRoles.length > 1;
 
   useEffect(() => {
     const load = async () => {
@@ -357,7 +365,8 @@ const TaskDetails = () => {
             const roleText = roles[r];
             const key = `${u.id}_${roleText}`;
             const isCompleted = roleCompletion[key] === 'done';
-            const displayText = isCompleted ? `✓ ${roleText}` : roleText;
+            const label = formatWorkRoleLabel(roleText);
+            const displayText = isCompleted ? `✓ ${label}` : label;
             const bw = ctx.measureText(displayText).width + 20;
             ctx.fillStyle = isCompleted ? '#d1fae5' : '#f0f0f0';
             ctx.fillRect(bx, by, bw, 36);
@@ -395,13 +404,14 @@ const TaskDetails = () => {
     } else {
       setAssignedUserDetails((prev) => [
         ...prev,
-        { userId: uid, roles: ['videography'] }
+        { userId: uid, roles: getDefaultRolesForDepartment(currentDepartment) }
       ]);
     }
   };
 
   const handleToggleRole = (uid, role) => {
     if (!editing) return;
+    if (!hasMultipleRoles) return;
     setAssignedUserDetails((prev) =>
       prev.map((item) => {
         if (item.userId !== uid) return item;
@@ -446,15 +456,20 @@ const handleSave = async (e) => {
     try {
       const { id, ...rest } = task;
 
+      const normalizedAssignedUserDetails = (assignedUserDetails || []).map((u) => ({
+        ...u,
+        roles: normalizeRolesForDepartment(currentDepartment, u.roles),
+      }));
+
       // old assigned users before edit
       const oldUserIds = task.assignedUsers || [];
       // new assigned users after edit
-      const newUserIds = assignedUserDetails.map((u) => u.userId);
+      const newUserIds = normalizedAssignedUserDetails.map((u) => u.userId);
 
       await updateDoc(doc(db, 'works', task.id), {
         ...rest,
         assignedUsers: newUserIds,
-        assignedUserDetails,
+        assignedUserDetails: normalizedAssignedUserDetails,
         assignedItems
       });
 
@@ -739,26 +754,7 @@ if (phones.length > 0) {
             {error}
           </div>
         )}
-        {success && (
-          <div className="mb-3 p-2 rounded bg-green-100 text-green-700 text-sm">
-            {success}
-          </div>
-        )}
-
-        <form className="space-y-4" onSubmit={handleSave}>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">
-              Title
-            </label>
-            <input
-              type="text"
-              name="title"
-              value={task.title || ''}
-              onChange={handleFieldChange}
-              disabled={!editing}
-              className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
+        <form onSubmit={handleSave} className="space-y-4">
 
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1">
@@ -871,21 +867,27 @@ if (phones.length > 0) {
 
                       {assigned && (
                         <div className="mt-1 ml-7 flex flex-wrap gap-2 text-xs sm:text-sm">
-                          {WORK_ROLES.map((role) => (
-                            <button
-                              key={role}
-                              type="button"
-                              onClick={() => handleToggleRole(u.id, role)}
-                              disabled={!editing}
-                              className={`px-2 py-1 rounded border ${
-                                roles.includes(role)
-                                  ? 'bg-green-600 text-white border-green-600'
-                                  : 'bg-white text-gray-700 border-gray-300'
-                              } ${!editing ? 'cursor-default' : 'cursor-pointer'}`}
-                            >
-                              {role}
-                            </button>
-                          ))}
+                          {hasMultipleRoles ? (
+                            workRoles.map((role) => (
+                              <button
+                                key={role}
+                                type="button"
+                                onClick={() => handleToggleRole(u.id, role)}
+                                disabled={!editing}
+                                className={`px-2 py-1 rounded border ${
+                                  roles.includes(role)
+                                    ? 'bg-green-600 text-white border-green-600'
+                                    : 'bg-white text-gray-700 border-gray-300'
+                                } ${!editing ? 'cursor-default' : 'cursor-pointer'}`}
+                              >
+                                {formatWorkRoleLabel(role)}
+                              </button>
+                            ))
+                          ) : (
+                            <span className="px-2 py-1 rounded border bg-gray-50 text-gray-700 border-gray-200">
+                              {formatWorkRoleLabel(workRoles[0] || 'done')}
+                            </span>
+                          )}
                         </div>
                       )}
                     </div>

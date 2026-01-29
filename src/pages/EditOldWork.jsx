@@ -11,8 +11,12 @@ import {
   FaSearch,
   FaBox
 } from 'react-icons/fa';
-
-const WORK_ROLES = ['videography', 'editing'];
+import {
+  getWorkRolesForDepartment,
+  getDefaultRolesForDepartment,
+  normalizeRolesForDepartment,
+  formatWorkRoleLabel,
+} from '../constants/workRoles';
 
 const EditOldWork = () => {
   const { id } = useParams();
@@ -26,6 +30,10 @@ const EditOldWork = () => {
   const [itemsError, setItemsError] = useState('');
   const [userSearch, setUserSearch] = useState('');
   const [itemSearch, setItemSearch] = useState('');
+
+  const currentDepartment = formData?.department || 'videography';
+  const workRoles = getWorkRolesForDepartment(currentDepartment);
+  const hasMultipleRoles = workRoles.length > 1;
     useEffect(() => {
       // fetch items for selectors
       const fetchItems = async () => {
@@ -83,13 +91,14 @@ const EditOldWork = () => {
         }
         return {
           ...prev,
-          assignedUserDetails: [ ...(prev.assignedUserDetails || []), { userId, roles: ['videography'] } ],
+          assignedUserDetails: [ ...(prev.assignedUserDetails || []), { userId, roles: getDefaultRolesForDepartment(currentDepartment) } ],
           assignedUsers: [ ...(prev.assignedUsers || []), userId ]
         };
       });
     };
 
     const handleUserRoleToggle = (userId, role) => {
+      if (!hasMultipleRoles) return;
       setFormData((prev) => {
         const next = (prev.assignedUserDetails || []).map((item) => {
           if (item.userId !== userId) return item;
@@ -300,18 +309,25 @@ const EditOldWork = () => {
                               </p>
                             </div>
                           </label>
+
                           {selected && (
                             <div className="mt-1 ml-7 flex flex-wrap gap-2 text-xs sm:text-sm">
-                              {WORK_ROLES.map((role) => (
-                                <button
-                                  key={role}
-                                  type="button"
-                                  onClick={() => handleUserRoleToggle(user.id, role)}
-                                  className={`px-2 py-1 rounded border ${roles.includes(role) ? 'bg-green-600 text-white border-green-600' : 'bg-white text-gray-700 border-gray-300'}`}
-                                >
-                                  {role}
-                                </button>
-                              ))}
+                              {hasMultipleRoles ? (
+                                workRoles.map((role) => (
+                                  <button
+                                    key={role}
+                                    type="button"
+                                    onClick={() => handleUserRoleToggle(user.id, role)}
+                                    className={`px-2 py-1 rounded border ${roles.includes(role) ? 'bg-green-600 text-white border-green-600' : 'bg-white text-gray-700 border-gray-300'}`}
+                                  >
+                                    {formatWorkRoleLabel(role)}
+                                  </button>
+                                ))
+                              ) : (
+                                <span className="px-2 py-1 rounded border bg-gray-50 text-gray-700 border-gray-200">
+                                  {formatWorkRoleLabel(workRoles[0] || 'done')}
+                                </span>
+                              )}
                             </div>
                           )}
                         </div>

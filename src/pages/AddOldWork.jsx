@@ -16,8 +16,6 @@ import {
   FaBox
 } from 'react-icons/fa';
 
-const WORK_ROLES = ['videography', 'editing'];
-
 const AddOldWork = () => {
   const { profile, loading: loadingProfile } = useUserProfile();
   const [users, setUsers] = useState([]);
@@ -37,6 +35,9 @@ const AddOldWork = () => {
   const [userSearch, setUserSearch] = useState('');
   const [itemSearch, setItemSearch] = useState('');
   const navigate = useNavigate();
+
+  const workRoles = getWorkRolesForDepartment(department);
+  const hasMultipleRoles = workRoles.length > 1;
 
   useEffect(() => {
     if (!loadingProfile && profile?.managedDepartments?.length) {
@@ -101,6 +102,9 @@ const AddOldWork = () => {
   };
 
   const handleUserRoleToggle = (userId, role) => {
+    const allowedRoles = getWorkRolesForDepartment(department);
+    if (allowedRoles.length === 1) return;
+
     setFormData((prev) => {
       const next = prev.assignedUsers.map((item) => {
         if (item.userId !== userId) return item;
@@ -129,6 +133,11 @@ const AddOldWork = () => {
     setMessage('');
     // date, deadline, and description are now optional
     try {
+      const normalizedAssignedUsers = (formData.assignedUsers || []).map((u) => ({
+        ...u,
+        roles: normalizeRolesForDepartment(department, u.roles),
+      }));
+
       const workRef = await addDoc(collection(db, 'works'), {
         title: formData.title,
         description: formData.description,
@@ -136,14 +145,14 @@ const AddOldWork = () => {
         deadline: formData.deadline || null,
         dateType,
         department,
-        assignedUsers: formData.assignedUsers.map((u) => u.userId),
-        assignedUserDetails: formData.assignedUsers,
+        assignedUsers: normalizedAssignedUsers.map((u) => u.userId),
+        assignedUserDetails: normalizedAssignedUsers,
         assignedItems: formData.assignedItems,
         status: 'old work', // 'old work' is now a status type
         createdAt: new Date().toISOString(),
       });
 
-      const assignedUserIds = formData.assignedUsers.map((u) => u.userId);
+      const assignedUserIds = normalizedAssignedUsers.map((u) => u.userId);
       await fanOutUserNotifications(db, assignedUserIds, {
         type: 'task-assigned',
         source: 'admin',
@@ -338,16 +347,22 @@ const AddOldWork = () => {
                           </label>
                           {selected && (
                             <div className="mt-1 ml-7 flex flex-wrap gap-2 text-xs sm:text-sm">
-                              {WORK_ROLES.map((role) => (
-                                <button
-                                  key={role}
-                                  type="button"
-                                  onClick={() => handleUserRoleToggle(user.id, role)}
-                                  className={`px-2 py-1 rounded border ${roles.includes(role) ? 'bg-green-600 text-white border-green-600' : 'bg-white text-gray-700 border-gray-300'}`}
-                                >
-                                  {role}
-                                </button>
-                              ))}
+                              {hasMultipleRoles ? (
+                                workRoles.map((role) => (
+                                  <button
+                                    key={role}
+                                    type="button"
+                                    onClick={() => handleUserRoleToggle(user.id, role)}
+                                    className={`px-2 py-1 rounded border ${roles.includes(role) ? 'bg-green-600 text-white border-green-600' : 'bg-white text-gray-700 border-gray-300'}`}
+                                  >
+                                    {formatWorkRoleLabel(role)}
+                                  </button>
+                                ))
+                              ) : (
+                                <span className="px-2 py-1 rounded border bg-gray-50 text-gray-700 border-gray-200">
+                                  {formatWorkRoleLabel(workRoles[0] || 'done')}
+                                </span>
+                              )}
                             </div>
                           )}
                         </div>
