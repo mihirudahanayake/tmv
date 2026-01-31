@@ -60,7 +60,7 @@ const AdminCreateEvent = () => {
   const [longitude, setLongitude] = useState('');
   const [locationName, setLocationName] = useState('');
   const [dateTime, setDateTime] = useState('');
-  const [needInPlace, setNeedInPlace] = useState(true);
+  const [needInPlace, setNeedInPlace] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -72,7 +72,7 @@ const AdminCreateEvent = () => {
   const [editLng, setEditLng] = useState('');
   const [editLocationName, setEditLocationName] = useState('');
   const [editDateTime, setEditDateTime] = useState('');
-  const [editNeedInPlace, setEditNeedInPlace] = useState(true);
+  const [editNeedInPlace, setEditNeedInPlace] = useState(false);
   const [eventLoading, setEventLoading] = useState(false);
   const [downloadingExcelId, setDownloadingExcelId] = useState(null);
   const [downloadingAllAttendanceExcel, setDownloadingAllAttendanceExcel] = useState(false);
@@ -217,93 +217,84 @@ const AdminCreateEvent = () => {
         return types.includes('meeting') || types.includes('workshop');
       });
 
-      // Collect all attendee ids across all events
-      const attendeeIds = new Set();
-      validEvents.forEach((ev) => {
-        Object.keys(ev.attendance || {}).forEach((uid) => attendeeIds.add(uid));
-      });
+      if (!validEvents.length) {
+        alert('No meetings/workshops found.');
+        return;
+      }
 
-      // Fetch user data for attendees (rules-safe)
-      const userMap = {};
-      await Promise.all(
-        Array.from(attendeeIds).map(async (uid) => {
-          try {
-            const snap = await getDoc(doc(db, 'users', uid));
-            if (snap.exists()) {
-              const data = snap.data();
-              userMap[uid] = {
-                name: data.name || uid,
-                registrationNumber: data.registrationNumber || '',
-              };
-              return;
-            }
-          } catch {
-            // ignore
-          }
-          userMap[uid] = { name: uid, registrationNumber: '' };
-        })
-      );
-
-      // Total attendance per user (count of events attended)
-      const totalAttendanceByUser = {};
-      validEvents.forEach((ev) => {
-        Object.keys(ev.attendance || {}).forEach((uid) => {
-          totalAttendanceByUser[uid] = (totalAttendanceByUser[uid] || 0) + 1;
-        });
-      });
-
-      const formatEventDate = (value) => {
-        if (!value) return '';
-        const d = new Date(value);
-        if (Number.isNaN(d.getTime())) return String(value);
-        return d.toLocaleString();
-      };
-
-      // Build rows: one row per attendance record
-      const rawRows = [];
-      validEvents
+      // Sort events by date so columns are in time order
+      const eventsSorted = validEvents
         .slice()
         .sort((a, b) => {
           const da = a?.dateTime ? new Date(a.dateTime).getTime() : 0;
           const dbt = b?.dateTime ? new Date(b.dateTime).getTime() : 0;
           return da - dbt;
-        })
-        .forEach((ev) => {
-          const dateText = formatEventDate(ev.dateTime);
-          Object.keys(ev.attendance || {}).forEach((uid) => {
-            rawRows.push({
-              _reg: userMap[uid]?.registrationNumber || '',
-              _name: userMap[uid]?.name || uid,
-              RegistrationNumber: userMap[uid]?.registrationNumber || '',
-              Name: userMap[uid]?.name || uid,
-              Title: ev.title || 'Event',
-              Date: dateText,
-              TotalAttendance: totalAttendanceByUser[uid] || 0,
-            });
-          });
         });
 
-      // Sort by reg number, then name, then date
-      rawRows.sort((a, b) => {
-        const regCmp = String(a._reg || '').localeCompare(String(b._reg || ''), undefined, {
-          numeric: true,
-          sensitivity: 'base',
-        });
-        if (regCmp !== 0) return regCmp;
-        const nameCmp = String(a._name || '').localeCompare(String(b._name || ''));
-        if (nameCmp !== 0) return nameCmp;
-        return String(a.Date || '').localeCompare(String(b.Date || ''));
+      const formatEventDateKey = (value) => {
+        if (!value) return '';
+        const d = new Date(value);
+        if (Number.isNaN(d.getTime())) return String(value);
+        return d.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      };
+
+      // Build unique column labels like: "Title (dd/mm/yyyy)"
+      const usedLabels = new Map();
+      const eventColumns = eventsSorted.map((ev) => {
+        const dateLabel = formatEventDateKey(ev.dateTime);
+        const base = `${ev.title || 'Event'}${dateLabel ? ` (${dateLabel})` : ''}`;
+        const count = (usedLabels.get(base) || 0) + 1;
+        usedLabels.set(base, count);
+        const label = count === 1 ? base : `${base} #${count}`;
+        return { id: ev.id, event: ev, label };
+      });
+
+      // Fetch users for rows: prefer all users, fallback to managed departments if rules block.
+      let usersForRows = [];
+      try {
+        const snap = await getDocs(collection(db, 'users'));
+        usersForRows = snap.docs
+          .map((d) => ({ id: d.id, ...d.data() }))
+          .filter((u) => (u.userType || 'user') === 'user');
+      } catch {
+        usersForRows = await fetchUsersInManagedDepts();
+      }
+
+      const attendeesByEvent = {};
+      eventColumns.forEach(({ event, id }) => {
+        const mapObj = event?.attendance || {};
+        attendeesByEvent[id] = new Set(Object.keys(mapObj));
       });
 
       const pad2 = (n) => String(n).padStart(2, '0');
-      const rows = rawRows.map((r, idx) => ({
-        No: pad2(idx + 1),
-        RegistrationNumber: r.RegistrationNumber,
-        Name: r.Name,
-        Title: r.Title,
-        Date: r.Date,
-        TotalAttendance: r.TotalAttendance,
-      }));
+
+      const rows = usersForRows
+        .slice()
+        .sort(
+          (a, b) =>
+            String(a.registrationNumber || '').localeCompare(String(b.registrationNumber || ''), undefined, {
+              numeric: true,
+              sensitivity: 'base',
+            }) || String(a.name || '').localeCompare(String(b.name || ''))
+        )
+        .map((u, idx) => {
+          const row = {
+            No: pad2(idx + 1),
+            RegistrationNumber: u.registrationNumber || '',
+            Name: u.name || '',
+          };
+
+          let total = 0;
+          eventColumns.forEach(({ id, label }) => {
+            const attended = attendeesByEvent[id]?.has(u.id);
+            const value = attended ? 1 : 0;
+            row[label] = value;
+            total += value;
+          });
+
+          row.TotalAttendance = total;
+          return row;
+        });
 
       const sheet = XLSX.utils.json_to_sheet(rows);
       const wb = XLSX.utils.book_new();
@@ -340,7 +331,7 @@ const AdminCreateEvent = () => {
     setEditLng(event.longitude);
     setEditLocationName(event.locationName || '');
     setEditDateTime(event.dateTime || '');
-    setEditNeedInPlace(event?.needInPlace !== false);
+    setEditNeedInPlace(event?.needInPlace === true);
   };
 
   const handleEdit = async (e) => {
@@ -409,7 +400,7 @@ const AdminCreateEvent = () => {
       setLongitude('');
       setLocationName('');
       setDateTime('');
-      setNeedInPlace(true);
+      setNeedInPlace(false);
     } catch (err) {
       setError('Failed to create event.');
     } finally {
@@ -421,14 +412,14 @@ const AdminCreateEvent = () => {
     <>
       <Header userType="admin" isDarkMode={isDarkMode} toggleDarkMode={toggleDarkMode} />
       <div className="max-w-3xl mx-auto p-4 sm:p-8 bg-gradient-to-br from-blue-50 via-white to-purple-100 rounded-2xl shadow-2xl mt-10 border border-blue-100 mb-10">
-        <h2 className="text-2xl sm:text-3xl font-extrabold mb-6 text-blue-800 tracking-tight drop-shadow">Create Meeting/Workshop</h2>
+        <h2 className="text-2xl sm:text-3xl font-extrabold mb-6 text-blue-800 tracking-tight drop-shadow">Meeting/Workshop</h2>
 
         <div className="mb-4 flex flex-wrap gap-2">
           <button
             type="button"
             onClick={handleDownloadAllMeetingsWorkshopsAttendanceExcel}
             disabled={downloadingAllAttendanceExcel || loadingProfile || eventLoading}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-semibold shadow disabled:opacity-50"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg text-sm sm:text-base font-semibold shadow disabled:opacity-50"
             title="Download Excel for all meetings/workshops attendance"
           >
             {downloadingAllAttendanceExcel ? 'Preparing Excel...' : 'Download All Attendance (Excel)'}
@@ -487,7 +478,7 @@ const AdminCreateEvent = () => {
           <div className="flex flex-col sm:flex-row gap-2">
             <input type="number" step="any" value={latitude} onChange={e => setLatitude(e.target.value)} placeholder="Latitude" required className="w-full sm:w-1/2 border border-blue-200 px-4 py-2 rounded-lg focus:ring-2 focus:ring-blue-400 focus:outline-none shadow-sm" />
             <input type="number" step="any" value={longitude} onChange={e => setLongitude(e.target.value)} placeholder="Longitude" required className="w-full sm:w-1/2 border border-blue-200 px-4 py-2 rounded-lg focus:ring-2 focus:ring-blue-400 focus:outline-none shadow-sm" />
-            <button type="button" onClick={handleGetLocation} className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-2 rounded-lg font-semibold shadow w-full sm:w-auto">Get My Location</button>
+            <button type="button" onClick={handleGetLocation} className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 sm:py-2 rounded-lg text-sm sm:text-base font-semibold shadow w-full sm:w-auto">Get My Location</button>
           </div>
         </div>
         {error && <div className="text-red-600 text-sm font-semibold">{error}</div>}
@@ -502,7 +493,7 @@ const AdminCreateEvent = () => {
             className="w-full border border-blue-200 px-4 py-2 rounded-lg focus:ring-2 focus:ring-blue-400 focus:outline-none shadow-sm"
           />
         </div>
-        <button type="submit" disabled={loading} className="bg-gradient-to-r from-green-500 to-blue-500 text-white px-6 py-3 rounded-lg w-full font-bold shadow-lg hover:from-green-600 hover:to-blue-600 transition-all">
+        <button type="submit" disabled={loading} className="bg-gradient-to-r from-green-500 to-blue-500 text-white px-4 py-2 sm:px-6 sm:py-3 rounded-lg w-full text-sm sm:text-base font-bold shadow-lg hover:from-green-600 hover:to-blue-600 transition-all">
           {loading ? 'Creating...' : 'Create Event'}
         </button>
       </form>
@@ -597,20 +588,20 @@ const AdminCreateEvent = () => {
                     <span className="text-sm text-purple-700 font-semibold">{Array.isArray(ev.type) ? ev.type.join(', ') : ev.type}</span>
                   </div>
                   <div className="text-xs text-gray-600">
-                    Attendance mode: <span className="font-medium text-blue-800">{ev?.needInPlace !== false ? 'Need in place' : 'No location required'}</span>
+                    Attendance mode: <span className="font-medium text-blue-800">{ev?.needInPlace === true ? 'Need in place' : 'No location required'}</span>
                   </div>
                   <div className="text-xs text-gray-600">Location: <span className="font-medium text-blue-800">{ev.locationName ? `${ev.locationName} - ` : ''}{ev.latitude}, {ev.longitude}</span></div>
                   <div className="text-xs text-gray-600">Date & Time: <span className="font-medium text-blue-800">{ev.dateTime ? new Date(ev.dateTime).toLocaleString() : 'N/A'}</span></div>
                   <div className="flex gap-2 mt-3 flex-wrap">
-                    <button onClick={() => startEdit(ev)} className="bg-yellow-400 hover:bg-yellow-500 text-white px-4 py-2 rounded-lg font-semibold shadow">Edit</button>
-                    <button onClick={() => handleDelete(ev.id)} className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-semibold shadow">Delete</button>
+                    <button onClick={() => startEdit(ev)} className="bg-yellow-400 hover:bg-yellow-500 text-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg text-sm sm:text-base font-semibold shadow">Edit</button>
+                    <button onClick={() => handleDelete(ev.id)} className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg text-sm sm:text-base font-semibold shadow">Delete</button>
                     {!ev.ended ? (
                       <button
                         onClick={async () => {
                           await updateDoc(doc(db, 'events', ev.id), { ended: new Date().toISOString() });
                           setEvents(events => events.map(e => e.id === ev.id ? { ...e, ended: new Date().toISOString() } : e));
                         }}
-                        className="bg-red-700 hover:bg-red-800 text-white px-4 py-2 rounded-lg font-semibold shadow"
+                        className="bg-red-700 hover:bg-red-800 text-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg text-sm sm:text-base font-semibold shadow"
                       >
                         End Meeting/Workshop
                       </button>
@@ -621,7 +612,7 @@ const AdminCreateEvent = () => {
                     {ev.attendance && (
                       <button
                         onClick={() => handleDownloadPDF(ev)}
-                        className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-semibold shadow"
+                        className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg text-sm sm:text-base font-semibold shadow"
                       >
                         Download PDF
                       </button>
@@ -630,7 +621,7 @@ const AdminCreateEvent = () => {
                     <button
                       onClick={() => handleDownloadNotAttendedExcel(ev)}
                       disabled={downloadingExcelId === ev.id || loadingProfile}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-semibold shadow disabled:opacity-50"
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg text-sm sm:text-base font-semibold shadow disabled:opacity-50"
                       title="Download Excel list of users who did not attend"
                     >
                       {downloadingExcelId === ev.id ? 'Preparing Excel...' : 'Not Attended (Excel)'}

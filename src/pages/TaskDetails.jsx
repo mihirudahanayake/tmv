@@ -508,7 +508,7 @@ const handleSave = async (e) => {
         const departmentLabel = formatWorkDepartmentLabel(task.department || 'videography');
         const websiteName = 'Media Manager';
         const websiteUrl = 'https://tmv.fotmv.online/';
-        const departmentHeadTitle = `Head of ${departmentLabel} Department.`;
+        const departmentHeadTitle = `Head of ${departmentLabel}`;
 
         const senderName = profile?.name || profile?.email || '';
         const senderEmail = profile?.email || '';
@@ -554,7 +554,7 @@ if (emails.length > 0) {
         <p>Best regards,</p>
         <p style="color:#A3A9AD">
           <strong>${senderName}</strong><br>
-          <i>Department head<br>${departmentHeadTitle}<br>FOT Media<br>Faculty Of Technology<br>Rajarata University of Sri Lanka<br>
+          <i>${departmentHeadTitle}<br>FOT Media<br>Faculty Of Technology<br>Rajarata University of Sri Lanka<br>
           ${senderPhone ? `<a href="tel:${senderPhoneHref}" style="color:#0066cc; text-decoration:none;">${senderPhone}</a><br>` : ''}
           ${senderEmail ? `<a href="mailto:${senderEmail}" style="color:#0066cc; text-decoration:none;">${senderEmail}</a>` : ''}</i><br>
         </p>`

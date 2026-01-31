@@ -10,7 +10,6 @@ const EventAttendees = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [manualRegNo, setManualRegNo] = useState('');
-  const [manualUid, setManualUid] = useState('');
   const [manualNeedInPlace, setManualNeedInPlace] = useState(true);
   const [manualLoading, setManualLoading] = useState(false);
   const [manualMessage, setManualMessage] = useState('');
@@ -30,7 +29,7 @@ const EventAttendees = () => {
         setEvent(eventData);
 
         // default for manual marking UI
-        setManualNeedInPlace(eventData?.needInPlace !== false);
+        setManualNeedInPlace(eventData?.needInPlace === true);
 
         if (eventData.attendance) {
           const userIds = Object.keys(eventData.attendance);
@@ -76,11 +75,11 @@ const EventAttendees = () => {
     setManualLoading(true);
     setManualMessage('');
     try {
-      let targetUid = manualUid.trim();
+      let targetUid = '';
       let targetName = '';
 
       const reg = manualRegNo.trim();
-      if (!targetUid && reg) {
+      if (reg) {
         const snap = await getDocs(
           query(collection(db, 'users'), where('registrationNumber', '==', reg))
         );
@@ -94,7 +93,7 @@ const EventAttendees = () => {
       }
 
       if (!targetUid) {
-        throw new Error('Enter Registration Number or UID.');
+        throw new Error('Enter Registration Number.');
       }
 
       const base = {
@@ -129,7 +128,6 @@ const EventAttendees = () => {
 
       setManualMessage('Attendance marked.');
       setManualRegNo('');
-      setManualUid('');
     } catch (e) {
       setManualMessage(e?.message || 'Failed to mark attendance.');
     } finally {
@@ -146,7 +144,7 @@ const EventAttendees = () => {
           {event.type && (
             <div>Type: {Array.isArray(event.type) ? event.type.join(' and ') : event.type}</div>
           )}
-          <div>Need in place: {event?.needInPlace !== false ? 'Yes' : 'No (attendance without location allowed)'}</div>
+          <div>Need in place: {event?.needInPlace === true ? 'Yes' : 'No (attendance without location allowed)'}</div>
           {event.locationName && (
             <div>Location: {event.locationName}</div>
           )}
@@ -163,14 +161,7 @@ const EventAttendees = () => {
             <input
               value={manualRegNo}
               onChange={(e) => setManualRegNo(e.target.value)}
-              placeholder="Registration Number (e.g. IT/21/001)"
-              className="border px-3 py-2 rounded"
-            />
-            <div className="text-xs text-gray-500">Or</div>
-            <input
-              value={manualUid}
-              onChange={(e) => setManualUid(e.target.value)}
-              placeholder="User UID"
+              placeholder="Registration Number (e.g. ITT/2022/001)"
               className="border px-3 py-2 rounded"
             />
 

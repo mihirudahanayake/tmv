@@ -143,7 +143,7 @@ const MeetingsWorkshops = () => {
     setAttendanceLoading((prev) => ({ ...prev, [event.id]: true }));
     setAttendanceError((prev) => ({ ...prev, [event.id]: '' }));
     try {
-      const requiresPlace = event?.needInPlace !== false;
+      const requiresPlace = event?.needInPlace === true;
 
       if (!requiresPlace) {
         const eventRef = doc(db, 'events', event.id);

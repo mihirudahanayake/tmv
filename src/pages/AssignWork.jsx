@@ -520,7 +520,7 @@ const AssignWork = () => {
       const departmentLabel = formatWorkDepartmentLabel(department);
       const websiteName = 'Media Manager';
       const websiteUrl = 'https://tmv.fotmv.online/';
-      const departmentHeadTitle = `Head of ${departmentLabel} Department.`;
+      const departmentHeadTitle = `Head of ${departmentLabel}`;
 
       const senderName = profile?.name || profile?.email || '';
       const senderEmail = profile?.email || '';

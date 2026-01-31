@@ -74,7 +74,7 @@ const AttendancePage = () => {
     setError('');
     setSuccess('');
     try {
-      const requiresPlace = event?.needInPlace !== false;
+      const requiresPlace = event?.needInPlace === true;
       if (!requiresPlace) {
         const ref = doc(db, 'events', event.id);
         await updateDoc(ref, {
