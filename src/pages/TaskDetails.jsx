@@ -17,6 +17,7 @@ import { db } from '../firebase/config';
 import Header from '../components/Header';
 import { FaCalendarAlt, FaSpinner, FaTrash, FaBox, FaSearch, FaUsers } from 'react-icons/fa';
 import { fanOutUserNotifications } from '../utils/fanOutUserNotifications';
+import TimePickerAmPm from '../components/TimePickerAmPm';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { formatWorkDepartmentLabel } from '../constants/workDepartments';
 import {
@@ -126,7 +127,7 @@ const TaskDetails = () => {
   // Generate a PNG image summarizing the task
   const generateAndDownloadTaskImage = async ({ task, usersMap = {}, itemsMap = {} }) => {
     try {
-      const { id, title, description, date, deadline, assignedUserDetails = [], assignedItems = [], userAcceptance = {}, roleCompletion = {} } = task;
+      const { id, title, description, date, deadline, time, assignedUserDetails = [], assignedItems = [], userAcceptance = {}, roleCompletion = {} } = task;
       
       // Helper: Compute derived status
       const getDerivedStatus = () => {
@@ -263,6 +264,13 @@ const TaskDetails = () => {
         ctx.font = '400 26px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
         const dateStr = new Date(displayDate).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
         ctx.fillText(`Date: ${dateStr}`, cursorX, cursorY);
+        cursorY += 44;
+      }
+
+      if (time) {
+        ctx.fillStyle = '#6b7280';
+        ctx.font = '400 26px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
+        ctx.fillText(`Time: ${time}`, cursorX, cursorY);
         cursorY += 44;
       }
 
@@ -524,6 +532,7 @@ const handleSave = async (e) => {
             `Title: ${task.title}`,
             ...(task.date ? [`Date: ${task.date}`] : []),
             ...(task.deadline ? [`Deadline: ${task.deadline}`] : []),
+            ...(task.time ? [`Time: ${task.time}`] : []),
             `Description: ${task.description}`
           ]
         };
@@ -534,6 +543,7 @@ if (emails.length > 0) {
     `<p><b>Title:</b> ${task.title}</p>`,
     ...(task.date ? [`<p><b>Date:</b> ${task.date}</p>`] : []),
     ...(task.deadline ? [`<p><b>Deadline:</b> ${task.deadline}</p>`] : []),
+    ...(task.time ? [`<p><b>Time:</b> ${task.time}</p>`] : []),
     `<p><b>Description:</b> ${task.description}</p>`
   ];
 
@@ -632,6 +642,7 @@ if (phones.length > 0) {
           description: task.description,
           date: task.date,
           deadline: task.deadline,
+          time: task.time,
           assignedUserDetails,
           assignedItems,
           status: task.status || 'pending',
@@ -847,6 +858,13 @@ if (phones.length > 0) {
     </p>
   </div>
 </div>
+
+          <TimePickerAmPm
+            label="Time (optional)"
+            value={task.time || ''}
+            onChange={(next) => setTask((prev) => ({ ...prev, time: next }))}
+            disabled={!editing}
+          />
 
 
           <div>

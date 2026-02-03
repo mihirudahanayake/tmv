@@ -21,6 +21,7 @@ import {
   FaBox
 } from 'react-icons/fa';
 import Header from '../components/Header';
+import TimePickerAmPm from '../components/TimePickerAmPm';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { WORK_DEPARTMENTS, formatWorkDepartmentLabel } from '../constants/workDepartments';
 import { fanOutUserNotifications } from '../utils/fanOutUserNotifications';
@@ -42,6 +43,7 @@ const AssignWork = () => {
     description: '',
     date: '',
     deadline: '',
+    time: '',
     assignedUsers: [], // [{ userId, roles: ['videography'] }]
     assignedItems: [] // [itemId, itemId, ...]
   });
@@ -113,7 +115,7 @@ const AssignWork = () => {
   const generateAndDownloadTaskImage = async ({ task, usersMap = {}, itemsMap = {} }) => {
     try {
       // Extract data from task object
-      const { id, title, description, date, deadline, assignedUserDetails = [], assignedItems = [], userAcceptance = {}, roleCompletion = {} } = task;
+      const { id, title, description, date, deadline, time, assignedUserDetails = [], assignedItems = [], userAcceptance = {}, roleCompletion = {} } = task;
       
       // Helper: Compute derived status (matching WorkList pattern)
       const getDerivedStatus = () => {
@@ -256,6 +258,13 @@ const AssignWork = () => {
         ctx.font = '400 26px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
         const dateStr = new Date(displayDate).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
         ctx.fillText(`Date: ${dateStr}`, cursorX, cursorY);
+        cursorY += 44;
+      }
+
+      if (time) {
+        ctx.fillStyle = '#6b7280';
+        ctx.font = '400 26px system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial';
+        ctx.fillText(`Time: ${time}`, cursorX, cursorY);
         cursorY += 44;
       }
 
@@ -479,6 +488,7 @@ const AssignWork = () => {
         description: formData.description,
         date: formData.date || null,
         deadline: formData.deadline || null,
+        time: formData.time || null,
         dateType, // to know which one admin intended
         department,
         assignedUsers: normalizedAssignedUsers.map((u) => u.userId),
@@ -536,6 +546,7 @@ const AssignWork = () => {
           `Title: ${formData.title}`,
           ...(formData.date ? [`Date: ${formData.date}`] : []),
           ...(formData.deadline ? [`Deadline: ${formData.deadline}`] : []),
+          ...(formData.time ? [`Time: ${formData.time}`] : []),
           `Description: ${formData.description}`
         ]
       };
@@ -547,6 +558,7 @@ if (emails.length > 0) {
     `<p><b>Title:</b> ${formData.title}</p>`,
     ...(formData.date ? [`<p><b>Date:</b> ${formData.date}</p>`] : []),
     ...(formData.deadline ? [`<p><b>Deadline:</b> ${formData.deadline}</p>`] : []),
+    ...(formData.time ? [`<p><b>Time:</b> ${formData.time}</p>`] : []),
     `<p><b>Description:</b> ${formData.description}</p>`
   ];
 
@@ -604,6 +616,7 @@ if (phones.length > 0) {
         description: formData.description,
         date: formData.date || null,
         deadline: formData.deadline || null,
+        time: formData.time || null,
         assignedUserDetails: formData.assignedUsers,
         assignedItems: formData.assignedItems,
         status: 'pending',
@@ -615,6 +628,7 @@ if (phones.length > 0) {
         description: '',
         date: '',
         deadline: '',
+        time: '',
         assignedUsers: [],
         assignedItems: []
       });
@@ -811,6 +825,16 @@ if (phones.length > 0) {
                   At least one of date or deadline is required, but both are optional individually.
                 </p>
               </div>
+
+              <TimePickerAmPm
+                value={formData.time}
+                onChange={(next) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    time: next,
+                  }))
+                }
+              />
 
             </div>
 
