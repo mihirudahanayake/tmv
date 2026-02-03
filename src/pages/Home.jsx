@@ -15,6 +15,7 @@ import {
 import { onAuthStateChanged } from 'firebase/auth';
 import { db, auth } from '../firebase/config';
 import Header from '../components/Header';
+import { sortWorksByNearestToNow } from '../utils/workDateTime';
 import {
   FaCalendarAlt,
   FaSpinner,
@@ -116,13 +117,7 @@ const Home = () => {
         );
         const mine = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
-        mine.sort((a, b) => {
-          const da = a.date ? new Date(a.date).getTime() : 0;
-          const dbt = b.date ? new Date(b.date).getTime() : 0;
-          return dbt - da;
-        });
-
-        setTasks(mine);
+        setTasks(sortWorksByNearestToNow(mine));
 
         const invSnap = await getDocs(collection(db, 'inventory'));
         const itemsMap = {};

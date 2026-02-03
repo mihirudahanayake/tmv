@@ -19,6 +19,7 @@ import { useUserProfile } from '../hooks/useUserProfile';
 import { formatWorkDepartmentLabel } from '../constants/workDepartments';
 import { getWorkRolesForDepartment, normalizeRolesForDepartment, formatWorkRoleLabel } from '../constants/workRoles';
 import { Roles } from '../utils/authz';
+import { sortWorksByNearestToNow, getWorkDateTime } from '../utils/workDateTime';
 
 const WorkList = () => {
   const { profile, loading: loadingProfile } = useUserProfile();
@@ -96,7 +97,7 @@ const WorkList = () => {
           dedup.set(d.id, { id: d.id, ...d.data() });
         });
       });
-      setTasks(Array.from(dedup.values()));
+      setTasks(sortWorksByNearestToNow(Array.from(dedup.values())));
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -164,9 +165,9 @@ const WorkList = () => {
     };
 
     const tasksSorted = [...(rowsSource || [])].sort((a, b) => {
-      const da = a?.date ? new Date(a.date).getTime() : a?.deadline ? new Date(a.deadline).getTime() : 0;
-      const dbt = b?.date ? new Date(b.date).getTime() : b?.deadline ? new Date(b.deadline).getTime() : 0;
-      return da - dbt;
+      const ta = getWorkDateTime(a)?.getTime() ?? Number.POSITIVE_INFINITY;
+      const tb = getWorkDateTime(b)?.getTime() ?? Number.POSITIVE_INFINITY;
+      return ta - tb;
     });
 
     // Build unique column labels: "Title (dd/mm/yyyy)"
@@ -254,11 +255,7 @@ const WorkList = () => {
       return true;
     };
 
-    const rows = tasks.filter(inRange).sort((a, b) => {
-      const da = a.date ? new Date(a.date).getTime() : 0;
-      const dbt = b.date ? new Date(b.date).getTime() : 0;
-      return dbt - da;
-    });
+    const rows = sortWorksByNearestToNow(tasks.filter(inRange));
 
     exportTasksToExcel(rows, 'worklist_date_range');
   };
@@ -321,8 +318,8 @@ const WorkList = () => {
   };
 
   // Separate old works and normal tasks
-  const filteredAndSorted = tasks
-    .filter((task) => {
+  const filteredAndSorted = sortWorksByNearestToNow(
+    tasks.filter((task) => {
       // date filter
       if (startDate || endDate) {
         if (!task.date) return false;
@@ -355,11 +352,7 @@ const WorkList = () => {
 
       return matchTitle || matchName || matchCard;
     })
-    .sort((a, b) => {
-      const da = a.date ? new Date(a.date).getTime() : 0;
-      const dbt = b.date ? new Date(b.date).getTime() : 0;
-      return dbt - da;
-    });
+  );
 
   const oldWorks = filteredAndSorted.filter((t) => (t.status || '').toLowerCase() === 'old work');
   const normalTasks = filteredAndSorted.filter((t) => (t.status || '').toLowerCase() !== 'old work');
