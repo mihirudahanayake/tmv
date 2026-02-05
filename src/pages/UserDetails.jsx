@@ -36,41 +36,7 @@ const UserDetails = () => {
         if (loadingProfile) return;
         const dept = (profile?.managedDepartments || [])[0] || 'videography';
 
-
-    const canDeleteUsers =
-      profile?.role === Roles.DEPARTMENT_HEAD ||
-      profile?.role === Roles.SUPER_ADMIN ||
-      profile?.role === Roles.SITE_ADMIN;
-
-    const handleDeleteUser = async () => {
-      if (!canDeleteUsers || !userId) return;
-      setActionError('');
-      setActionSuccess('');
-
-      const nameOrEmail = user?.name || user?.email || '';
-      const ok = window.confirm(
-        `Delete user ${nameOrEmail}?
         const snaps = [];
-      );
-      if (!ok) return;
-
-      try {
-        setDeleting(true);
-        const fn = httpsCallable(functions, 'deleteUserAccount');
-        await fn({ uid: userId });
-        setActionSuccess('User deleted successfully.');
-        navigate('/manage-users', { replace: true });
-      } catch (err) {
-        console.error('delete user failed', err);
-        const message =
-          err?.message ||
-          err?.details ||
-          'Failed to delete user. Check permissions and try again.';
-        setActionError(String(message));
-      } finally {
-        setDeleting(false);
-      }
-    };
         snaps.push(
           await getDocs(
             query(
@@ -116,6 +82,40 @@ const UserDetails = () => {
     load();
   }, [userId, loadingProfile, profile]);
 
+  const canDeleteUsers =
+    profile?.role === Roles.DEPARTMENT_HEAD ||
+    profile?.role === Roles.SUPER_ADMIN ||
+    profile?.role === Roles.SITE_ADMIN;
+
+  const handleDeleteUser = async () => {
+    if (!canDeleteUsers || !userId) return;
+    setActionError('');
+    setActionSuccess('');
+
+    const nameOrEmail = user?.name || user?.email || '';
+    const ok = window.confirm(
+      'Delete user ' + nameOrEmail + '?\n\nThis will permanently remove the account.'
+    );
+    if (!ok) return;
+
+    try {
+      setDeleting(true);
+      const fn = httpsCallable(functions, 'deleteUserAccount');
+      await fn({ uid: userId });
+      setActionSuccess('User deleted successfully.');
+      navigate('/manage-users', { replace: true });
+    } catch (err) {
+      console.error('delete user failed', err);
+      const message =
+        err?.message ||
+        err?.details ||
+        'Failed to delete user. Check permissions and try again.';
+      setActionError(String(message));
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const getStoredUserRoles = (work) => {
     const details = work.assignedUserDetails || [];
     const mine = details.find((d) => d.userId === userId);
@@ -147,11 +147,11 @@ const UserDetails = () => {
       const completionRoles = getCompletionRoles(work);
       if (!completionRoles.length) return false;
       return completionRoles.every(
-        (r) => roleCompletion[`${userId}_${r}`] === 'done'
+        (r) => roleCompletion[userId + '_' + r] === 'done'
       );
     }
 
-    return roleCompletion[`${userId}_${role}`] === 'done';
+    return roleCompletion[userId + '_' + role] === 'done';
   };
 
   return (
