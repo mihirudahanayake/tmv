@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { doc, getDoc, collection, getDocs, query, where } from 'firebase/firestore';
-import { db } from '../firebase/config';
+import { db, functions } from '../firebase/config';
 import Header from '../components/Header';
-import { FaCalendarAlt, FaSpinner, FaCheck } from 'react-icons/fa';
+import { FaCalendarAlt, FaSpinner, FaCheck, FaTrash } from 'react-icons/fa';
 import { useUserProfile } from '../hooks/useUserProfile';
+import { httpsCallable } from 'firebase/functions';
+import { Roles } from '../utils/authz';
 import {
   getWorkRolesForDepartment,
   normalizeRolesForDepartment,
@@ -19,6 +21,9 @@ const UserDetails = () => {
   const [user, setUser] = useState(null);
   const [works, setWorks] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState(false);
+  const [actionError, setActionError] = useState('');
+  const [actionSuccess, setActionSuccess] = useState('');
 
   useEffect(() => {
     const load = async () => {
@@ -31,7 +36,41 @@ const UserDetails = () => {
         if (loadingProfile) return;
         const dept = (profile?.managedDepartments || [])[0] || 'videography';
 
+
+    const canDeleteUsers =
+      profile?.role === Roles.DEPARTMENT_HEAD ||
+      profile?.role === Roles.SUPER_ADMIN ||
+      profile?.role === Roles.SITE_ADMIN;
+
+    const handleDeleteUser = async () => {
+      if (!canDeleteUsers || !userId) return;
+      setActionError('');
+      setActionSuccess('');
+
+      const nameOrEmail = user?.name || user?.email || '';
+      const ok = window.confirm(
+        `Delete user ${nameOrEmail}?
         const snaps = [];
+      );
+      if (!ok) return;
+
+      try {
+        setDeleting(true);
+        const fn = httpsCallable(functions, 'deleteUserAccount');
+        await fn({ uid: userId });
+        setActionSuccess('User deleted successfully.');
+        navigate('/manage-users', { replace: true });
+      } catch (err) {
+        console.error('delete user failed', err);
+        const message =
+          err?.message ||
+          err?.details ||
+          'Failed to delete user. Check permissions and try again.';
+        setActionError(String(message));
+      } finally {
+        setDeleting(false);
+      }
+    };
         snaps.push(
           await getDocs(
             query(
@@ -127,6 +166,17 @@ const UserDetails = () => {
           </div>
         )}
 
+        {actionError ? (
+          <div className="mb-3 p-2 rounded bg-red-100 text-red-700 text-sm">
+            {actionError}
+          </div>
+        ) : null}
+        {actionSuccess ? (
+          <div className="mb-3 p-2 rounded bg-green-100 text-green-700 text-sm">
+            {actionSuccess}
+          </div>
+        ) : null}
+
         {!loading && !user && (
           <p className="text-gray-600 text-sm sm:text-base">User not found.</p>
         )}
@@ -146,7 +196,7 @@ const UserDetails = () => {
                   {(user.name || 'U').charAt(0).toUpperCase()}
                 </div>
               )}
-              <div>
+              <div className="flex-1">
                 <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">
                   {user.name || 'User details'}
                 </h1>
@@ -154,6 +204,22 @@ const UserDetails = () => {
                   {user.email}
                 </p>
               </div>
+
+              {canDeleteUsers ? (
+                <button
+                  type="button"
+                  onClick={handleDeleteUser}
+                  disabled={deleting || loadingProfile}
+                  aria-label={deleting ? 'Deleting user' : 'Delete user'}
+                  title="Delete user"
+                  className="shrink-0 inline-flex items-center justify-center gap-2 rounded bg-red-600 hover:bg-red-700 text-white font-semibold disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 h-9 w-9 sm:h-auto sm:w-auto sm:px-3 sm:py-2 text-xs"
+                >
+                  <FaTrash />
+                  <span className="hidden sm:inline">
+                    {deleting ? 'Deleting...' : 'Delete'}
+                  </span>
+                </button>
+              ) : null}
             </div>
 
             <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-6 text-sm sm:text-base space-y-2">
