@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
-import { db } from '../firebase/config';
+import { db, functions } from '../firebase/config';
 import Header from '../components/Header';
-import { FaUser, FaEnvelope, FaSpinner, FaSearch } from 'react-icons/fa';
+import { FaUser, FaEnvelope, FaSpinner, FaSearch, FaTrash } from 'react-icons/fa';
 import { useUserProfile } from '../hooks/useUserProfile';
+import { httpsCallable } from 'firebase/functions';
+import { Roles } from '../utils/authz';
 
 const ManageUsers = () => {
   const { profile, loading: loadingProfile } = useUserProfile();
@@ -14,6 +16,9 @@ const ManageUsers = () => {
   const [searchText, setSearchText] = useState('');
   const [batchFilter, setBatchFilter] = useState('all');
   const [departmentFilter, setDepartmentFilter] = useState('all');
+  const [deletingUserId, setDeletingUserId] = useState('');
+  const [actionError, setActionError] = useState('');
+  const [actionSuccess, setActionSuccess] = useState('');
 
   const navigate = useNavigate();
 
@@ -88,6 +93,40 @@ const ManageUsers = () => {
     XLSX.writeFile(workbook, 'users_completed_works.xlsx');
   };
 
+  const canDeleteUsers =
+    profile?.role === Roles.DEPARTMENT_HEAD ||
+    profile?.role === Roles.SUPER_ADMIN ||
+    profile?.role === Roles.SITE_ADMIN;
+
+  const handleDeleteUser = async (userId, userName) => {
+    if (!canDeleteUsers) return;
+    setActionError('');
+    setActionSuccess('');
+
+    const ok = window.confirm(
+      `Delete user ${userName || ''}?\n\nThis will permanently remove the account.`
+    );
+    if (!ok) return;
+
+    try {
+      setDeletingUserId(userId);
+      const fn = httpsCallable(functions, 'deleteUserAccount');
+      await fn({ uid: userId });
+
+      setUsers((prev) => prev.filter((u) => u.id !== userId));
+      setActionSuccess('User deleted successfully.');
+    } catch (err) {
+      console.error('delete user failed', err);
+      const message =
+        err?.message ||
+        err?.details ||
+        'Failed to delete user. Check permissions and try again.';
+      setActionError(String(message));
+    } finally {
+      setDeletingUserId('');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-100">
       <Header userType="admin" />
@@ -106,6 +145,17 @@ const ManageUsers = () => {
             Export to Excel
           </button>
         </div>
+
+        {actionError ? (
+          <div className="mb-3 p-2 rounded bg-red-100 text-red-700 text-sm">
+            {actionError}
+          </div>
+        ) : null}
+        {actionSuccess ? (
+          <div className="mb-3 p-2 rounded bg-green-100 text-green-700 text-sm">
+            {actionSuccess}
+          </div>
+        ) : null}
 
         {/* Search + filters */}
         <div className="mb-4 flex flex-col sm:flex-row gap-3 sm:items-center">
@@ -162,10 +212,15 @@ const ManageUsers = () => {
         ) : (
           <div className="bg-white rounded-lg shadow-md divide-y">
             {filteredUsers.map((u) => (
-              <button
+              <div
                 key={u.id}
+                role="button"
+                tabIndex={0}
                 onClick={() => navigate(`/users/${u.id}`)}
-                className="w-full text-left px-4 py-3 flex items-center justify-between hover:bg-gray-50"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') navigate(`/users/${u.id}`);
+                }}
+                className="w-full text-left px-4 py-3 flex items-center justify-between hover:bg-gray-50 cursor-pointer"
               >
                 <div className="flex items-center gap-3">
                   {/* Avatar: show photoURL if exists, otherwise icon */}
@@ -196,7 +251,29 @@ const ManageUsers = () => {
                 <span className="text-xs sm:text-sm text-gray-500">
                   {u.userType || 'user'}
                 </span>
-              </button>
+                {canDeleteUsers && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteUser(u.id, u.name || u.email || '');
+                    }}
+                    disabled={deletingUserId === u.id}
+                    aria-label={
+                      deletingUserId === u.id
+                        ? 'Deleting user'
+                        : `Delete user ${u.name || u.email || ''}`.trim()
+                    }
+                    className="ml-3 shrink-0 inline-flex items-center justify-center gap-1 rounded bg-red-600 hover:bg-red-700 text-white font-semibold disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 h-9 w-9 sm:h-auto sm:w-auto sm:px-3 sm:py-2 text-xs"
+                    title="Delete user"
+                  >
+                    <FaTrash />
+                    <span className="hidden sm:inline">
+                      {deletingUserId === u.id ? 'Deleting...' : 'Delete'}
+                    </span>
+                  </button>
+                )}
+              </div>
             ))}
           </div>
         )}

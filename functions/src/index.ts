@@ -1,5 +1,6 @@
 import * as admin from 'firebase-admin';
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
+import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import * as logger from 'firebase-functions/logger';
 import * as nodemailer from 'nodemailer';
 import axios from 'axios';
@@ -33,6 +34,140 @@ function extractTokens(userData: any): string[] {
   }
   return [];
 }
+
+/* ================== AUTHZ HELPERS ================== */
+
+const Roles = {
+  SITE_ADMIN: 'siteAdmin',
+  SUPER_ADMIN: 'superAdmin',
+  DEPARTMENT_HEAD: 'departmentHead',
+  MEMBER: 'member',
+} as const;
+
+const SITE_ADMIN_EMAIL = 'mihirumilanka11@gmail.com';
+
+function normalizeRole(userDoc: any): string {
+  const email = String(userDoc?.email || '').toLowerCase();
+  if (email && email === SITE_ADMIN_EMAIL) return Roles.SITE_ADMIN;
+
+  const role = userDoc?.role;
+  if (role === Roles.SITE_ADMIN) return Roles.SITE_ADMIN;
+  if (role === Roles.SUPER_ADMIN) return Roles.SUPER_ADMIN;
+  if (role === Roles.DEPARTMENT_HEAD) return Roles.DEPARTMENT_HEAD;
+  if (role === Roles.MEMBER) return Roles.MEMBER;
+
+  // Backward compatibility
+  if (userDoc?.userType === 'admin') return Roles.DEPARTMENT_HEAD;
+  if (userDoc?.userType === 'superAdmin') return Roles.SUPER_ADMIN;
+  return Roles.MEMBER;
+}
+
+function getManagedDepartments(userDoc: any): string[] {
+  const role = normalizeRole(userDoc);
+  if (role !== Roles.DEPARTMENT_HEAD) return [];
+
+  const managed: string[] = Array.isArray(userDoc?.managedDepartments)
+    ? userDoc.managedDepartments.filter(isNonEmptyString)
+    : [];
+  if (managed.length) return managed;
+
+  const fromDepartments: string[] = Array.isArray(userDoc?.departments)
+    ? userDoc.departments.filter(isNonEmptyString)
+    : [];
+  if (fromDepartments.length) return [fromDepartments[0]];
+
+  return ['videography'];
+}
+
+function getUserDepartments(userDoc: any): string[] {
+  const depts: string[] = Array.isArray(userDoc?.departments)
+    ? userDoc.departments.filter(isNonEmptyString)
+    : [];
+  if (depts.length) return depts;
+  if (isNonEmptyString(userDoc?.department)) return [userDoc.department];
+  return [];
+}
+
+/* ================== ADMIN: DELETE USER ACCOUNT ================== */
+
+export const deleteUserAccount = onCall(
+  {
+    cors: [
+      'http://localhost:5173',
+      'http://127.0.0.1:5173',
+      'https://tmv.fotmv.online',
+    ],
+  },
+  async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'You must be signed in.');
+  }
+
+  const callerUid = request.auth.uid;
+  const callerEmail = String(request.auth.token?.email || '');
+
+  const targetUid = String((request.data as any)?.uid || '').trim();
+  if (!targetUid) {
+    throw new HttpsError('invalid-argument', 'Missing target uid.');
+  }
+  if (targetUid === callerUid) {
+    throw new HttpsError('failed-precondition', 'You cannot delete your own account.');
+  }
+
+  const callerSnap = await db.collection('users').doc(callerUid).get();
+  const callerDoc = callerSnap.exists ? callerSnap.data() : {};
+  const callerRole = normalizeRole({ ...callerDoc, email: (callerDoc as any)?.email || callerEmail });
+  const callerManaged = getManagedDepartments({ ...callerDoc, email: (callerDoc as any)?.email || callerEmail });
+
+  const isAdminRole =
+    callerRole === Roles.DEPARTMENT_HEAD ||
+    callerRole === Roles.SUPER_ADMIN ||
+    callerRole === Roles.SITE_ADMIN;
+
+  if (!isAdminRole) {
+    throw new HttpsError('permission-denied', 'Not allowed.');
+  }
+
+  const targetRef = db.collection('users').doc(targetUid);
+  const targetSnap = await targetRef.get();
+  if (!targetSnap.exists) {
+    throw new HttpsError('not-found', 'User not found.');
+  }
+  const targetDoc = targetSnap.data() || {};
+  const targetRole = normalizeRole(targetDoc);
+  if (targetRole === Roles.SITE_ADMIN || targetRole === Roles.SUPER_ADMIN || targetRole === Roles.DEPARTMENT_HEAD) {
+    throw new HttpsError('permission-denied', 'You cannot delete admin accounts.');
+  }
+
+  if (callerRole === Roles.DEPARTMENT_HEAD) {
+    const targetDepts = getUserDepartments(targetDoc);
+    const ok = targetDepts.some((d) => callerManaged.includes(d));
+    if (!ok) {
+      throw new HttpsError('permission-denied', 'You can only delete users in your department.');
+    }
+  }
+
+  try {
+    const anyDb: any = db as any;
+    if (typeof anyDb.recursiveDelete === 'function') {
+      await anyDb.recursiveDelete(targetRef);
+    } else {
+      await targetRef.delete();
+    }
+  } catch (e: any) {
+    logger.warn('Failed deleting user Firestore doc', { targetUid, error: e?.message || String(e) });
+    throw new HttpsError('internal', 'Failed to delete user data.');
+  }
+
+  try {
+    await admin.auth().deleteUser(targetUid);
+  } catch (e: any) {
+    logger.warn('Failed deleting auth user (maybe already removed)', { targetUid, error: e?.message || String(e) });
+  }
+
+  logger.info('User deleted by admin', { callerUid, targetUid, callerRole });
+  return { ok: true };
+});
 
 async function sendToTokens(tokens: string[], title: string, body: string, link?: string) {
   const deduped = Array.from(new Set(tokens)).filter(isNonEmptyString);
