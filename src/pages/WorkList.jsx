@@ -211,6 +211,14 @@ const WorkList = () => {
         let totalWorks = 0;
 
         taskColumns.forEach(({ task, label }) => {
+          const attendance = task.workAttendance || {};
+          const isMissed = (attendance?.[u.id]?.status || '') === 'missed';
+
+          if (isMissed) {
+            row[label] = 'Missed';
+            return;
+          }
+
           const completedRoles = getUserCompletedRolesForTask(task, u.id);
           const cellText = completedRoles.length
             ? completedRoles.map(formatWorkRoleLabel).join(', ')
