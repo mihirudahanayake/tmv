@@ -9,6 +9,7 @@ const TaskHistory = () => {
   const [user, setUser] = useState(null);
   const [completedTasks, setCompletedTasks] = useState([]);
   const [rejectedTasks, setRejectedTasks] = useState([]);
+  const [missedTasks, setMissedTasks] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -24,6 +25,25 @@ const TaskHistory = () => {
     const fetchData = async () => {
       setLoading(true);
       try {
+        // Fetch missed works (works where admin marked this user as missed)
+        const allAssignedSnap = await getDocs(
+          query(
+            collection(db, 'works'),
+            where('assignedUsers', 'array-contains', user.uid)
+          )
+        );
+        const allAssigned = allAssignedSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        const missed = allAssigned
+          .filter((t) => (t?.workAttendance?.[user.uid]?.status || '') === 'missed')
+          .sort((a, b) => {
+            const ma = a?.workAttendance?.[user.uid]?.markedAt;
+            const mb = b?.workAttendance?.[user.uid]?.markedAt;
+            const ta = typeof ma?.toDate === 'function' ? ma.toDate().getTime() : new Date(ma || 0).getTime();
+            const tb = typeof mb?.toDate === 'function' ? mb.toDate().getTime() : new Date(mb || 0).getTime();
+            return tb - ta;
+          });
+        setMissedTasks(missed);
+
         // Fetch completed works
         const worksSnap = await getDocs(
           query(
@@ -32,7 +52,10 @@ const TaskHistory = () => {
             where('status', '==', 'complete')
           )
         );
-        const completed = worksSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        const completed = worksSnap.docs
+          .map((d) => ({ id: d.id, ...d.data() }))
+          // If user was marked missed, don't show under completed for that user
+          .filter((t) => (t?.workAttendance?.[user.uid]?.status || '') !== 'missed');
 
         completed.sort((a, b) => {
           const da = a.date ? new Date(a.date).getTime() : 0;
@@ -82,7 +105,7 @@ const TaskHistory = () => {
             Task History
           </h1>
           <p className="text-gray-600 text-sm sm:text-base">
-            View all your completed and rejected tasks
+            View all your completed, rejected, and missed tasks
           </p>
         </div>
 
@@ -91,16 +114,80 @@ const TaskHistory = () => {
             <FaSpinner className="animate-spin text-5xl text-blue-600 mb-4" />
             <p className="text-gray-600">Loading history...</p>
           </div>
-        ) : completedTasks.length === 0 && rejectedTasks.length === 0 ? (
+        ) : completedTasks.length === 0 && rejectedTasks.length === 0 && missedTasks.length === 0 ? (
           <div className="bg-white rounded-2xl shadow-lg p-12 text-center border border-gray-100">
             <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <FaCalendarAlt className="text-4xl text-blue-600" />
             </div>
             <h3 className="text-xl font-bold text-gray-800 mb-2">No History</h3>
-            <p className="text-gray-600">You have no completed or rejected tasks yet.</p>
+            <p className="text-gray-600">You have no completed, rejected, or missed tasks yet.</p>
           </div>
         ) : (
           <>
+            {/* Missed Tasks */}
+            {missedTasks.length > 0 && (
+              <section className="mb-8">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-1 h-6 bg-gradient-to-b from-slate-500 to-slate-700 rounded-full"></div>
+                  <h2 className="text-xl sm:text-2xl font-bold text-gray-800">
+                    Missed Tasks
+                  </h2>
+                  <span className="bg-gradient-to-r from-slate-500 to-slate-700 text-white text-xs font-bold px-3 py-1 rounded-full">
+                    {missedTasks.length}
+                  </span>
+                </div>
+
+                <div className="space-y-4">
+                  {missedTasks.map((task) => {
+                    const markedAt = task?.workAttendance?.[user.uid]?.markedAt;
+                    const markedAtDate =
+                      typeof markedAt?.toDate === 'function'
+                        ? markedAt.toDate()
+                        : markedAt
+                          ? new Date(markedAt)
+                          : null;
+
+                    return (
+                      <div
+                        key={task.id}
+                        className="bg-white rounded-2xl shadow-md p-5 border border-slate-200"
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex-1">
+                            <h3 className="text-lg font-bold text-gray-800 mb-1">
+                              {task.title || 'Task'}
+                            </h3>
+                            {(task.date || task.deadline) && (
+                              <p className="flex items-center gap-2 text-xs text-gray-500">
+                                <FaCalendarAlt />
+                                {new Date(task.date || task.deadline).toLocaleDateString()}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 text-slate-700">
+                            <FaTimes className="text-2xl" />
+                            <span className="text-xs font-semibold">Missed</span>
+                          </div>
+                        </div>
+
+                        {task.description && (
+                          <p className="text-gray-700 text-sm mb-3">
+                            {task.description}
+                          </p>
+                        )}
+
+                        {markedAtDate && (
+                          <p className="text-xs text-gray-500">
+                            Marked missed: {markedAtDate.toLocaleString()}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
             {/* Completed Tasks */}
             {completedTasks.length > 0 && (
               <section className="mb-8">

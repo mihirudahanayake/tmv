@@ -286,10 +286,18 @@ const WorkList = () => {
     const userDetails = task.assignedUserDetails || [];
     const roleCompletion = task.roleCompletion || {};
     const acceptance = task.userAcceptance || {};
+    const attendance = task.workAttendance || {};
 
     if (!userDetails.length) return 'pending';
 
-    const allAccepted = userDetails.every(
+    const activeUserDetails = userDetails.filter(
+      (d) => (attendance?.[d.userId]?.status || '') !== 'missed'
+    );
+
+    // If everyone was marked missed, treat as still pending (no active assignees).
+    if (!activeUserDetails.length) return 'pending';
+
+    const allAccepted = activeUserDetails.every(
       (d) => acceptance[d.userId] === 'accepted'
     );
     if (!allAccepted) return 'pending';
@@ -307,7 +315,7 @@ const WorkList = () => {
       return normalizeRolesForDepartment(task.department, stored);
     };
 
-    const allRolesDone = userDetails.every((d) =>
+    const allRolesDone = activeUserDetails.every((d) =>
       getCompletionRolesForUser(d).every(
         (role) => roleCompletion[`${d.userId}_${role}`] === 'done'
       )
@@ -378,6 +386,16 @@ const WorkList = () => {
   const renderAcceptanceBadge = (task, userId) => {
     const acceptance = task.userAcceptance || {};
     const state = acceptance[userId] || 'pending';
+
+    const attendance = task.workAttendance || {};
+    if ((attendance?.[userId]?.status || '') === 'missed') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-100 text-red-800 border border-red-200 text-[11px] font-semibold">
+          <FaTimes className="text-[10px]" />
+          Missed
+        </span>
+      );
+    }
 
     if (state === 'accepted') {
       return (

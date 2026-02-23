@@ -125,10 +125,17 @@ const AssignWork = () => {
         const userDetails = task.assignedUserDetails || [];
         const roleCompletion = task.roleCompletion || {};
         const acceptance = task.userAcceptance || {};
+        const attendance = task.workAttendance || {};
         if (!userDetails.length) return 'pending';
-        const allAccepted = userDetails.every((d) => acceptance[d.userId] === 'accepted');
+
+        const activeUserDetails = userDetails.filter(
+          (d) => (attendance?.[d.userId]?.status || '') !== 'missed'
+        );
+        if (!activeUserDetails.length) return 'pending';
+
+        const allAccepted = activeUserDetails.every((d) => acceptance[d.userId] === 'accepted');
         if (!allAccepted) return 'pending';
-        const allRolesDone = userDetails.every((d) =>
+        const allRolesDone = activeUserDetails.every((d) =>
           (d.roles || []).every((role) => roleCompletion[`${d.userId}_${role}`] === 'done')
         );
         if (!allRolesDone) return 'accepted';
@@ -149,7 +156,9 @@ const AssignWork = () => {
       // Resolve user details with photoURL and acceptance status
       const assignedUsers = (assignedUserDetails || []).map(({ userId, roles }) => {
         const u = usersMap[userId] || {};
-        const acceptanceStatus = userAcceptance[userId] || 'pending';
+        const attendance = task.workAttendance || {};
+        const isMissed = (attendance?.[userId]?.status || '') === 'missed';
+        const acceptanceStatus = isMissed ? 'missed' : (userAcceptance[userId] || 'pending');
         return {
           id: userId,
           name: u.name || u.displayName || 'Unknown',
@@ -339,7 +348,11 @@ const AssignWork = () => {
           const acceptanceStatus = u.acceptanceStatus;
           let pillText, pillBgColor, pillTextColor;
           
-          if (acceptanceStatus === 'accepted') {
+          if (acceptanceStatus === 'missed') {
+            pillText = '— Missed';
+            pillBgColor = '#e5e7eb';
+            pillTextColor = '#374151';
+          } else if (acceptanceStatus === 'accepted') {
             pillText = '✓ Accepted';
             pillBgColor = '#dcfce7';
             pillTextColor = '#16a34a';

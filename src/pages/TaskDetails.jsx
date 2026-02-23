@@ -5,6 +5,7 @@ import {
   getDoc,
   updateDoc,
   deleteDoc,
+  deleteField,
   collection,
   getDocs,
   query,
@@ -45,6 +46,7 @@ const TaskDetails = () => {
   const [success, setSuccess] = useState('');
   const [itemSearch, setItemSearch] = useState('');
   const [userSearch, setUserSearch] = useState(''); // New user search state
+  const [markingMissed, setMarkingMissed] = useState({}); // userId -> true/false
 
   const currentDepartment = task?.department || 'videography';
   const workRoles = getWorkRolesForDepartment(currentDepartment);
@@ -137,10 +139,17 @@ const TaskDetails = () => {
         const userDetails = task.assignedUserDetails || [];
         const roleComp = task.roleCompletion || {};
         const acceptance = task.userAcceptance || {};
+        const attendance = task.workAttendance || {};
         if (!userDetails.length) return 'pending';
-        const allAccepted = userDetails.every((d) => acceptance[d.userId] === 'accepted');
+
+        const activeUserDetails = userDetails.filter(
+          (d) => (attendance?.[d.userId]?.status || '') !== 'missed'
+        );
+        if (!activeUserDetails.length) return 'pending';
+
+        const allAccepted = activeUserDetails.every((d) => acceptance[d.userId] === 'accepted');
         if (!allAccepted) return 'pending';
-        const allRolesDone = userDetails.every((d) =>
+        const allRolesDone = activeUserDetails.every((d) =>
           (d.roles || []).every((role) => roleComp[`${d.userId}_${role}`] === 'done')
         );
         if (!allRolesDone) return 'accepted';
@@ -161,7 +170,9 @@ const TaskDetails = () => {
       // Resolve user details
       const assignedUsers = (assignedUserDetails || []).map(({ userId, roles }) => {
         const u = usersMap[userId] || {};
-        const acceptanceStatus = userAcceptance[userId] || 'pending';
+        const attendance = task.workAttendance || {};
+        const isMissed = (attendance?.[userId]?.status || '') === 'missed';
+        const acceptanceStatus = isMissed ? 'missed' : (userAcceptance[userId] || 'pending');
         return {
           id: userId,
           name: u.name || u.displayName || 'Unknown',
@@ -343,7 +354,11 @@ const TaskDetails = () => {
           // Acceptance badge
           const acceptanceStatus = u.acceptanceStatus;
           let pillText, pillBgColor, pillTextColor;
-          if (acceptanceStatus === 'accepted') {
+          if (acceptanceStatus === 'missed') {
+            pillText = '— Missed';
+            pillBgColor = '#e5e7eb';
+            pillTextColor = '#513737';
+          } else if (acceptanceStatus === 'accepted') {
             pillText = '✓ Accepted';
             pillBgColor = '#dcfce7';
             pillTextColor = '#16a34a';
@@ -448,6 +463,68 @@ const TaskDetails = () => {
     if (!editing) return;
     const { name, value } = e.target;
     setTask((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const isUserMarkedMissed = (uid) => {
+    const mapObj = task?.workAttendance || {};
+    return mapObj?.[uid]?.status === 'missed';
+  };
+
+  const handleToggleMissed = async (uid) => {
+    if (!task?.id) return;
+    if (markingMissed[uid]) return;
+
+    setError('');
+    setSuccess('');
+
+    const wasMissed = isUserMarkedMissed(uid);
+    const ref = doc(db, 'works', task.id);
+
+    try {
+      setMarkingMissed((prev) => ({ ...prev, [uid]: true }));
+
+      if (wasMissed) {
+        await updateDoc(ref, {
+          [`workAttendance.${uid}`]: deleteField(),
+        });
+
+        setTask((prev) => {
+          const next = { ...(prev || {}) };
+          const nextAttendance = { ...(next.workAttendance || {}) };
+          delete nextAttendance[uid];
+          next.workAttendance = nextAttendance;
+          return next;
+        });
+        setSuccess('Removed missed mark.');
+      } else {
+        const markedBy = profile?.email || profile?.name || 'admin';
+        await updateDoc(ref, {
+          [`workAttendance.${uid}`]: {
+            status: 'missed',
+            markedAt: serverTimestamp(),
+            markedBy,
+          },
+        });
+
+        setTask((prev) => ({
+          ...(prev || {}),
+          workAttendance: {
+            ...(prev?.workAttendance || {}),
+            [uid]: {
+              status: 'missed',
+              markedAt: new Date().toISOString(),
+              markedBy,
+            },
+          },
+        }));
+        setSuccess('Marked as missed.');
+      }
+    } catch (err) {
+      console.error(err);
+      setError('Failed to update missed status.');
+    } finally {
+      setMarkingMissed((prev) => ({ ...prev, [uid]: false }));
+    }
   };
 
 const handleSave = async (e) => {
@@ -893,26 +970,60 @@ if (phones.length > 0) {
                 filteredUsers.map((u) => {
                   const assigned = isUserAssigned(u.id);
                   const roles = getUserRoles(u.id);
+                  const missed = assigned ? isUserMarkedMissed(u.id) : false;
 
                   return (
                     <div key={u.id} className="mb-2 p-2 rounded hover:bg-gray-50">
-                      <label className="flex items-center cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={assigned}
-                          onChange={() => handleToggleUser(u.id)}
-                          disabled={!editing}
-                          className="mr-3 w-4 h-4"
-                        />
-                        <div className="flex-1">
-                          <p className="text-sm">
-                            {u.name || 'No name'}{' '}
-                            <span className="text-xs text-gray-500">
-                              ({u.cardNumber || '-'})
-                            </span>
-                          </p>
-                        </div>
-                      </label>
+                      <div className="flex items-center justify-between gap-2">
+                        <label className="flex items-center cursor-pointer flex-1 min-w-0">
+                          <input
+                            type="checkbox"
+                            checked={assigned}
+                            onChange={() => handleToggleUser(u.id)}
+                            disabled={!editing}
+                            className="mr-3 w-4 h-4"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm truncate">
+                              {u.name || 'No name'}{' '}
+                              <span className="text-xs text-gray-500">
+                                ({u.cardNumber || '-'})
+                              </span>
+                            </p>
+                          </div>
+                        </label>
+
+                        {assigned && (
+                          <div className="flex items-center gap-2 shrink-0">
+                            {missed && (
+                              <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-200">
+                                Missed
+                              </span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                handleToggleMissed(u.id);
+                              }}
+                              disabled={markingMissed[u.id] === true}
+                              className={`text-xs font-semibold px-2.5 py-1 rounded border transition disabled:opacity-50 ${
+                                missed
+                                  ? 'bg-gray-100 text-gray-800 border-gray-200 hover:bg-gray-200'
+                                  : 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'
+                              }`}
+                              title={missed ? 'Unmark missed' : 'Mark missed'}
+                            >
+                              {markingMissed[u.id] === true
+                                ? 'Updating...'
+                                : missed
+                                  ? 'Unmark missed'
+                                  : 'Mark missed'}
+                            </button>
+                          </div>
+                        )}
+                      </div>
 
                       {assigned && (
                         <div className="mt-1 ml-7 flex flex-wrap gap-2 text-xs sm:text-sm">

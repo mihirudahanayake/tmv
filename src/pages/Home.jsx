@@ -117,7 +117,12 @@ const Home = () => {
         );
         const mine = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
-        setTasks(sortWorksByNearestToNow(mine));
+        // Hide works where this user is marked as missed by admin.
+        const visibleMine = mine.filter(
+          (t) => (t?.workAttendance?.[user.uid]?.status || '') !== 'missed'
+        );
+
+        setTasks(sortWorksByNearestToNow(visibleMine));
 
         const invSnap = await getDocs(collection(db, 'inventory'));
         const itemsMap = {};
