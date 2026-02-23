@@ -496,7 +496,7 @@ const renderTeamMembers = (task) => {
   if (otherMembers.length === 0) {
     return (
       <div className="mt-3">
-        <p className="text-xs text-gray-500 italic">
+        <p className="text-xs text-gray-500 dark:text-gray-400 italic">
           You are working on this alone
         </p>
       </div>
@@ -505,7 +505,7 @@ const renderTeamMembers = (task) => {
 
   return (
     <div className="mt-3">
-      <p className="text-xs sm:text-sm font-semibold text-gray-700 mb-2">
+      <p className="text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
         Working with:
       </p>
       <div className="flex flex-wrap gap-2">
@@ -515,9 +515,9 @@ const renderTeamMembers = (task) => {
             return (
               <span
                 key={uid}
-                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-100 text-xs text-gray-500"
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-100 dark:bg-slate-800 text-xs text-gray-500 dark:text-gray-300"
               >
-                <div className="w-6 h-6 rounded-full bg-gray-300 flex items-center justify-center text-xs font-bold text-white">
+                <div className="w-6 h-6 rounded-full bg-gray-300 dark:bg-slate-700 flex items-center justify-center text-xs font-bold text-white">
                   ?
                 </div>
                 Unknown User
@@ -530,13 +530,13 @@ const renderTeamMembers = (task) => {
           return (
             <div
               key={uid}
-              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-100"
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-100 dark:from-slate-800 dark:to-slate-800 dark:border-slate-700"
             >
               {avatarUrl ? (
                 <img
                   src={avatarUrl}
                   alt={member.name || 'User'}
-                  className="w-7 h-7 rounded-full object-cover border border-white shadow-sm"
+                  className="w-7 h-7 rounded-full object-cover border border-white dark:border-slate-700 shadow-sm"
                 />
               ) : (
                 <div className="w-7 h-7 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center text-xs font-bold text-white">
@@ -544,7 +544,7 @@ const renderTeamMembers = (task) => {
                 </div>
               )}
               <div className="flex flex-col">
-                <span className="text-xs sm:text-sm font-semibold text-gray-800">
+                <span className="text-xs sm:text-sm font-semibold text-gray-800 dark:text-gray-100">
                   {member.name || 'User'}
                 </span>
               </div>
