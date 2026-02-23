@@ -884,22 +884,22 @@ const renderTeamMembers = (task) => {
                     return (
                       <div
                         key={task.id}
-                        className="bg-white rounded-2xl shadow-md hover:shadow-xl transition-all p-5 sm:p-6 border border-blue-100"
+                        className="bg-white dark:bg-slate-900 rounded-2xl shadow-md hover:shadow-xl transition-all p-5 sm:p-6 border border-blue-100 dark:border-slate-700"
                       >
                         <h3 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-gray-100 mb-1">
                           {task.title || 'Task'}
                         </h3>
 {(task.date || task.deadline) && (
-  <div className="flex flex-col gap-1 text-xs sm:text-sm text-gray-500 mb-3">
+  <div className="flex flex-col gap-1 text-xs sm:text-sm text-gray-500 dark:text-gray-300 mb-3">
     {task.date && (
       <p className="flex items-center gap-2">
-        <FaCalendarAlt />
+        <FaCalendarAlt className="dark:text-yellow-300" />
         <span>Date: {new Date(task.date).toLocaleDateString()}</span>
       </p>
     )}
     {task.deadline && (
       <p className="flex items-center gap-2">
-        <FaCalendarAlt />
+        <FaCalendarAlt className="dark:text-yellow-300" />
         <span>Deadline: {new Date(task.deadline).toLocaleDateString()}</span>
       </p>
     )}
@@ -978,7 +978,7 @@ const renderTeamMembers = (task) => {
                     return (
                       <div
                         key={task.id}
-                        className="bg-white rounded-2xl shadow-md p-5 sm:p-6 border border-green-100"
+                        className="bg-white dark:bg-slate-900 rounded-2xl shadow-md p-5 sm:p-6 border border-green-100 dark:border-slate-700"
                       >
                         <div className="flex items-start justify-between mb-3">
                           <div>
@@ -986,16 +986,16 @@ const renderTeamMembers = (task) => {
                               {task.title || 'Task'}
                             </h3>
 {(task.date || task.deadline) && (
-  <div className="flex flex-col gap-1 text-xs sm:text-sm text-gray-500">
+  <div className="flex flex-col gap-1 text-xs sm:text-sm text-gray-500 dark:text-gray-300">
     {task.date && (
       <p className="flex items-center gap-2">
-        <FaCalendarAlt />
+        <FaCalendarAlt className="dark:text-yellow-300" />
         <span>Date: {new Date(task.date).toLocaleDateString()}</span>
       </p>
     )}
     {task.deadline && (
       <p className="flex items-center gap-2">
-        <FaCalendarAlt />
+        <FaCalendarAlt className="dark:text-yellow-300" />
         <span>Deadline: {new Date(task.deadline).toLocaleDateString()}</span>
       </p>
     )}
@@ -1022,7 +1022,7 @@ const renderTeamMembers = (task) => {
                               onClick={() =>
                                 handleToggleRole(task, role)
                               }
-                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold bg-green-100 text-green-800 hover:bg-green-200 transition"
+                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold bg-green-100 text-green-800 hover:bg-green-200 transition dark:bg-slate-800 dark:text-gray-100 dark:hover:bg-slate-700"
                             >
                               <FaUndo className="text-xs" />
                               Undo {formatWorkRoleLabel(role)}
@@ -1030,7 +1030,7 @@ const renderTeamMembers = (task) => {
                           ))}
                         </div>
 
-                        <p className="text-sm text-green-700 font-semibold bg-green-50 px-4 py-2 rounded-lg">
+                        <p className="text-sm text-green-700 dark:text-green-300 font-semibold bg-green-50 dark:bg-slate-800 px-4 py-2 rounded-lg">
                           ✓ All work completed. Waiting for admin review.
                         </p>
                       </div>
