@@ -457,7 +457,7 @@ const Home = () => {
 
     return (
       <div className="mt-3">
-        <p className="text-xs sm:text-sm font-semibold text-gray-700 mb-1">
+        <p className="text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-200 mb-1">
           Assigned items:
         </p>
         <div className="flex flex-wrap gap-2">
@@ -467,7 +467,7 @@ const Home = () => {
               return (
                 <span
                   key={itemId}
-                  className="px-2 py-1 rounded-full bg-gray-100 text-xs text-gray-500"
+                  className="px-2 py-1 rounded-full bg-gray-100 dark:bg-slate-800 text-xs text-gray-500 dark:text-gray-300"
                 >
                   Unknown item
                 </span>
@@ -476,7 +476,7 @@ const Home = () => {
             return (
               <span
                 key={itemId}
-                className="px-2 py-1 rounded-full bg-blue-50 text-xs sm:text-sm text-blue-800 border border-blue-100"
+                className="px-2 py-1 rounded-full bg-blue-50 dark:bg-slate-800 text-xs sm:text-sm text-blue-800 dark:text-gray-100 border border-blue-100 dark:border-slate-700"
               >
                 {item.itemName || 'Item'}
                 {item.itemNo ? ` (${item.itemNo})` : ''}
