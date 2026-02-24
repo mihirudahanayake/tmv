@@ -430,7 +430,10 @@ const TaskDetails = () => {
     } else {
       setAssignedUserDetails((prev) => [
         ...prev,
-        { userId: uid, roles: getDefaultRolesForDepartment(currentDepartment) }
+        {
+          userId: uid,
+          roles: getDefaultRolesForDepartment(currentDepartment),
+        }
       ]);
     }
   };
@@ -545,7 +548,7 @@ const handleSave = async (e) => {
       const { id, ...rest } = task;
 
       const normalizedAssignedUserDetails = (assignedUserDetails || []).map((u) => ({
-        ...u,
+        userId: u.userId,
         roles: normalizeRolesForDepartment(currentDepartment, u.roles),
       }));
 

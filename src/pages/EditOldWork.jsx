@@ -91,7 +91,10 @@ const EditOldWork = () => {
         }
         return {
           ...prev,
-          assignedUserDetails: [ ...(prev.assignedUserDetails || []), { userId, roles: getDefaultRolesForDepartment(currentDepartment) } ],
+          assignedUserDetails: [
+            ...(prev.assignedUserDetails || []),
+            { userId, roles: getDefaultRolesForDepartment(currentDepartment) }
+          ],
           assignedUsers: [ ...(prev.assignedUsers || []), userId ]
         };
       });
@@ -149,14 +152,20 @@ const EditOldWork = () => {
     setLoading(true);
     setMessage('');
     try {
+      const department = formData.department || 'videography';
+      const normalizedAssignedUserDetails = (formData.assignedUserDetails || []).map((u) => ({
+        userId: u.userId,
+        roles: normalizeRolesForDepartment(department, u.roles),
+      }));
+
       await updateDoc(doc(db, 'works', id), {
         title: formData.title,
         description: formData.description,
         date: formData.date || null,
         deadline: formData.deadline || null,
-        department: formData.department || 'videography',
-        assignedUsers: formData.assignedUsers || [],
-        assignedUserDetails: formData.assignedUserDetails || [],
+        department,
+        assignedUsers: normalizedAssignedUserDetails.map((u) => u.userId),
+        assignedUserDetails: normalizedAssignedUserDetails,
         assignedItems: formData.assignedItems || [],
         // status and type remain unchanged
       });

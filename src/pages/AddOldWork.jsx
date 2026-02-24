@@ -16,6 +16,13 @@ import {
   FaBox
 } from 'react-icons/fa';
 
+import {
+  getWorkRolesForDepartment,
+  getDefaultRolesForDepartment,
+  normalizeRolesForDepartment,
+  formatWorkRoleLabel,
+} from '../constants/workRoles';
+
 const AddOldWork = () => {
   const { profile, loading: loadingProfile } = useUserProfile();
   const [users, setUsers] = useState([]);
@@ -95,7 +102,10 @@ const AddOldWork = () => {
         ...prev,
         assignedUsers: [
           ...prev.assignedUsers,
-          { userId, roles: ['videography'] }
+          {
+            userId,
+            roles: getDefaultRolesForDepartment(department),
+          }
         ]
       };
     });
@@ -134,7 +144,7 @@ const AddOldWork = () => {
     // date, deadline, and description are now optional
     try {
       const normalizedAssignedUsers = (formData.assignedUsers || []).map((u) => ({
-        ...u,
+        userId: u.userId,
         roles: normalizeRolesForDepartment(department, u.roles),
       }));
 

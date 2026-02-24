@@ -438,7 +438,10 @@ const AssignWork = () => {
         ...prev,
         assignedUsers: [
           ...prev.assignedUsers,
-          { userId, roles: getDefaultRolesForDepartment(department) }
+          {
+            userId,
+            roles: getDefaultRolesForDepartment(department),
+          }
         ]
       };
     });
@@ -491,7 +494,7 @@ const AssignWork = () => {
 
     try {
       const normalizedAssignedUsers = (formData.assignedUsers || []).map((u) => ({
-        ...u,
+        userId: u.userId,
         roles: normalizeRolesForDepartment(department, u.roles),
       }));
 
@@ -658,6 +661,7 @@ if (phones.length > 0) {
 
   const getUserRoles = (userId) =>
     formData.assignedUsers.find((u) => u.userId === userId)?.roles || [];
+
 
   const normalizedUserSearch = userSearch.trim().toLowerCase();
   const filteredUsers = users.filter((u) => {

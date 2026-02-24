@@ -1,11 +1,13 @@
 export const getWorkRolesForDepartment = (department) => {
   switch (department) {
     case 'videography':
-      return ['videography', 'editing'];
+      return ['videography', 'editing', 'coordinate'];
     case 'photography':
-      return ['photography', 'editing'];
+      return ['photography', 'editing', 'coordinate'];
     default:
-      return ['done'];
+      // Other departments (graphic design, announcing, content writing, etc.)
+      // can still assign a coordination role.
+      return ['done', 'coordinate'];
   }
 };
 
@@ -37,6 +39,8 @@ export const formatWorkRoleLabel = (role) => {
       return 'Photography';
     case 'editing':
       return 'Editing';
+    case 'coordinate':
+      return 'Coordinate';
     default:
       return (role || '').replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
   }
