@@ -117,6 +117,19 @@ const WorkList = () => {
     }
   };
 
+  const handleUndoComplete = async (taskId) => {
+    try {
+      const taskRef = doc(db, 'works', taskId);
+      // Revert to non-complete so derived status logic applies again.
+      await updateDoc(taskRef, { status: 'pending' });
+      setTasks((prev) =>
+        prev.map((t) => (t.id === taskId ? { ...t, status: 'pending' } : t))
+      );
+    } catch (err) {
+      console.error('Failed to undo task complete:', err);
+    }
+  };
+
   const formatDateForExport = (value) => {
     if (!value) return '';
     const d = new Date(value);
@@ -643,9 +656,22 @@ const WorkList = () => {
         )}
 
         {isCompleteSection && (
-          <p className="mt-2 text-xs sm:text-sm text-green-700 font-semibold">
-            Completed
-          </p>
+          <div className="mt-2 flex items-center justify-between gap-2">
+            <p className="text-xs sm:text-sm text-green-700 font-semibold">
+              Completed
+            </p>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleUndoComplete(task.id);
+              }}
+              className="inline-flex items-center gap-1 px-2 py-1 rounded border border-gray-200 bg-white text-gray-700 text-[11px] hover:bg-gray-50"
+              title="Undo complete"
+            >
+              Undo
+            </button>
+          </div>
         )}
       </div>
     );
