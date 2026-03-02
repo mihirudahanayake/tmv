@@ -13,6 +13,7 @@ import Header from '../components/Header';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useUserProfile } from '../hooks/useUserProfile';
+import { Roles } from '../utils/authz';
 
 const PostingDates = () => {
   const { profile, loading: loadingProfile } = useUserProfile();
@@ -22,6 +23,8 @@ const PostingDates = () => {
   const [userDetails, setUserDetails] = useState({}); // userId -> user data
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [department, setDepartment] = useState('videography');
+
+  const isDeptHead = profile?.role === Roles.DEPARTMENT_HEAD;
 
   useEffect(() => {
     if (!loadingProfile && profile?.managedDepartments?.length) {
@@ -72,6 +75,7 @@ const PostingDates = () => {
               workDate: data.date ? new Date(data.date) : null,
               postingDate: data.postingDate ? data.postingDate.toDate() : null,
               posted: !!data.posted,
+              notForPost: !!data.notForPost,
               assignedUserDetails: data.assignedUserDetails || [],
             });
           });
@@ -98,6 +102,8 @@ const PostingDates = () => {
     try {
       setSavingId(task.id);
       const ref = doc(db, 'works', task.id);
+      // If it's explicitly "not for post", don't allow "posted".
+      if (task.notForPost) return;
       await updateDoc(ref, { posted: value });
       setTasks((prev) =>
         prev.map((t) =>
@@ -111,10 +117,42 @@ const PostingDates = () => {
     }
   };
 
+  const handleToggleNotForPost = async (task, value) => {
+    try {
+      setSavingId(task.id);
+      const ref = doc(db, 'works', task.id);
+
+      // When marking as not-for-post, clear schedule info.
+      await updateDoc(ref, {
+        notForPost: value,
+        ...(value
+          ? { posted: false, postingDate: null }
+          : {})
+      });
+
+      setTasks((prev) =>
+        prev.map((t) =>
+          t.id === task.id
+            ? {
+                ...t,
+                notForPost: value,
+                ...(value ? { posted: false, postingDate: null } : {})
+              }
+            : t
+        )
+      );
+    } catch (e) {
+      console.error('Failed to update notForPost flag', e);
+    } finally {
+      setSavingId(null);
+    }
+  };
+
   const handleSaveDate = async (task) => {
     try {
       setSavingId(task.id);
       const ref = doc(db, 'works', task.id);
+      if (task.notForPost) return;
       await updateDoc(ref, {
         postingDate: task.postingDate
           ? Timestamp.fromDate(task.postingDate)
@@ -162,32 +200,53 @@ const PostingDates = () => {
   };
 
   // Ordering
-  const sorted = [...tasks].sort((a, b) => {
+  const normalizedFilter = (filter || '').trim().toLowerCase();
+
+  const filteredAll = (tasks || []).filter((t) =>
+    (t.title || '').toLowerCase().includes(normalizedFilter)
+  );
+
+  const sortNotPosted = (a, b) => {
     const aHasDate = !!a.postingDate;
     const bHasDate = !!b.postingDate;
 
-    const aIsDateNotPosted = aHasDate && !a.posted;
-    const bIsDateNotPosted = bHasDate && !b.posted;
-
-    if (aIsDateNotPosted && !bIsDateNotPosted) return -1;
-    if (!aIsDateNotPosted && bIsDateNotPosted) return 1;
-
-    const aNoDate = !aHasDate;
-    const bNoDate = !bHasDate;
-
-    if (aNoDate && !bNoDate) return -1;
-    if (!aNoDate && bNoDate) return 1;
+    // scheduled first (date set, not posted)
+    if (aHasDate && !bHasDate) return -1;
+    if (!aHasDate && bHasDate) return 1;
 
     if (aHasDate && bHasDate) {
-      return a.postingDate.getTime() - b.postingDate.getTime();
+      const diff = a.postingDate.getTime() - b.postingDate.getTime();
+      if (diff !== 0) return diff;
     }
 
-    return 0;
-  });
+    return (a.title || '').localeCompare(b.title || '');
+  };
 
-  const filtered = sorted.filter((t) =>
-    t.title.toLowerCase().includes(filter.toLowerCase())
-  );
+  const sortPosted = (a, b) => {
+    const aHasDate = !!a.postingDate;
+    const bHasDate = !!b.postingDate;
+    if (aHasDate && !bHasDate) return -1;
+    if (!aHasDate && bHasDate) return 1;
+    if (aHasDate && bHasDate) {
+      const diff = a.postingDate.getTime() - b.postingDate.getTime();
+      if (diff !== 0) return diff;
+    }
+    return (a.title || '').localeCompare(b.title || '');
+  };
+
+  const sortNotForPost = (a, b) => (a.title || '').localeCompare(b.title || '');
+
+  const notForPostTasks = filteredAll
+    .filter((t) => !!t.notForPost)
+    .sort(sortNotForPost);
+
+  const postedTasks = filteredAll
+    .filter((t) => !t.notForPost && !!t.posted)
+    .sort(sortPosted);
+
+  const notPostedTasks = filteredAll
+    .filter((t) => !t.notForPost && !t.posted)
+    .sort(sortNotPosted);
 
 const formatDate = (d) => {
   if (!d) return 'Not set';
@@ -200,10 +259,11 @@ const formatDate = (d) => {
 };
 
 
-  const selectedTasks = filtered.filter((t) => selectedIds.has(t.id));
+  const orderedVisibleTasks = [...notPostedTasks, ...postedTasks, ...notForPostTasks];
+  const selectedTasks = orderedVisibleTasks.filter((t) => selectedIds.has(t.id));
 
   const handleDownloadPdf = () => {
-    const items = selectedTasks.length ? selectedTasks : filtered;
+    const items = selectedTasks.length ? selectedTasks : orderedVisibleTasks;
     if (!items.length) return;
 
     const doc = new jsPDF();
@@ -224,7 +284,7 @@ const rows = items.map((task) => {
     task.title,
     task.description || '',
     formatDate(task.postingDate),
-    task.posted ? 'Posted' : 'Not posted',
+    task.notForPost ? 'Not for post' : task.posted ? 'Posted' : 'Not posted',
     editors,
   ];
 });
@@ -257,6 +317,135 @@ autoTable(doc, {
     clearSelectionForMissingTasks();
   }, [tasks]);
 
+  const renderTaskRow = (task) => (
+    <div
+      key={task.id}
+      className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex flex-col gap-3"
+    >
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div className="max-w-xl">
+          <div className="flex items-center gap-2 mb-1">
+            <input
+              type="checkbox"
+              checked={selectedIds.has(task.id)}
+              onChange={() => toggleSelect(task.id)}
+              className="h-4 w-4"
+            />
+            <h2 className="text-sm sm:text-base font-semibold text-gray-800">
+              {task.title}
+            </h2>
+          </div>
+
+          <p className="text-xs text-gray-600">
+            Work date: {formatDate(task.workDate)}
+          </p>
+
+          {task.description && (
+            <div className="mt-1 bg-gray-50 rounded-md px-3 py-2">
+              <p className="text-xs font-semibold text-gray-600 mb-0.5">
+                Description
+              </p>
+              <p className="text-xs text-gray-700 leading-relaxed line-clamp-3">
+                {task.description}
+              </p>
+            </div>
+          )}
+
+          <div className="mt-1">
+            <p className="text-xs font-semibold text-gray-600">Users</p>
+            {getEditors(task).length === 0 ? (
+              <p className="text-xs text-gray-500">No users found</p>
+            ) : (
+              <ul className="mt-0.5 space-y-0.5">
+                {getEditors(task).map((e, idx) => (
+                  <li key={idx} className="text-xs text-gray-700">
+                    {e.rolesText ? `${e.name} [${e.rolesText}]` : e.name}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+
+        <div className="text-xs font-semibold">
+          {task.notForPost ? (
+            <span className="px-3 py-1 rounded-full bg-gray-200 text-gray-800">
+              Not for post
+            </span>
+          ) : task.postingDate ? (
+            task.posted ? (
+              <span className="px-3 py-1 rounded-full bg-green-100 text-green-800">
+                Posted ({formatDate(task.postingDate)})
+              </span>
+            ) : (
+              <span className="px-3 py-1 rounded-full bg-yellow-100 text-yellow-800">
+                Scheduled ({formatDate(task.postingDate)})
+              </span>
+            )
+          ) : (
+            <span className="px-3 py-1 rounded-full bg-gray-100 text-gray-600">
+              No posting date
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+        <div className="flex items-center gap-2 flex-1">
+          <label className="text-xs text-gray-600">Posting date:</label>
+          <input
+            type="date"
+            value={task.postingDate ? task.postingDate.toISOString().slice(0, 10) : ''}
+            onChange={(e) => handleDateChange(task.id, e.target.value)}
+            disabled={task.notForPost}
+            className="px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <button
+            onClick={() => handleSaveDate(task)}
+            disabled={task.notForPost || savingId === task.id}
+            className={`px-3 py-2 text-xs font-semibold rounded-lg text-white ${
+              savingId === task.id
+                ? 'bg-gray-400 cursor-not-allowed'
+                : 'bg-blue-600 hover:bg-blue-700'
+            }`}
+          >
+            {savingId === task.id ? 'Saving…' : 'Save date'}
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => handleTogglePosted(task, !task.posted)}
+            disabled={(task.notForPost || savingId === task.id) || (!task.postingDate && !isDeptHead)}
+            className={`px-4 py-2 text-xs font-semibold rounded-lg ${
+              task.posted
+                ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                : 'bg-green-600 text-white hover:bg-green-700'
+            } ${
+              (task.notForPost || savingId === task.id) || (!task.postingDate && !isDeptHead)
+                ? 'opacity-60 cursor-not-allowed'
+                : ''
+            }`}
+          >
+            {task.posted ? 'Unmark posted' : 'Mark posted'}
+          </button>
+
+          <button
+            onClick={() => handleToggleNotForPost(task, !task.notForPost)}
+            disabled={savingId === task.id}
+            className={`px-4 py-2 text-xs font-semibold rounded-lg border ${
+              task.notForPost
+                ? 'bg-white text-gray-800 border-gray-300 hover:bg-gray-50'
+                : 'bg-gray-100 text-gray-700 border-gray-200 hover:bg-gray-200'
+            } ${savingId === task.id ? 'opacity-60 cursor-not-allowed' : ''}`}
+          >
+            {task.notForPost ? 'Unmark not for post' : 'Mark not for post'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
       <Header userType="admin" />
@@ -282,7 +471,7 @@ autoTable(doc, {
             />
             <button
               onClick={handleDownloadPdf}
-              disabled={filtered.length === 0}
+              disabled={orderedVisibleTasks.length === 0}
               className="px-4 py-2 text-sm font-semibold rounded-lg bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {selectedTasks.length
@@ -292,131 +481,45 @@ autoTable(doc, {
           </div>
         </div>
 
-        {filtered.length === 0 ? (
+        {orderedVisibleTasks.length === 0 ? (
           <p className="text-gray-500 text-sm">No works found.</p>
         ) : (
-          <div className="space-y-4">
-            {filtered.map((task) => (
-              <div
-                key={task.id}
-                className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex flex-col gap-3"
-              >
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                  <div className="max-w-xl">
-                    <div className="flex items-center gap-2 mb-1">
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.has(task.id)}
-                        onChange={() => toggleSelect(task.id)}
-                        className="h-4 w-4"
-                      />
-                      <h2 className="text-sm sm:text-base font-semibold text-gray-800">
-                        {task.title}
-                      </h2>
-                    </div>
-
-                    <p className="text-xs text-gray-600">
-                      Work date: {formatDate(task.workDate)}
-                    </p>
-
-                    {task.description && (
-                      <div className="mt-1 bg-gray-50 rounded-md px-3 py-2">
-                        <p className="text-xs font-semibold text-gray-600 mb-0.5">
-                          Description
-                        </p>
-                        <p className="text-xs text-gray-700 leading-relaxed line-clamp-3">
-                          {task.description}
-                        </p>
-                      </div>
-                    )}
-
-                    <div className="mt-1">
-                      <p className="text-xs font-semibold text-gray-600">
-                        Users
-                      </p>
-                      {getEditors(task).length === 0 ? (
-                        <p className="text-xs text-gray-500">No users found</p>
-                      ) : (
-                        <ul className="mt-0.5 space-y-0.5">
-                          {getEditors(task).map((e, idx) => (
-                            <li key={idx} className="text-xs text-gray-700">
-                              {e.rolesText ? `${e.name} [${e.rolesText}]` : e.name}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="text-xs font-semibold">
-                    {task.postingDate ? (
-                      task.posted ? (
-                        <span className="px-3 py-1 rounded-full bg-green-100 text-green-800">
-                          Posted ({formatDate(task.postingDate)})
-                        </span>
-                      ) : (
-                        <span className="px-3 py-1 rounded-full bg-yellow-100 text-yellow-800">
-                          Scheduled ({formatDate(task.postingDate)})
-                        </span>
-                      )
-                    ) : (
-                      <span className="px-3 py-1 rounded-full bg-gray-100 text-gray-600">
-                        No posting date
-                      </span>
-                    )}
-                  </div>
+          <div className="space-y-6">
+            {notPostedTasks.length > 0 && (
+              <section>
+                <div className="flex items-baseline justify-between gap-2 mb-2">
+                  <h2 className="text-base sm:text-lg font-bold text-gray-800">Not posted</h2>
+                  <span className="text-xs text-gray-500">{notPostedTasks.length}</span>
                 </div>
-
-                <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                  <div className="flex items-center gap-2 flex-1">
-                    <label className="text-xs text-gray-600">
-                      Posting date:
-                    </label>
-                    <input
-                      type="date"
-                      value={
-                        task.postingDate
-                          ? task.postingDate.toISOString().slice(0, 10)
-                          : ''
-                      }
-                      onChange={(e) =>
-                        handleDateChange(task.id, e.target.value)
-                      }
-                      className="px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                    <button
-                      onClick={() => handleSaveDate(task)}
-                      disabled={savingId === task.id}
-                      className={`px-3 py-2 text-xs font-semibold rounded-lg text-white ${
-                        savingId === task.id
-                          ? 'bg-gray-400 cursor-not-allowed'
-                          : 'bg-blue-600 hover:bg-blue-700'
-                      }`}
-                    >
-                      {savingId === task.id ? 'Saving…' : 'Save date'}
-                    </button>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => handleTogglePosted(task, !task.posted)}
-                      disabled={!task.postingDate || savingId === task.id}
-                      className={`px-4 py-2 text-xs font-semibold rounded-lg ${
-                        task.posted
-                          ? 'bg-red-100 text-red-700 hover:bg-red-200'
-                          : 'bg-green-600 text-white hover:bg-green-700'
-                      } ${
-                        !task.postingDate || savingId === task.id
-                          ? 'opacity-60 cursor-not-allowed'
-                          : ''
-                      }`}
-                    >
-                      {task.posted ? 'Unmark posted' : 'Mark posted'}
-                    </button>
-                  </div>
+                <div className="space-y-4">
+                  {notPostedTasks.map(renderTaskRow)}
                 </div>
-              </div>
-            ))}
+              </section>
+            )}
+
+            {postedTasks.length > 0 && (
+              <section>
+                <div className="flex items-baseline justify-between gap-2 mb-2">
+                  <h2 className="text-base sm:text-lg font-bold text-gray-800">Posted</h2>
+                  <span className="text-xs text-gray-500">{postedTasks.length}</span>
+                </div>
+                <div className="space-y-4">
+                  {postedTasks.map(renderTaskRow)}
+                </div>
+              </section>
+            )}
+
+            {notForPostTasks.length > 0 && (
+              <section>
+                <div className="flex items-baseline justify-between gap-2 mb-2">
+                  <h2 className="text-base sm:text-lg font-bold text-gray-800">Not for post</h2>
+                  <span className="text-xs text-gray-500">{notForPostTasks.length}</span>
+                </div>
+                <div className="space-y-4">
+                  {notForPostTasks.map(renderTaskRow)}
+                </div>
+              </section>
+            )}
           </div>
         )}
       </main>
