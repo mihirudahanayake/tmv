@@ -20,6 +20,7 @@ const PostingDates = () => {
   const [tasks, setTasks] = useState([]);
   const [savingId, setSavingId] = useState(null);
   const [filter, setFilter] = useState('');
+  const [statusView, setStatusView] = useState('all'); // 'all' | 'not_posted' | 'posted' | 'not_for_post'
   const [userDetails, setUserDetails] = useState({}); // userId -> user data
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [department, setDepartment] = useState('videography');
@@ -248,6 +249,16 @@ const PostingDates = () => {
     .filter((t) => !t.notForPost && !t.posted)
     .sort(sortNotPosted);
 
+  const visibleNotPostedTasks = statusView === 'all' || statusView === 'not_posted'
+    ? notPostedTasks
+    : [];
+  const visiblePostedTasks = statusView === 'all' || statusView === 'posted'
+    ? postedTasks
+    : [];
+  const visibleNotForPostTasks = statusView === 'all' || statusView === 'not_for_post'
+    ? notForPostTasks
+    : [];
+
 const formatDate = (d) => {
   if (!d) return 'Not set';
   const day = String(d.getDate()).padStart(2, '0');
@@ -259,7 +270,7 @@ const formatDate = (d) => {
 };
 
 
-  const orderedVisibleTasks = [...notPostedTasks, ...postedTasks, ...notForPostTasks];
+  const orderedVisibleTasks = [...visibleNotPostedTasks, ...visiblePostedTasks, ...visibleNotForPostTasks];
   const selectedTasks = orderedVisibleTasks.filter((t) => selectedIds.has(t.id));
 
   const handleDownloadPdf = () => {
@@ -469,6 +480,17 @@ autoTable(doc, {
               placeholder="Search video"
               className="w-full sm:w-64 px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
+            <select
+              value={statusView}
+              onChange={(e) => setStatusView(e.target.value)}
+              className="w-full sm:w-48 px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              aria-label="Status filter"
+            >
+              <option value="all">Show all</option>
+              <option value="not_posted">Not posted</option>
+              <option value="posted">Posted</option>
+              <option value="not_for_post">Not for post</option>
+            </select>
             <button
               onClick={handleDownloadPdf}
               disabled={orderedVisibleTasks.length === 0}
@@ -485,38 +507,38 @@ autoTable(doc, {
           <p className="text-gray-500 text-sm">No works found.</p>
         ) : (
           <div className="space-y-6">
-            {notPostedTasks.length > 0 && (
+            {visibleNotPostedTasks.length > 0 && (
               <section>
                 <div className="flex items-baseline justify-between gap-2 mb-2">
                   <h2 className="text-base sm:text-lg font-bold text-gray-800">Not posted</h2>
-                  <span className="text-xs text-gray-500">{notPostedTasks.length}</span>
+                  <span className="text-xs text-gray-500">{visibleNotPostedTasks.length}</span>
                 </div>
                 <div className="space-y-4">
-                  {notPostedTasks.map(renderTaskRow)}
+                  {visibleNotPostedTasks.map(renderTaskRow)}
                 </div>
               </section>
             )}
 
-            {postedTasks.length > 0 && (
+            {visiblePostedTasks.length > 0 && (
               <section>
                 <div className="flex items-baseline justify-between gap-2 mb-2">
                   <h2 className="text-base sm:text-lg font-bold text-gray-800">Posted</h2>
-                  <span className="text-xs text-gray-500">{postedTasks.length}</span>
+                  <span className="text-xs text-gray-500">{visiblePostedTasks.length}</span>
                 </div>
                 <div className="space-y-4">
-                  {postedTasks.map(renderTaskRow)}
+                  {visiblePostedTasks.map(renderTaskRow)}
                 </div>
               </section>
             )}
 
-            {notForPostTasks.length > 0 && (
+            {visibleNotForPostTasks.length > 0 && (
               <section>
                 <div className="flex items-baseline justify-between gap-2 mb-2">
                   <h2 className="text-base sm:text-lg font-bold text-gray-800">Not for post</h2>
-                  <span className="text-xs text-gray-500">{notForPostTasks.length}</span>
+                  <span className="text-xs text-gray-500">{visibleNotForPostTasks.length}</span>
                 </div>
                 <div className="space-y-4">
-                  {notForPostTasks.map(renderTaskRow)}
+                  {visibleNotForPostTasks.map(renderTaskRow)}
                 </div>
               </section>
             )}
