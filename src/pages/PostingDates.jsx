@@ -69,6 +69,20 @@ const PostingDates = () => {
         snaps.forEach((snap) => {
           snap.docs.forEach((d) => {
             const data = d.data();
+
+            const createdAtRaw = data.createdAt ?? null;
+            const createdAtMs = (() => {
+              if (!createdAtRaw) return null;
+              // Firestore Timestamp
+              if (typeof createdAtRaw === 'object' && typeof createdAtRaw.toDate === 'function') {
+                const dt = createdAtRaw.toDate();
+                return Number.isNaN(dt.getTime()) ? null : dt.getTime();
+              }
+              // ISO string or Date-ish
+              const dt = new Date(createdAtRaw);
+              return Number.isNaN(dt.getTime()) ? null : dt.getTime();
+            })();
+
             dedup.set(d.id, {
               id: d.id,
               title: data.title || 'Video',
@@ -77,6 +91,7 @@ const PostingDates = () => {
               postingDate: data.postingDate ? data.postingDate.toDate() : null,
               posted: !!data.posted,
               notForPost: !!data.notForPost,
+              createdAtMs,
               assignedUserDetails: data.assignedUserDetails || [],
             });
           });
@@ -208,6 +223,14 @@ const PostingDates = () => {
   );
 
   const sortNotPosted = (a, b) => {
+    const aCreated = a.createdAtMs ?? null;
+    const bCreated = b.createdAtMs ?? null;
+    if (aCreated != null || bCreated != null) {
+      const at = aCreated ?? 0;
+      const bt = bCreated ?? 0;
+      if (bt !== at) return bt - at;
+    }
+
     const aHasDate = !!a.postingDate;
     const bHasDate = !!b.postingDate;
 
@@ -224,6 +247,14 @@ const PostingDates = () => {
   };
 
   const sortPosted = (a, b) => {
+    const aCreated = a.createdAtMs ?? null;
+    const bCreated = b.createdAtMs ?? null;
+    if (aCreated != null || bCreated != null) {
+      const at = aCreated ?? 0;
+      const bt = bCreated ?? 0;
+      if (bt !== at) return bt - at;
+    }
+
     const aHasDate = !!a.postingDate;
     const bHasDate = !!b.postingDate;
     if (aHasDate && !bHasDate) return -1;
@@ -235,7 +266,16 @@ const PostingDates = () => {
     return (a.title || '').localeCompare(b.title || '');
   };
 
-  const sortNotForPost = (a, b) => (a.title || '').localeCompare(b.title || '');
+  const sortNotForPost = (a, b) => {
+    const aCreated = a.createdAtMs ?? null;
+    const bCreated = b.createdAtMs ?? null;
+    if (aCreated != null || bCreated != null) {
+      const at = aCreated ?? 0;
+      const bt = bCreated ?? 0;
+      if (bt !== at) return bt - at;
+    }
+    return (a.title || '').localeCompare(b.title || '');
+  };
 
   const notForPostTasks = filteredAll
     .filter((t) => !!t.notForPost)
