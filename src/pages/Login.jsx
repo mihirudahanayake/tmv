@@ -152,6 +152,17 @@ const Login = () => {
                 {showPassword ? <FaEyeSlash /> : <FaEye />}
               </button>
             </div>
+
+            <div className="mt-2 text-right">
+              <button
+                type="button"
+                onClick={() => navigate('/forgot-password')}
+                disabled={loading}
+                className="text-xs sm:text-sm text-blue-600 font-semibold hover:underline disabled:opacity-60 dark:text-blue-400 dark:hover:text-blue-300"
+              >
+                Forgot password?
+              </button>
+            </div>
           </div>
 
           <button

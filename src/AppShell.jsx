@@ -9,6 +9,7 @@ import Homepage from './pages/Homepage.jsx';
 import Home from './pages/Home.jsx';
 import Welcome from './pages/Welcome.jsx';
 import Login from './pages/Login.jsx';
+import ForgotPassword from './pages/ForgotPassword.jsx';
 import Signup from './pages/Signup.jsx';
 import CreateUser from './pages/CreateUser.jsx';
 import AssignWork from './pages/AssignWork.jsx';
@@ -40,6 +41,7 @@ const AppShell = () => {
       {/* auth / common */}
       <Route path="/" element={<Welcome />} />
       <Route path="/login" element={<Login />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/signup" element={<Signup />} />
       <Route path="/home" element={<Home />} />
 
