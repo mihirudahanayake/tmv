@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useDarkMode } from '../context/DarkModeContext';
 import { FaSun, FaMoon, FaArrowLeft, FaEye, FaEyeSlash } from 'react-icons/fa';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase/config';
@@ -10,6 +10,7 @@ import { normalizeRole, SITE_ADMIN_EMAIL } from '../utils/authz';
 
 const Login = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { isDarkMode, toggleDarkMode } = useDarkMode();
   const [form, setForm] = useState({
     email: '',
@@ -18,6 +19,17 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [info, setInfo] = useState('');
+
+  useEffect(() => {
+    const message = location?.state?.info;
+    if (typeof message === 'string' && message.trim()) {
+      setInfo(message);
+      // Clear route state so it doesn't reappear on back/refresh.
+      navigate(location.pathname, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleChange = (e) => {
     setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
@@ -26,6 +38,7 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setInfo('');
     setLoading(true);
 
     try {
@@ -111,6 +124,12 @@ const Login = () => {
         {error && (
           <div className="mb-4 p-3 rounded bg-red-100 text-red-700 text-sm dark:bg-red-900 dark:text-red-200">
             {error}
+          </div>
+        )}
+
+        {info && (
+          <div className="mb-4 p-3 rounded bg-blue-100 text-blue-700 text-sm dark:bg-blue-900 dark:text-blue-200">
+            {info}
           </div>
         )}
 

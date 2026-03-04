@@ -3,7 +3,7 @@ import { FaEye, FaEyeSlash } from 'react-icons/fa';
 import { useDarkMode } from '../context/DarkModeContext';
 import { FaSun, FaMoon, FaArrowLeft } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, sendEmailVerification, signOut } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase/config';
 import { WORK_DEPARTMENTS } from '../constants/workDepartments';
@@ -36,6 +36,7 @@ const Signup = () => {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [info, setInfo] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
@@ -57,6 +58,7 @@ const Signup = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setInfo('');
 
     if (form.password !== form.confirmPassword) {
       setError('Password and confirm password do not match.');
@@ -116,13 +118,15 @@ const Signup = () => {
         createdAt: new Date().toISOString()
       });
 
-      if (role === 'superAdmin') {
-        navigate('/super-admin');
-      } else if (userType === 'admin') {
-        navigate('/admin-home');
-      } else {
-        navigate('/home');
-      }
+      await sendEmailVerification(user);
+
+      // Require verification before proceeding.
+      await signOut(auth);
+      navigate('/login', {
+        state: {
+          info: 'Account created. Please verify your email using the link we sent before logging in.',
+        },
+      });
     } catch (err) {
       setError(err.message || 'Failed to sign up.');
     } finally {
@@ -169,6 +173,12 @@ const Signup = () => {
         {error && (
           <div className="mb-4 p-3 rounded bg-red-100 text-red-700 text-sm dark:bg-red-900 dark:text-red-200">
             {error}
+          </div>
+        )}
+
+        {info && (
+          <div className="mb-4 p-3 rounded bg-blue-100 text-blue-700 text-sm dark:bg-blue-900 dark:text-blue-200">
+            {info}
           </div>
         )}
 
