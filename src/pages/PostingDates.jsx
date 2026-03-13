@@ -59,6 +59,16 @@ const PostingDates = () => {
       try {
         if (loadingProfile) return;
 
+        const parseDateValue = (raw) => {
+          if (!raw) return null;
+          if (typeof raw === 'object' && typeof raw.toDate === 'function') {
+            const dt = raw.toDate();
+            return Number.isNaN(dt.getTime()) ? null : dt;
+          }
+          const dt = new Date(raw);
+          return Number.isNaN(dt.getTime()) ? null : dt;
+        };
+
         const snaps = [];
         snaps.push(await getDocs(query(collection(db, 'works'), where('department', '==', department))));
         if (department === 'videography') {
@@ -88,7 +98,8 @@ const PostingDates = () => {
               title: data.title || 'Video',
               description: data.description || '',
               workDate: data.date ? new Date(data.date) : null,
-              postingDate: data.postingDate ? data.postingDate.toDate() : null,
+              postingDate: parseDateValue(data.postingDate),
+              completedDate: parseDateValue(data.completedDate),
               posted: !!data.posted,
               notForPost: !!data.notForPost,
               createdAtMs,
@@ -104,11 +115,39 @@ const PostingDates = () => {
     load();
   }, [loadingProfile, department]);
 
+  const inputValueToDate = (value) => {
+    if (!value) return null;
+    const [y, m, d] = String(value).split('-').map((v) => Number(v));
+    if (!y || !m || !d) return null;
+    const dt = new Date(y, m - 1, d, 0, 0, 0, 0);
+    return Number.isNaN(dt.getTime()) ? null : dt;
+  };
+
+  const dateToInputValue = (d) => {
+    if (!d) return '';
+    const dt = d instanceof Date ? d : new Date(d);
+    if (Number.isNaN(dt.getTime())) return '';
+    const yyyy = dt.getFullYear();
+    const mm = String(dt.getMonth() + 1).padStart(2, '0');
+    const dd = String(dt.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
   const handleDateChange = (id, value) => {
     setTasks((prev) =>
       prev.map((t) =>
         t.id === id
-          ? { ...t, postingDate: value ? new Date(value) : null }
+          ? { ...t, postingDate: inputValueToDate(value) }
+          : t
+      )
+    );
+  };
+
+  const handleCompletedDateChange = (id, value) => {
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === id
+          ? { ...t, completedDate: inputValueToDate(value) }
           : t
       )
     );
@@ -164,18 +203,27 @@ const PostingDates = () => {
     }
   };
 
-  const handleSaveDate = async (task) => {
+  const handleSaveDates = async (task) => {
     try {
       setSavingId(task.id);
       const ref = doc(db, 'works', task.id);
-      if (task.notForPost) return;
-      await updateDoc(ref, {
-        postingDate: task.postingDate
-          ? Timestamp.fromDate(task.postingDate)
+
+      const payload = {
+        completedDate: task.completedDate
+          ? Timestamp.fromDate(task.completedDate)
           : null,
-      });
+        ...(task.notForPost
+          ? {}
+          : {
+              postingDate: task.postingDate
+                ? Timestamp.fromDate(task.postingDate)
+                : null,
+            }),
+      };
+
+      await updateDoc(ref, payload);
     } catch (e) {
-      console.error('Failed to save posting date', e);
+      console.error('Failed to save dates', e);
     } finally {
       setSavingId(null);
     }
@@ -334,6 +382,7 @@ const rows = items.map((task) => {
   return [
     task.title,
     task.description || '',
+    formatDate(task.completedDate),
     formatDate(task.postingDate),
     task.notForPost ? 'Not for post' : task.posted ? 'Posted' : 'Not posted',
     editors,
@@ -343,7 +392,7 @@ const rows = items.map((task) => {
 
 autoTable(doc, {
   startY: 22,
-  head: [['Title', 'Description', 'Posting Date', 'Status', 'Member(s)']],
+  head: [['Title', 'Description', 'Completed Date', 'Posting Date', 'Status', 'Member(s)']],
   body: rows,
   styles: { fontSize: 8 },
   headStyles: {
@@ -352,11 +401,12 @@ autoTable(doc, {
     valign: 'middle'
   },
   columnStyles: {
-    0: { cellWidth: 50 },                  // Title
-    1: { cellWidth: 40 },                  // Description
-    2: { cellWidth: 23, halign: 'center' },// Posting Date
-    3: { cellWidth: 20, halign: 'center' },// Status
-    4: { cellWidth: 'auto' }               // Users
+    0: { cellWidth: 40 },                  // Title
+    1: { cellWidth: 35 },                  // Description
+    2: { cellWidth: 22, halign: 'center' },// Completed Date
+    3: { cellWidth: 22, halign: 'center' },// Posting Date
+    4: { cellWidth: 18, halign: 'center' },// Status
+    5: { cellWidth: 'auto' }               // Users
   }
 });
 
@@ -389,6 +439,10 @@ autoTable(doc, {
 
           <p className="text-xs text-gray-600">
             Work date: {formatDate(task.workDate)}
+          </p>
+
+          <p className="text-xs text-gray-600">
+            Completed date: {formatDate(task.completedDate)}
           </p>
 
           {task.description && (
@@ -442,33 +496,48 @@ autoTable(doc, {
       </div>
 
       <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-        <div className="flex items-center gap-2 flex-1">
-          <label className="text-xs text-gray-600">Posting date:</label>
-          <input
-            type="date"
-            value={task.postingDate ? task.postingDate.toISOString().slice(0, 10) : ''}
-            onChange={(e) => handleDateChange(task.id, e.target.value)}
-            disabled={task.notForPost}
-            className="px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <button
-            onClick={() => handleSaveDate(task)}
-            disabled={task.notForPost || savingId === task.id}
-            className={`px-3 py-2 text-xs font-semibold rounded-lg text-white ${
-              savingId === task.id
-                ? 'bg-gray-400 cursor-not-allowed'
-                : 'bg-blue-600 hover:bg-blue-700'
-            }`}
-          >
-            {savingId === task.id ? 'Saving…' : 'Save date'}
-          </button>
+        <div className="flex flex-col gap-2 flex-1">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+            <label className="text-xs text-gray-600 sm:whitespace-nowrap">Completed date:</label>
+            <input
+              type="date"
+              value={dateToInputValue(task.completedDate)}
+              onChange={(e) => handleCompletedDateChange(task.id, e.target.value)}
+              className="w-full sm:w-auto px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+            <label className="text-xs text-gray-600 sm:whitespace-nowrap">Posting date:</label>
+            <input
+              type="date"
+              value={dateToInputValue(task.postingDate)}
+              onChange={(e) => handleDateChange(task.id, e.target.value)}
+              disabled={task.notForPost}
+              className="w-full sm:w-auto px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div className="flex">
+            <button
+              onClick={() => handleSaveDates(task)}
+              disabled={savingId === task.id}
+              className={`w-full sm:w-auto px-3 py-2 text-xs font-semibold rounded-lg text-white ${
+                savingId === task.id
+                  ? 'bg-gray-400 cursor-not-allowed'
+                  : 'bg-blue-600 hover:bg-blue-700'
+              }`}
+            >
+              {savingId === task.id ? 'Saving…' : 'Save dates'}
+            </button>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
           <button
             onClick={() => handleTogglePosted(task, !task.posted)}
             disabled={(task.notForPost || savingId === task.id) || (!task.postingDate && !isDeptHead)}
-            className={`px-4 py-2 text-xs font-semibold rounded-lg ${
+            className={`w-full sm:w-auto px-4 py-2 text-xs font-semibold rounded-lg ${
               task.posted
                 ? 'bg-red-100 text-red-700 hover:bg-red-200'
                 : 'bg-green-600 text-white hover:bg-green-700'
@@ -484,7 +553,7 @@ autoTable(doc, {
           <button
             onClick={() => handleToggleNotForPost(task, !task.notForPost)}
             disabled={savingId === task.id}
-            className={`px-4 py-2 text-xs font-semibold rounded-lg border ${
+            className={`w-full sm:w-auto px-4 py-2 text-xs font-semibold rounded-lg border ${
               task.notForPost
                 ? 'bg-white text-gray-800 border-gray-300 hover:bg-gray-50'
                 : 'bg-gray-100 text-gray-700 border-gray-200 hover:bg-gray-200'
