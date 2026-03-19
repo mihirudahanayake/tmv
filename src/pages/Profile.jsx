@@ -48,6 +48,29 @@ const Profile = () => {
 
   const navigate = useNavigate();
 
+  const normalizeProfileData = (data) => {
+    const existingDepartments = Array.isArray(data?.departments)
+      ? data.departments.filter(Boolean)
+      : [];
+    const fallbackDepartments = data?.department ? [data.department] : [];
+    const departments = [...new Set([...(existingDepartments.length ? existingDepartments : fallbackDepartments)])];
+
+    const firstPriority = (data?.firstPriority || data?.department || departments[0] || 'videography')?.toString();
+
+    const nextDepartments =
+      firstPriority && !departments.includes(firstPriority)
+        ? [firstPriority, ...departments]
+        : departments;
+
+    return {
+      ...data,
+      departments: nextDepartments,
+      firstPriority,
+      // keep legacy field populated for older queries / rules
+      department: (data?.department || firstPriority || nextDepartments[0] || 'videography')?.toString(),
+    };
+  };
+
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (!user) {
@@ -59,11 +82,11 @@ const Profile = () => {
       try {
         const snap = await getDoc(doc(db, 'users', user.uid));
         if (snap.exists()) {
-          const data = {
+          const data = normalizeProfileData({
             id: user.uid,
             ...snap.data(),
             email: user.email || '',
-          };
+          });
           setUserData(data);
           setOriginalData(data);
         }
@@ -87,16 +110,59 @@ const Profile = () => {
     const { name, value } = e.target;
 
     // Keep legacy `department` and RBAC `departments` array in sync.
-    if (name === 'department') {
-      setUserData((prev) => ({
-        ...prev,
-        department: value,
-        departments: [value],
-      }));
+    // (Profile edit uses a multi-select `departments` UI; `department` stays as the primary.)
+    if (name === 'firstPriority') {
+      setUserData((prev) => {
+        const currentDepartments = Array.isArray(prev?.departments)
+          ? prev.departments.filter(Boolean)
+          : prev?.department
+            ? [prev.department]
+            : [];
+
+        const nextDepartments = value && !currentDepartments.includes(value)
+          ? [value, ...currentDepartments]
+          : currentDepartments;
+
+        return {
+          ...prev,
+          firstPriority: value,
+          department: value,
+          departments: nextDepartments,
+        };
+      });
       return;
     }
 
     setUserData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const getSelectedDepartments = (data) => {
+    if (Array.isArray(data?.departments) && data.departments.length) return data.departments.filter(Boolean);
+    if (data?.department) return [data.department];
+    return [];
+  };
+
+  const handleWorkDepartmentToggle = (dept) => {
+    if (!isEditingProfile) return;
+    setUserData((prev) => {
+      const current = getSelectedDepartments(prev);
+      const exists = current.includes(dept);
+      const next = exists ? current.filter((d) => d !== dept) : [...current, dept];
+
+      const nextFirstPriority =
+        next.length === 0
+          ? ''
+          : prev?.firstPriority && next.includes(prev.firstPriority)
+            ? prev.firstPriority
+            : next[0];
+
+      return {
+        ...prev,
+        departments: next,
+        firstPriority: nextFirstPriority,
+        department: nextFirstPriority || next[0] || '',
+      };
+    });
   };
 
   const startEditProfile = () => {
@@ -122,13 +188,35 @@ const Profile = () => {
     setError('');
     setSuccessMsg('');
 
+    const selectedDepartments = getSelectedDepartments(userData);
+    if (selectedDepartments.length === 0) {
+      setError('Please select at least one work department.');
+      setSaving(false);
+      return;
+    }
+
     try {
       const userRef = doc(db, 'users', userData.id);
       const { id, userType, createdAt, email, ...editable } = userData;
-      await updateDoc(userRef, editable);
+
+      const primaryDepartment =
+        (editable.firstPriority && selectedDepartments.includes(editable.firstPriority)
+          ? editable.firstPriority
+          : selectedDepartments[0]) || 'videography';
+
+      const normalizedEditable = {
+        ...editable,
+        departments: selectedDepartments,
+        firstPriority: primaryDepartment,
+        // keep legacy field in sync
+        department: primaryDepartment,
+      };
+
+      await updateDoc(userRef, normalizedEditable);
+      setUserData((prev) => (prev ? normalizeProfileData({ ...prev, ...normalizedEditable }) : prev));
       setSuccessMsg('Profile updated successfully.');
       setIsEditingProfile(false);
-      setOriginalData(userData);
+      setOriginalData((prev) => (prev ? normalizeProfileData({ ...prev, ...normalizedEditable }) : prev));
     } catch (err) {
       console.error(err);
       setError('Failed to update profile.');
@@ -580,21 +668,34 @@ const Profile = () => {
 
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">
-                    Work department
+                    Work department(s)
                   </label>
-                  <select
-                    name="department"
-                    value={(userData.departments && userData.departments[0]) || userData.department || 'videography'}
-                    onChange={handleFieldChange}
-                    className={inputClass}
-                    disabled={!isEditingProfile}
-                  >
-                    {WORK_DEPARTMENTS.map((d) => (
-                      <option key={d} value={d}>
-                        {formatWorkDepartmentLabel(d)}
-                      </option>
-                    ))}
-                  </select>
+                  {isEditingProfile ? (
+                    <div className="w-full px-3 py-2 border rounded text-sm">
+                      <div className="flex flex-wrap gap-3">
+                        {WORK_DEPARTMENTS.map((d) => {
+                          const selected = getSelectedDepartments(userData).includes(d);
+                          return (
+                            <label key={d} className="flex items-center gap-2 text-sm text-gray-700">
+                              <input
+                                type="checkbox"
+                                checked={selected}
+                                onChange={() => handleWorkDepartmentToggle(d)}
+                              />
+                              <span>{formatWorkDepartmentLabel(d)}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                      <p className="text-xs text-gray-500 mt-2">Select one or more departments.</p>
+                    </div>
+                  ) : (
+                    <div className={`${inputClass} bg-gray-100`}>
+                      {getSelectedDepartments(userData).length
+                        ? getSelectedDepartments(userData).map(formatWorkDepartmentLabel).join(', ')
+                        : '—'}
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -605,7 +706,7 @@ const Profile = () => {
                     name="firstPriority"
                     value={
                       userData.firstPriority ||
-                      (userData.departments && userData.departments[0]) ||
+                      getSelectedDepartments(userData)[0] ||
                       userData.department ||
                       'videography'
                     }
@@ -613,7 +714,10 @@ const Profile = () => {
                     className={inputClass}
                     disabled={!isEditingProfile}
                   >
-                    {WORK_DEPARTMENTS.map((d) => (
+                    {(getSelectedDepartments(userData).length
+                      ? getSelectedDepartments(userData)
+                      : WORK_DEPARTMENTS
+                    ).map((d) => (
                       <option key={d} value={d}>
                         {formatWorkDepartmentLabel(d)}
                       </option>
