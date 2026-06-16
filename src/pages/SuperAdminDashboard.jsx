@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { collection, getDocs, query, where } from 'firebase/firestore';
+import { collection, doc, getDocs, query, updateDoc, where } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import Header from '../components/Header';
 import { WORK_DEPARTMENTS, formatWorkDepartmentLabel } from '../constants/workDepartments';
+import { Roles } from '../utils/authz';
 
 const SuperAdminDashboard = () => {
   const [loading, setLoading] = useState(true);
@@ -11,6 +12,7 @@ const SuperAdminDashboard = () => {
   const [selectedDept, setSelectedDept] = useState('all');
   const [users, setUsers] = useState([]);
   const [works, setWorks] = useState([]);
+  const [savingTO, setSavingTO] = useState({});
 
   const deptOptions = useMemo(() => ['all', ...WORK_DEPARTMENTS], []);
 
@@ -61,6 +63,30 @@ const SuperAdminDashboard = () => {
 
     load().catch(console.error);
   }, [selectedDept]);
+
+  const isEffectiveTO = (u) => !!(u?.isTO === true || u?.role === Roles.SUPERVISOR_TO || u?.userType === 'supervisor');
+
+  const setUserTO = async (u, next) => {
+    if (!u?.id) return;
+    setSavingTO((prev) => ({ ...prev, [u.id]: true }));
+    try {
+      const patch = {
+        isTO: !!next,
+      };
+
+      // Migrate legacy supervisor role/userType into the new capability flag.
+      if (u.role === Roles.SUPERVISOR_TO) patch.role = Roles.MEMBER;
+      if (u.userType === 'supervisor') patch.userType = 'user';
+
+      await updateDoc(doc(db, 'users', u.id), patch);
+      setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, ...patch } : x)));
+    } catch (e) {
+      console.error('Failed to update TO flag', e);
+      // Keep UI simple: errors already appear in console.
+    } finally {
+      setSavingTO((prev) => ({ ...prev, [u.id]: false }));
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -122,8 +148,22 @@ const SuperAdminDashboard = () => {
                 <div className="max-h-[420px] overflow-auto divide-y">
                   {users.map((u) => (
                     <div key={u.id} className="py-2">
-                      <div className="font-semibold text-sm text-gray-800">{u.name || u.email || u.id}</div>
-                      <div className="text-xs text-gray-600">role: {u.role || u.userType || 'member'} • depts: {(u.departments || []).join(', ') || '-'}</div>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="font-semibold text-sm text-gray-800 truncate">{u.name || u.email || u.id}</div>
+                          <div className="text-xs text-gray-600">role: {u.role || u.userType || 'member'} • depts: {(u.departments || []).join(', ') || '-'}</div>
+                        </div>
+
+                        <label className="flex items-center gap-2 text-xs text-gray-700 whitespace-nowrap">
+                          <input
+                            type="checkbox"
+                            checked={isEffectiveTO(u)}
+                            disabled={!!savingTO[u.id]}
+                            onChange={(e) => setUserTO(u, e.target.checked)}
+                          />
+                          <span>{savingTO[u.id] ? 'Saving…' : 'TO'}</span>
+                        </label>
+                      </div>
                     </div>
                   ))}
                 </div>

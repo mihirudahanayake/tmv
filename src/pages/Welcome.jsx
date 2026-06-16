@@ -83,7 +83,7 @@ const Welcome = () => {
             <p className={`text-lg font-semibold animate-slide-up-delayed ${
               isDarkMode ? 'text-blue-200' : 'text-blue-700'
             }`}>
-              Task Management & Verification
+              Task, Inventory Management & Verification
             </p>
           </div>
 
@@ -134,7 +134,7 @@ const Welcome = () => {
         <div className={`text-center mt-8 text-xs animate-fade-in ${
           isDarkMode ? 'text-gray-500' : 'text-gray-600'
         }`} style={{ animationDelay: '1.2s' }}>
-          {copyrightSymbol} {currentYear} Media Management System
+          {copyrightSymbol} {currentYear} Media Inventory Management System
         </div>
       </div>
     </div>

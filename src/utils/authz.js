@@ -2,6 +2,7 @@ export const Roles = {
   SITE_ADMIN: 'siteAdmin',
   SUPER_ADMIN: 'superAdmin',
   DEPARTMENT_HEAD: 'departmentHead',
+  SUPERVISOR_TO: 'supervisorTO',
   MEMBER: 'member'
 };
 
@@ -15,12 +16,21 @@ export const normalizeRole = (userDoc) => {
   if (role === Roles.SITE_ADMIN) return Roles.SITE_ADMIN;
   if (role === Roles.SUPER_ADMIN) return Roles.SUPER_ADMIN;
   if (role === Roles.DEPARTMENT_HEAD) return Roles.DEPARTMENT_HEAD;
+  if (role === Roles.SUPERVISOR_TO) return Roles.SUPERVISOR_TO;
   if (role === Roles.MEMBER) return Roles.MEMBER;
 
   // Backward compatibility with old field
   if (userDoc?.userType === 'admin') return Roles.DEPARTMENT_HEAD;
   if (userDoc?.userType === 'superAdmin') return Roles.SUPER_ADMIN;
+  if (userDoc?.userType === 'supervisor') return Roles.SUPERVISOR_TO;
   return Roles.MEMBER;
+};
+
+export const isUserTO = (userDoc) => {
+  if (!userDoc) return false;
+  if (userDoc?.isTO === true) return true;
+  const role = normalizeRole(userDoc);
+  return role === Roles.SUPERVISOR_TO;
 };
 
 export const getManagedDepartments = (userDoc) => {

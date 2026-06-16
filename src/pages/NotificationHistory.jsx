@@ -60,6 +60,11 @@ const NotificationHistory = () => {
     if (n.type === 'reject') return `${who} rejected a work`;
     if (n.type === 'done') return `${who} marked their work as done`;
     if (n.type === 'undo-done') return `${who} undid a done task`;
+    if (n.type === 'unauthorized-access') {
+      const item = n.itemName ? `${n.itemName}${n.itemNo ? ` (#${n.itemNo})` : ''}` : 'an item';
+      return `Unauthorized access attempt for ${item}`;
+    }
+    if (n.type === 'inventory-overdue') return `Inventory overdue alert`;
     return `${who} did something`;
   };
 

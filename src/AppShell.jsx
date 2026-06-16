@@ -5,6 +5,7 @@ import { useIdleLogout } from './hooks/useIdleLogout';
 import DeptHeadRoute from './components/DeptHeadRoute.jsx';
 import SuperAdminRoute from './components/SuperAdminRoute.jsx';
 import SiteAdminRoute from './components/SiteAdminRoute.jsx';
+import RoleRoute from './components/RoleRoute.jsx';
 import Homepage from './pages/Homepage.jsx';
 import Home from './pages/Home.jsx';
 import Welcome from './pages/Welcome.jsx';
@@ -21,6 +22,8 @@ import UserDetails from './pages/UserDetails.jsx';
 import TaskHistory from './pages/TaskHistory.jsx';
 import TaskDetails from './pages/TaskDetails.jsx';
 import Inventory from './pages/Inventory';
+import AccessRecords from './pages/AccessRecords.jsx';
+import MyItemUsage from './pages/MyItemUsage.jsx';
 import AdminRejectDetails from './pages/AdminRejectDetails';
 import UserRejectDetails from './pages/UserRejectDetails';
 import NotificationHistory from './pages/NotificationHistory';
@@ -107,9 +110,27 @@ const AppShell = () => {
       <Route
         path="/inventory"
         element={
-          <DeptHeadRoute>
+          <RoleRoute allowRoles={['departmentHead', 'superAdmin', 'siteAdmin', 'supervisorTO']} redirectTo="/home">
             <Inventory />
+          </RoleRoute>
+        }
+      />
+
+      <Route
+        path="/access-records"
+        element={
+          <DeptHeadRoute>
+            <AccessRecords />
           </DeptHeadRoute>
+        }
+      />
+
+      <Route
+        path="/my-item-usage"
+        element={
+          <RoleRoute allowRoles={['member', 'departmentHead', 'superAdmin', 'siteAdmin', 'supervisorTO']} redirectTo="/login">
+            <MyItemUsage />
+          </RoleRoute>
         }
       />
       <Route

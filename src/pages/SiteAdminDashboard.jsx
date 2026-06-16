@@ -13,7 +13,7 @@ import { Roles } from '../utils/authz';
 const ROLE_OPTIONS = [
   { value: Roles.MEMBER, label: 'Member' },
   { value: Roles.DEPARTMENT_HEAD, label: 'Department Head' },
-  { value: Roles.SUPER_ADMIN, label: 'Super Admin (read-only)' },
+  { value: Roles.SUPER_ADMIN, label: 'Super Admin' },
 ];
 
 const uniq = (arr) => Array.from(new Set((arr || []).filter(Boolean)));
@@ -25,7 +25,7 @@ const SiteAdminDashboard = () => {
   const [error, setError] = useState('');
   const [queryText, setQueryText] = useState('');
 
-  // edits[userId] = { role, departments, managedDepartments }
+  // edits[userId] = { role, isTO, departments, managedDepartments }
   const [edits, setEdits] = useState({});
 
   useEffect(() => {
@@ -40,8 +40,12 @@ const SiteAdminDashboard = () => {
 
         const initial = {};
         list.forEach((u) => {
+          const legacyTO = u.role === Roles.SUPERVISOR_TO || u.userType === 'supervisor';
           initial[u.id] = {
-            role: u.role || (u.userType === 'admin' ? Roles.DEPARTMENT_HEAD : u.userType === 'superAdmin' ? Roles.SUPER_ADMIN : Roles.MEMBER),
+            role: legacyTO
+              ? Roles.MEMBER
+              : (u.role || (u.userType === 'admin' ? Roles.DEPARTMENT_HEAD : u.userType === 'superAdmin' ? Roles.SUPER_ADMIN : Roles.MEMBER)),
+            isTO: legacyTO || u.isTO === true,
             departments: Array.isArray(u.departments) ? uniq(u.departments) : [],
             managedDepartments: Array.isArray(u.managedDepartments) ? uniq(u.managedDepartments) : [],
           };
@@ -91,6 +95,7 @@ const SiteAdminDashboard = () => {
 
     try {
       const role = edit.role;
+      const isTO = !!edit.isTO;
       const departments = uniq(edit.departments);
       const managedDepartments = uniq(edit.managedDepartments).filter((d) => departments.includes(d));
 
@@ -102,12 +107,20 @@ const SiteAdminDashboard = () => {
       await updateDoc(doc(db, 'users', userId), {
         role,
         userType,
+        isTO,
         departments,
         managedDepartments: role === Roles.DEPARTMENT_HEAD ? managedDepartments : [],
       });
 
       setUsers((prev) => prev.map((u) => (u.id === userId
-        ? { ...u, role, userType, departments, managedDepartments: role === Roles.DEPARTMENT_HEAD ? managedDepartments : [] }
+        ? {
+          ...u,
+          role,
+          userType,
+          isTO,
+          departments,
+          managedDepartments: role === Roles.DEPARTMENT_HEAD ? managedDepartments : [],
+        }
         : u)));
     } catch (e) {
       console.error(e);
@@ -124,7 +137,7 @@ const SiteAdminDashboard = () => {
       <main className="container mx-auto px-4 py-6 sm:py-8 max-w-6xl">
         <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-4">Site Admin</h1>
         <p className="text-sm text-gray-600 mb-6">
-          Manage Department Heads and Super Admins. Department Heads can only manage their own departments. Super Admins are read-only.
+          Manage Department Heads, Supervisors (TO), and Super Admins.
         </p>
 
         {error && (
@@ -149,6 +162,7 @@ const SiteAdminDashboard = () => {
               <tr>
                 <th className="text-left p-3 font-semibold text-gray-700">User</th>
                 <th className="text-left p-3 font-semibold text-gray-700">Role</th>
+                <th className="text-left p-3 font-semibold text-gray-700">TO</th>
                 <th className="text-left p-3 font-semibold text-gray-700">Departments</th>
                 <th className="text-left p-3 font-semibold text-gray-700">Managed Departments</th>
                 <th className="text-left p-3 font-semibold text-gray-700">Actions</th>
@@ -157,15 +171,15 @@ const SiteAdminDashboard = () => {
             <tbody>
               {loading ? (
                 <tr>
-                  <td className="p-4" colSpan={5}>Loading…</td>
+                  <td className="p-4" colSpan={6}>Loading…</td>
                 </tr>
               ) : filteredUsers.length === 0 ? (
                 <tr>
-                  <td className="p-4" colSpan={5}>No users found.</td>
+                  <td className="p-4" colSpan={6}>No users found.</td>
                 </tr>
               ) : (
                 filteredUsers.map((u) => {
-                  const edit = edits[u.id] || { role: Roles.MEMBER, departments: [], managedDepartments: [] };
+                  const edit = edits[u.id] || { role: Roles.MEMBER, isTO: false, departments: [], managedDepartments: [] };
                   const isSaving = savingUserId === u.id;
 
                   return (
@@ -189,6 +203,20 @@ const SiteAdminDashboard = () => {
                           ))}
                         </select>
                         <div className="text-xs text-gray-500 mt-1">Legacy: {u.userType || 'user'}</div>
+                      </td>
+
+                      <td className="p-3">
+                        <label className="inline-flex items-center gap-2 text-xs text-gray-700">
+                          <input
+                            type="checkbox"
+                            checked={!!edit.isTO}
+                            onChange={(e) => setEdit(u.id, { isTO: e.target.checked })}
+                          />
+                          <span>Enabled</span>
+                        </label>
+                        {(u.role === Roles.SUPERVISOR_TO || u.userType === 'supervisor') && (
+                          <div className="text-xs text-gray-500 mt-1">Legacy supervisor</div>
+                        )}
                       </td>
 
                       <td className="p-3">

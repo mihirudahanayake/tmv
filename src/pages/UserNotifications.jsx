@@ -1,26 +1,20 @@
 // src/pages/UserNotifications.jsx
 import { useEffect, useState } from 'react';
 import { collection, query, orderBy, onSnapshot, doc, updateDoc } from 'firebase/firestore';
-import { onAuthStateChanged } from 'firebase/auth';
-import { db, auth } from '../firebase/config';
+import { db } from '../firebase/config';
 import Header from '../components/Header';
 import { useNavigate } from 'react-router-dom';
 import { FaSpinner, FaBell } from 'react-icons/fa';
+import { useUserProfile } from '../hooks/useUserProfile';
 
 const UserNotifications = () => {
-  const [user, setUser] = useState(null);
+  const { user, profile, loading: loadingProfile } = useUserProfile();
   const [notifs, setNotifs] = useState([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
-    const unsubAuth = onAuthStateChanged(auth, (u) => {
-      setUser(u || null);
-    });
-    return () => unsubAuth();
-  }, []);
-
-  useEffect(() => {
+    if (loadingProfile) return;
     if (!user) return;
 
     const q = query(
@@ -38,7 +32,7 @@ const UserNotifications = () => {
     });
 
     return () => unsub();
-  }, [user]);
+  }, [user, loadingProfile]);
 
   const handleOpenNotif = async (notif) => {
     if (!user) return;
@@ -55,7 +49,7 @@ const UserNotifications = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header userType="user" />
+      <Header userType="user" isTO={!!profile?.isTO} />
 
       <main className="container mx-auto px-4 py-6 sm:py-8 max-w-2xl">
         <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-4 flex items-center gap-2">

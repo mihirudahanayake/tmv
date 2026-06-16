@@ -1,25 +1,19 @@
 import { useEffect, useState } from 'react';
 import { collection, getDocs, query, where } from 'firebase/firestore';
-import { onAuthStateChanged } from 'firebase/auth';
-import { db, auth } from '../firebase/config';
+import { db } from '../firebase/config';
 import Header from '../components/Header';
 import { FaCalendarAlt, FaSpinner, FaCheck, FaTimes, FaExclamationTriangle } from 'react-icons/fa';
+import { useUserProfile } from '../hooks/useUserProfile';
 
 const TaskHistory = () => {
-  const [user, setUser] = useState(null);
+  const { user, profile, loading: loadingProfile } = useUserProfile();
   const [completedTasks, setCompletedTasks] = useState([]);
   const [rejectedTasks, setRejectedTasks] = useState([]);
   const [missedTasks, setMissedTasks] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => {
-      setUser(u || null);
-    });
-    return () => unsub();
-  }, []);
-
-  useEffect(() => {
+    if (loadingProfile) return;
     if (!user) return;
 
     const fetchData = async () => {
@@ -86,7 +80,7 @@ const TaskHistory = () => {
     };
 
     fetchData();
-  }, [user]);
+  }, [user, loadingProfile]);
 
   const getUserRoles = (task) => {
     if (!user) return [];
@@ -97,7 +91,7 @@ const TaskHistory = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
-      <Header userType="user" />
+      <Header userType="user" isTO={!!profile?.isTO} />
 
       <main className="container mx-auto px-4 py-8 max-w-4xl">
         <div className="mb-8">

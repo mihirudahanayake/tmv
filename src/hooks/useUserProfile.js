@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase/config';
-import { normalizeRole, getManagedDepartments } from '../utils/authz';
+import { normalizeRole, getManagedDepartments, isUserTO } from '../utils/authz';
 
 export const useUserProfile = () => {
   const [authUser, setAuthUser] = useState(null);
@@ -25,10 +25,11 @@ export const useUserProfile = () => {
           ? { id: user.uid, email: user.email || '', ...snap.data() }
           : { id: user.uid, email: user.email || '' };
         const role = normalizeRole(data);
+        const isTO = isUserTO(data);
         const managedDepartments = getManagedDepartments(data);
-        setProfile({ ...data, role, managedDepartments });
+        setProfile({ ...data, role, isTO, managedDepartments });
       } catch {
-        setProfile({ id: user.uid, email: user.email || '', role: 'member', managedDepartments: [] });
+        setProfile({ id: user.uid, email: user.email || '', role: 'member', isTO: false, managedDepartments: [] });
       } finally {
         setLoading(false);
       }

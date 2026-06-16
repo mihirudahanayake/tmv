@@ -1,31 +1,23 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import { onAuthStateChanged } from 'firebase/auth';
 import { FaCalendarAlt } from 'react-icons/fa';
-import { db, auth } from '../firebase/config';
+import { db } from '../firebase/config';
 import Header from '../components/Header';
+import { useUserProfile } from '../hooks/useUserProfile';
 
 const UserNotificationDetail = () => {
   const { notifId } = useParams();
   const navigate = useNavigate();
-
-  const [user, setUser] = useState(null);
+  const { user, profile, loading: loadingProfile } = useUserProfile();
   const [notification, setNotification] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // get current user
-  useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => {
-      setUser(u || null);
-    });
-    return () => unsub();
-  }, []);
-
   // load this user's notification
   useEffect(() => {
     const load = async () => {
+      if (loadingProfile) return;
       if (!user || !notifId) return;
       setLoading(true);
       setError('');
@@ -54,12 +46,12 @@ const UserNotificationDetail = () => {
     };
 
     load();
-  }, [user, notifId]);
+  }, [user, notifId, loadingProfile]);
 
   if (!user) {
     return (
       <div className="min-h-screen bg-gray-100">
-        <Header userType="user" />
+        <Header userType="user" isTO={!!profile?.isTO} />
         <main className="container mx-auto px-4 py-6 max-w-3xl">
           <p>Please log in to view notifications.</p>
         </main>
@@ -70,7 +62,7 @@ const UserNotificationDetail = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-100">
-        <Header userType="user" />
+        <Header userType="user" isTO={!!profile?.isTO} />
         <main className="container mx-auto px-4 py-6 max-w-3xl">
           <p>Loading notification...</p>
         </main>
@@ -81,7 +73,7 @@ const UserNotificationDetail = () => {
   if (error || !notification) {
     return (
       <div className="min-h-screen bg-gray-100">
-        <Header userType="user" />
+        <Header userType="user" isTO={!!profile?.isTO} />
         <main className="container mx-auto px-4 py-6 max-w-3xl">
           <p className="text-red-600 mb-4">{error || 'Notification not found.'}</p>
           <button
@@ -112,7 +104,7 @@ const UserNotificationDetail = () => {
 
   return (
     <div className="min-h-screen bg-gray-100">
-      <Header userType="user" />
+      <Header userType="user" isTO={!!profile?.isTO} />
       <main className="container mx-auto px-4 py-6 max-w-3xl">
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-xl sm:text-2xl font-bold text-gray-800">

@@ -1,25 +1,18 @@
 import { useState, useEffect } from 'react';
 import { collection, getDocs, query, where } from 'firebase/firestore';
-import { onAuthStateChanged } from 'firebase/auth';
-import { db, auth } from '../firebase/config';
+import { db } from '../firebase/config';
 import { FaSpinner, FaTimes, FaCalendarAlt } from 'react-icons/fa';
 import Header from '../components/Header';
+import { useUserProfile } from '../hooks/useUserProfile';
 
 const UserRejectDetails = () => {
-  const [user, setUser] = useState(null);
+  const { user, profile, loading: loadingProfile } = useUserProfile();
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // watch auth
-  useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => {
-      setUser(u || null);
-    });
-    return () => unsub();
-  }, []);
-
   // load approved rejections for this user
   useEffect(() => {
+    if (loadingProfile) return;
     if (!user) return;
 
     const fetchData = async () => {
@@ -48,12 +41,12 @@ const UserRejectDetails = () => {
     };
 
     fetchData();
-  }, [user]);
+  }, [user, loadingProfile]);
 
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-100">
-        <Header userType="user" />
+        <Header userType="user" isTO={!!profile?.isTO} />
         <div className="flex flex-col items-center justify-center h-64">
           <FaSpinner className="animate-spin text-4xl text-blue-600 mb-4" />
           <p className="text-gray-600">Loading rejected works...</p>
@@ -64,7 +57,7 @@ const UserRejectDetails = () => {
 
   return (
     <div className="min-h-screen bg-gray-100">
-      <Header userType="user" />
+      <Header userType="user" isTO={!!profile?.isTO} />
 
       <main className="container mx-auto px-4 py-6 sm:py-8 max-w-3xl">
         <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-6">

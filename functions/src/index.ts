@@ -1,6 +1,7 @@
 import * as admin from 'firebase-admin';
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
+import { onSchedule } from 'firebase-functions/v2/scheduler';
 import * as logger from 'firebase-functions/logger';
 import * as nodemailer from 'nodemailer';
 import axios from 'axios';
@@ -41,6 +42,7 @@ const Roles = {
   SITE_ADMIN: 'siteAdmin',
   SUPER_ADMIN: 'superAdmin',
   DEPARTMENT_HEAD: 'departmentHead',
+  SUPERVISOR_TO: 'supervisorTO',
   MEMBER: 'member',
 } as const;
 
@@ -54,11 +56,13 @@ function normalizeRole(userDoc: any): string {
   if (role === Roles.SITE_ADMIN) return Roles.SITE_ADMIN;
   if (role === Roles.SUPER_ADMIN) return Roles.SUPER_ADMIN;
   if (role === Roles.DEPARTMENT_HEAD) return Roles.DEPARTMENT_HEAD;
+  if (role === Roles.SUPERVISOR_TO) return Roles.SUPERVISOR_TO;
   if (role === Roles.MEMBER) return Roles.MEMBER;
 
   // Backward compatibility
   if (userDoc?.userType === 'admin') return Roles.DEPARTMENT_HEAD;
   if (userDoc?.userType === 'superAdmin') return Roles.SUPER_ADMIN;
+  if (userDoc?.userType === 'supervisor') return Roles.SUPERVISOR_TO;
   return Roles.MEMBER;
 }
 
@@ -203,6 +207,99 @@ async function sendToUser(userId: string, title: string, body: string, link?: st
   const tokens = extractTokens(userData);
   await sendToTokens(tokens, title, body, link);
 }
+
+/* ================== INVENTORY: UNAUTHORIZED ACCESS ALERTS ================== */
+
+export const onAccessRecordCreated = onDocumentCreated('accessRecords/{recordId}', async (event) => {
+  if (!event.data) return;
+
+  const data: any = event.data.data();
+  const authorized = !!data?.authorized;
+  if (authorized) return;
+
+  const title = 'Unauthorized access alert';
+  const body = data?.reason
+    ? String(data.reason)
+    : 'An unauthorized access attempt was recorded.';
+
+  try {
+    const usersSnap = await db.collection('users').get();
+    const tokens: string[] = [];
+
+    usersSnap.docs.forEach((d) => {
+      const u: any = d.data();
+      const role = normalizeRole({ ...u, email: u?.email || '' });
+      if (role === Roles.SUPER_ADMIN || role === Roles.DEPARTMENT_HEAD || role === Roles.SITE_ADMIN) {
+        tokens.push(...extractTokens(u));
+      }
+    });
+
+    await sendToTokens(tokens, title, body, `${APP_URL}/access-records`);
+  } catch (e: any) {
+    logger.error('onAccessRecordCreated failed', { error: e?.message || String(e) });
+  }
+
+  // Also write into global /notifications so admins see it in Notification History.
+  try {
+    await db.collection('notifications').add({
+      type: 'unauthorized-access',
+      userName: data?.userName || 'Unknown',
+      userId: data?.userId || null,
+      itemName: data?.itemName || null,
+      itemNo: data?.itemNo || null,
+      rfidCardId: data?.rfidCardId || null,
+      message: body,
+      read: false,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  } catch (e: any) {
+    logger.warn('Failed writing unauthorized-access notification', { error: e?.message || String(e) });
+  }
+});
+
+/* ================== INVENTORY: OVERDUE ALERT SWEEP ================== */
+
+export const inventoryOverdueSweep = onSchedule('every 60 minutes', async () => {
+  const now = admin.firestore.Timestamp.now();
+  const q = db
+    .collection('inventoryUsage')
+    .where('returnedAt', '==', null)
+    .where('overdueAlertSent', '==', false)
+    .where('dueAt', '<=', now)
+    .limit(200);
+
+  const snap = await q.get();
+  if (snap.empty) return;
+
+  const batch = db.batch();
+
+  for (const docSnap of snap.docs) {
+    const usage: any = docSnap.data();
+    const userId = String(usage?.userId || '').trim();
+    if (!userId) {
+      batch.update(docSnap.ref, { overdueAlertSent: true, overdueAlertSentAt: now });
+      continue;
+    }
+
+    const notifRef = db.collection('users').doc(userId).collection('notifications').doc(`overdue-${docSnap.id}`);
+    batch.set(
+      notifRef,
+      {
+        type: 'inventory-overdue',
+        title: 'Inventory overdue',
+        message: `Please return: ${usage?.itemName || 'an item'}${usage?.itemNo ? ` (#${usage.itemNo})` : ''}.`,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        read: false,
+        source: 'system',
+      },
+      { merge: true }
+    );
+
+    batch.update(docSnap.ref, { overdueAlertSent: true, overdueAlertSentAt: now });
+  }
+
+  await batch.commit();
+});
 
 /* ================== PUSH: USER NOTIFICATIONS ================== */
 

@@ -2,25 +2,19 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import { onAuthStateChanged } from 'firebase/auth';
-import { db, auth } from '../firebase/config';
+import { db } from '../firebase/config';
 import Header from '../components/Header';
 import { FaSpinner } from 'react-icons/fa';
+import { useUserProfile } from '../hooks/useUserProfile';
 
 const UserNotificationDetail = () => {
   const { notifId } = useParams();
-  const [user, setUser] = useState(null);
+  const { user, profile, loading: loadingProfile } = useUserProfile();
   const [notif, setNotif] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubAuth = onAuthStateChanged(auth, (u) => {
-      setUser(u || null);
-    });
-    return () => unsubAuth();
-  }, []);
-
-  useEffect(() => {
+    if (loadingProfile) return;
     if (!user || !notifId) return;
 
     const load = async () => {
@@ -43,11 +37,11 @@ const UserNotificationDetail = () => {
     };
 
     load();
-  }, [user, notifId]);
+  }, [user, notifId, loadingProfile]);
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header userType="user" />
+      <Header userType="user" isTO={!!profile?.isTO} />
 
       <main className="container mx-auto px-4 py-6 sm:py-8 max-w-xl">
         {loading ? (

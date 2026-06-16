@@ -10,12 +10,13 @@ import {
   FaHistory,
   FaBox,
   FaBell,
-  FaCalendarAlt
+  FaCalendarAlt,
+  FaIdCard
 } from 'react-icons/fa';
 import { useState } from 'react';
 import { FaSun, FaMoon } from 'react-icons/fa';
 
-const Header = ({ userType, isDarkMode, toggleDarkMode }) => {
+const Header = ({ userType, isTO = false, isDarkMode, toggleDarkMode }) => {
   const location = useLocation();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -29,6 +30,8 @@ const Header = ({ userType, isDarkMode, toggleDarkMode }) => {
         ? '/super-admin'
         : userType === 'siteAdmin'
           ? '/site-admin'
+          : userType === 'supervisor'
+            ? '/inventory'
           : '/home';
 
 
@@ -39,6 +42,8 @@ const Header = ({ userType, isDarkMode, toggleDarkMode }) => {
       { path: '/my-meetings', label: 'My Meetings / Workshops', icon: <FaCalendarAlt /> },
       { path: '/task-history', label: 'Task History', icon: <FaHistory /> },
       { path: '/user-reject-details', label: 'My Rejections', icon: <FaTimes /> },
+      { path: '/my-item-usage', label: 'My Item Usage', icon: <FaIdCard /> },
+      ...(isTO ? [{ path: '/inventory', label: 'Inventory', icon: <FaBox /> }] : []),
       { path: '/profile', label: 'Profile', icon: <FaUser /> },
       { path: '/user/notifications', label: 'Notifications', icon: <FaBell /> }
     ] : [
@@ -55,17 +60,31 @@ const Header = ({ userType, isDarkMode, toggleDarkMode }) => {
       { path: '/manage-users', label: 'Manage Users', icon: <FaUserPlus /> },
       { path: '/work-list', label: 'Work List', icon: <FaList /> },
       { path: '/inventory', label: 'Inventory', icon: <FaBox /> },
+      { path: '/access-records', label: 'Access Records', icon: <FaIdCard /> },
       { path: '/profile', label: 'Profile', icon: <FaUser /> },
       { path: '/notifications', label: 'Notification History', icon: <FaBell /> }
     );
   }
 
   if (userType === 'superAdmin') {
-    // read-only: no edit menus
+    navItems.push(
+      { path: '/manage-users', label: 'Manage Users', icon: <FaUserPlus /> },
+      { path: '/work-list', label: 'Work List', icon: <FaList /> },
+      { path: '/inventory', label: 'Inventory', icon: <FaBox /> },
+      { path: '/access-records', label: 'Access Records', icon: <FaIdCard /> },
+      { path: '/notifications', label: 'Notification History', icon: <FaBell /> }
+    );
   }
 
   if (userType === 'siteAdmin') {
     // role management lives on /site-admin (homePath)
+  }
+
+  if (userType === 'supervisor') {
+    navItems.push(
+      { path: '/inventory', label: 'Inventory', icon: <FaBox /> },
+      { path: '/profile', label: 'Profile', icon: <FaUser /> }
+    );
   }
 
   return (
@@ -73,7 +92,7 @@ const Header = ({ userType, isDarkMode, toggleDarkMode }) => {
       <nav className="container mx-auto px-4 py-4">
         <div className="flex items-center justify-between">
           <h1 className="text-lg sm:text-xl md:text-2xl font-bold">
-            Media User Management
+            Inventory & Task Management
           </h1>
 
           <div className="flex items-center gap-4">

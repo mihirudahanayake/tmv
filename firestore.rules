@@ -23,6 +23,8 @@ service cloud.firestore {
           ? 'departmentHead'
           : (myUserDoc().userType == 'superAdmin')
             ? 'superAdmin'
+            : (myUserDoc().userType == 'supervisor')
+              ? 'supervisorTO'
             : 'member';
     }
 
@@ -32,6 +34,10 @@ service cloud.firestore {
 
     function isDeptHead() {
       return signedIn() && myRole() == 'departmentHead';
+    }
+
+    function isSupervisorTO() {
+      return signedIn() && (myRole() == 'supervisorTO' || myUserDoc().isTO == true);
     }
 
     function myDepartments() {
@@ -105,10 +111,16 @@ service cloud.firestore {
       // Site admin can manage roles/departments.
       allow update: if isSiteAdmin();
 
+      // Super admin can manage user details across the system, but cannot create/promote site admins.
+      allow update: if isSuperAdmin()
+        && resource.data.role != 'siteAdmin'
+        && request.resource.data.role != 'siteAdmin';
+
       // Department heads can create member profiles within their managed department.
       allow create: if isDeptHead()
         && request.resource.data.role == 'member'
         && request.resource.data.userType == 'user'
+        && request.resource.data.isTO != true
         && (request.resource.data.departments is list)
         && myManagedDepartments().hasAny(request.resource.data.departments);
 
@@ -117,6 +129,7 @@ service cloud.firestore {
         && request.resource.data.role == resource.data.role
         && request.resource.data.userType == resource.data.userType
         && request.resource.data.managedDepartments == resource.data.managedDepartments
+        && request.resource.data.isTO == resource.data.isTO
         && (
           // Allow updating work departments, but only to known department values.
           (request.resource.data.departments == resource.data.departments)
@@ -134,6 +147,7 @@ service cloud.firestore {
         && myManagedDepartments().hasAny(resource.data.departments)
         && request.resource.data.role == 'member'
         && request.resource.data.userType == 'user'
+        && request.resource.data.isTO == resource.data.isTO
         && (request.resource.data.departments is list)
         && myManagedDepartments().hasAny(request.resource.data.departments);
 
@@ -217,7 +231,27 @@ service cloud.firestore {
 
     match /inventory/{itemId} {
       allow read: if signedIn();
-      allow write: if isDeptHead();
+      allow write: if isDeptHead() || isSuperAdmin() || isSupervisorTO() || isSiteAdmin();
+    }
+
+    match /inventoryUsage/{usageId} {
+      allow read: if signedIn() && (
+        isSiteAdmin()
+        || isSuperAdmin()
+        || isDeptHead()
+        || isSupervisorTO()
+        || resource.data.userId == request.auth.uid
+      );
+
+      // Created/updated by inventory managers (Supervisor TO / Super Admin).
+      allow create, update: if isSupervisorTO() || isSuperAdmin() || isSiteAdmin();
+      allow delete: if false;
+    }
+
+    match /accessRecords/{recordId} {
+      allow read: if isDeptHead() || isSuperAdmin() || isSiteAdmin();
+      allow create: if isSupervisorTO() || isSuperAdmin() || isSiteAdmin();
+      allow update, delete: if false;
     }
 
     match /events/{eventId} {
