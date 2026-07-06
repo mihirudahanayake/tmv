@@ -8,6 +8,7 @@ import {
   reauthenticateWithCredential,
   EmailAuthProvider,
 } from 'firebase/auth';
+import { Link } from 'react-router-dom';
 import { useNavigate } from 'react-router-dom';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { auth, db } from '../firebase/config';
@@ -374,7 +375,12 @@ const Profile = () => {
     }
   };
 
-  const userType = userData?.userType === 'admin' ? 'admin' : 'user';
+  const userType = userData?.userType === 'admin'
+    ? 'admin'
+    : userData?.userType === 'TO'
+      ? 'TO'
+      : 'user';
+  const showUserQuickLinks = userType === 'user';
 
   const inputClass =
     'w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
@@ -726,6 +732,26 @@ const Profile = () => {
                 </div>
               </div>
             </form>
+
+            {showUserQuickLinks && (
+              <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 space-y-3 mb-6">
+                <h2 className="text-lg font-semibold text-gray-800">Quick links</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <Link
+                    to="/my-item-usage"
+                    className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 transition"
+                  >
+                    My Item Usage
+                  </Link>
+                  <Link
+                    to="/user-reject-details"
+                    className="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm font-semibold text-gray-800 hover:bg-gray-50 transition"
+                  >
+                    My Rejections
+                  </Link>
+                </div>
+              </div>
+            )}
 
             {/* Change email section */}
             <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 space-y-3 mb-6">

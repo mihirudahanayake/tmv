@@ -19,31 +19,32 @@ import { FaSun, FaMoon } from 'react-icons/fa';
 const Header = ({ userType, isTO = false, isDarkMode, toggleDarkMode }) => {
   const location = useLocation();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const effectiveUserType = userType === 'member' || userType === 'TO' || userType === 'supervisor' || userType === 'supervisorTO'
+    ? 'user'
+    : userType;
+  const isMemberShell = effectiveUserType === 'user';
+  const showTOInventory = (isTO || userType === 'TO') && isMemberShell && location.pathname === '/task-history';
 
   const isActive = (path) =>
     location.pathname === path || location.pathname.startsWith(`${path}/`);
 
   const homePath =
-    userType === 'admin'
+    effectiveUserType === 'admin'
       ? '/admin-home'
-      : userType === 'superAdmin'
+      : effectiveUserType === 'superAdmin'
         ? '/super-admin'
-        : userType === 'siteAdmin'
+        : effectiveUserType === 'siteAdmin'
           ? '/site-admin'
-          : userType === 'supervisor'
-            ? '/inventory'
           : '/home';
 
 
   const navItems = [
     { path: homePath, label: 'Home', icon: <FaHome /> },
     // Only show My Meetings / Workshops for users
-    ...(userType === 'user' ? [
+    ...(isMemberShell ? [
       { path: '/my-meetings', label: 'My Meetings / Workshops', icon: <FaCalendarAlt /> },
       { path: '/task-history', label: 'Task History', icon: <FaHistory /> },
-      { path: '/user-reject-details', label: 'My Rejections', icon: <FaTimes /> },
-      { path: '/my-item-usage', label: 'My Item Usage', icon: <FaIdCard /> },
-      ...(isTO ? [{ path: '/inventory', label: 'Inventory', icon: <FaBox /> }] : []),
+      ...(showTOInventory ? [{ path: '/inventory', label: 'Inventory', icon: <FaBox /> }] : []),
       { path: '/profile', label: 'Profile', icon: <FaUser /> },
       { path: '/user/notifications', label: 'Notifications', icon: <FaBell /> }
     ] : [
@@ -51,7 +52,7 @@ const Header = ({ userType, isTO = false, isDarkMode, toggleDarkMode }) => {
     ])
   ];
 
-  if (userType === 'admin') {
+  if (effectiveUserType === 'admin') {
     // Keep Profile right before notifications (same UX ordering as user).
     const profileIndex = navItems.findIndex((i) => i.path === '/profile');
     if (profileIndex !== -1) navItems.splice(profileIndex, 1);
@@ -66,7 +67,7 @@ const Header = ({ userType, isTO = false, isDarkMode, toggleDarkMode }) => {
     );
   }
 
-  if (userType === 'superAdmin') {
+  if (effectiveUserType === 'superAdmin') {
     navItems.push(
       { path: '/manage-users', label: 'Manage Users', icon: <FaUserPlus /> },
       { path: '/work-list', label: 'Work List', icon: <FaList /> },
@@ -76,15 +77,8 @@ const Header = ({ userType, isTO = false, isDarkMode, toggleDarkMode }) => {
     );
   }
 
-  if (userType === 'siteAdmin') {
+  if (effectiveUserType === 'siteAdmin') {
     // role management lives on /site-admin (homePath)
-  }
-
-  if (userType === 'supervisor') {
-    navItems.push(
-      { path: '/inventory', label: 'Inventory', icon: <FaBox /> },
-      { path: '/profile', label: 'Profile', icon: <FaUser /> }
-    );
   }
 
   return (
