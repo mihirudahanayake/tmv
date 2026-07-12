@@ -74,6 +74,7 @@ const Home = () => {
 
   // Set userType based on logged-in user
   const [userType, setUserType] = useState('user');
+  const [isTO, setIsTO] = useState(false);
   const [myDepartments, setMyDepartments] = useState([]);
 
   useEffect(() => {
@@ -84,9 +85,11 @@ const Home = () => {
         if (!profileSnap.exists()) return;
         const data = profileSnap.data();
         setUserType(data.userType || 'user');
+        setIsTO(!!data.isTO);
         setMyDepartments(Array.isArray(data.departments) ? data.departments : []);
       } catch (err) {
         setUserType('user');
+        setIsTO(false);
         setMyDepartments([]);
       }
     };
@@ -589,7 +592,7 @@ const renderTeamMembers = (task) => {
         ? 'bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900'
         : 'bg-gradient-to-br from-blue-50 via-white to-purple-50'
     }`}>
-      <Header userType={userType} isDarkMode={isDarkMode} toggleDarkMode={toggleDarkMode} />
+      <Header userType={userType} isTO={isTO} isDarkMode={isDarkMode} toggleDarkMode={toggleDarkMode} />
 
       {/* User popup notification */}
       {popup && (

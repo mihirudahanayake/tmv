@@ -30,11 +30,15 @@ const Inventory = () => {
   const [editingItem, setEditingItem] = useState(null);
   const [message, setMessage] = useState({ type: '', text: '' });
 
-  const [checkoutItemId, setCheckoutItemId] = useState('');
-  const [rfidCardId, setRfidCardId] = useState('');
   const [dueDays, setDueDays] = useState(7);
   const [checkingOut, setCheckingOut] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [allMembers, setAllMembers] = useState([]);
+  const [selectedMembers, setSelectedMembers] = useState([]);
+  const [selectedItems, setSelectedItems] = useState([]);
+  const [showManualCheckout, setShowManualCheckout] = useState(false);
+  const [itemSearchText, setItemSearchText] = useState('');
+  const [memberSearchText, setMemberSearchText] = useState('');
 
   const [formData, setFormData] = useState({
     itemNo: '',
@@ -45,7 +49,21 @@ const Inventory = () => {
 
   useEffect(() => {
     fetchItems();
+    fetchMembers();
   }, []);
+
+  const fetchMembers = async () => {
+    try {
+      const snap = await getDocs(collection(db, 'users'));
+      const members = snap.docs
+        .map((doc) => ({ id: doc.id, ...doc.data() }))
+        .filter((user) => !isUserTO(user));
+      members.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      setAllMembers(members);
+    } catch (error) {
+      console.error('Error fetching members:', error);
+    }
+  };
 
   const role = profile?.role || 'member';
   const toEnabled = isUserTO(profile);
@@ -173,6 +191,28 @@ const Inventory = () => {
     return name.includes(normalizedSearch) || no.includes(normalizedSearch);
   });
 
+  const normalizedItemSearch = itemSearchText.trim().toLowerCase();
+  const normalizedMemberSearch = memberSearchText.trim().toLowerCase();
+
+  const availableItems = items
+    .filter((item) => (item.status || 'available') === 'available')
+    .filter((item) => {
+      if (!normalizedItemSearch) return true;
+      const name = (item.itemName || '').toLowerCase();
+      const no = (item.itemNo || '').toLowerCase();
+      return name.includes(normalizedItemSearch) || no.includes(normalizedItemSearch);
+    })
+    .sort((a, b) => String(a.itemName || '').localeCompare(String(b.itemName || '')));
+
+  const filteredMembers = allMembers
+    .filter((member) => {
+      if (!normalizedMemberSearch) return true;
+      const name = (member.name || '').toLowerCase();
+      const email = (member.email || '').toLowerCase();
+      return name.includes(normalizedMemberSearch) || email.includes(normalizedMemberSearch);
+    })
+    .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
   const downloadCsv = (filename, header, rows) => {
     const escape = (v) => {
       const s = v == null ? '' : String(v);
@@ -247,31 +287,16 @@ const Inventory = () => {
     }
   };
 
-  const logAccessRecord = async (payload) => {
-    try {
-      await addDoc(collection(db, 'accessRecords'), {
-        ...payload,
-        createdAt: serverTimestamp(),
-      });
-    } catch (e) {
-      console.warn('Failed to write access record', e);
-    }
-  };
 
-  const handleCheckout = async () => {
+
+  const handleIssueToMembers = async () => {
     if (!canManageInventory) return;
-    const trimmedRfid = rfidCardId.trim();
-    const item = items.find((i) => i.id === checkoutItemId);
-    if (!item) {
-      setMessage({ type: 'error', text: 'Select an item to check out.' });
+    if (selectedItems.length === 0) {
+      setMessage({ type: 'error', text: 'Select at least one item to issue.' });
       return;
     }
-    if (!trimmedRfid) {
-      setMessage({ type: 'error', text: 'Scan/enter an RFID card id.' });
-      return;
-    }
-    if ((item.status || 'available') === 'checkedOut') {
-      setMessage({ type: 'error', text: 'This item is already checked out.' });
+    if (selectedMembers.length === 0) {
+      setMessage({ type: 'error', text: 'Select at least one member to issue to.' });
       return;
     }
 
@@ -279,101 +304,65 @@ const Inventory = () => {
     setMessage({ type: '', text: '' });
 
     try {
-      const userSnap = await getDocs(
-        query(collection(db, 'users'), where('rfidCardId', '==', trimmedRfid), limit(1))
-      );
-
-      if (userSnap.empty) {
-        await logAccessRecord({
-          authorized: false,
-          action: 'checkout',
-          reason: 'Unknown RFID card',
-          rfidCardId: trimmedRfid,
-          itemId: item.id,
-          itemNo: item.itemNo || null,
-          itemName: item.itemName || null,
-          createdByUid: profile?.id || null,
-          createdByName: profile?.name || profile?.email || null,
-        });
-        setMessage({ type: 'error', text: 'Unauthorized: RFID card not recognized.' });
-        return;
-      }
-
-      const uDoc = userSnap.docs[0];
-      const uData = uDoc.data() || {};
-      const uRole = uData.role || (uData.userType === 'admin' ? 'departmentHead' : uData.userType === 'superAdmin' ? 'superAdmin' : uData.userType === 'supervisor' ? 'supervisorTO' : 'member');
-      const isMember = uRole === 'member';
-
-      if (!isMember) {
-        await logAccessRecord({
-          authorized: false,
-          action: 'checkout',
-          reason: 'RFID belongs to a non-member account',
-          rfidCardId: trimmedRfid,
-          userId: uDoc.id,
-          userName: uData.name || null,
-          userEmail: uData.email || null,
-          photoUrl: uData.photoURL || uData.avatarUrl || null,
-          itemId: item.id,
-          itemNo: item.itemNo || null,
-          itemName: item.itemName || null,
-          createdByUid: profile?.id || null,
-          createdByName: profile?.name || profile?.email || null,
-        });
-        setMessage({ type: 'error', text: 'Unauthorized: this RFID is not a member card.' });
-        return;
-      }
-
-      const days = Number.isFinite(Number(dueDays)) ? Math.max(1, Math.min(60, Number(dueDays))) : 7;
-      const dueAtDate = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
-      const dueAt = Timestamp.fromDate(dueAtDate);
-
-      const usageRef = doc(collection(db, 'inventoryUsage'));
-      const itemRef = doc(db, 'inventory', item.id);
-      const accessRef = doc(collection(db, 'accessRecords'));
-
       const batch = writeBatch(db);
+      const usageRecords = [];
 
-      batch.set(usageRef, {
-        itemId: item.id,
-        itemNo: item.itemNo || '',
-        itemName: item.itemName || '',
-        userId: uDoc.id,
-        userName: uData.name || uData.email || 'Member',
-        userEmail: uData.email || '',
-        rfidCardId: trimmedRfid,
-        checkedOutAt: serverTimestamp(),
-        dueAt,
-        returnedAt: null,
-        status: 'checkedOut',
-        overdueAlertSent: false,
-        createdByUid: profile?.id || null,
-        createdByName: profile?.name || profile?.email || null,
-        createdAt: serverTimestamp(),
-      });
+      // Process each selected item
+      for (const itemId of selectedItems) {
+        const item = items.find((i) => i.id === itemId);
+        if (!item) continue;
 
-      batch.update(itemRef, {
-        status: 'checkedOut',
-        checkedOutToUserId: uDoc.id,
-        checkedOutToName: uData.name || uData.email || 'Member',
-        checkedOutRfidCardId: trimmedRfid,
-        checkedOutAt: serverTimestamp(),
-        dueAt,
-        currentUsageId: usageRef.id,
-        updatedAt: serverTimestamp(),
-      });
+        if ((item.status || 'available') === 'checkedOut') {
+          setMessage({ type: 'error', text: `Item "${item.itemName}" is already checked out. Return it first.` });
+          setCheckingOut(false);
+          return;
+        }
 
-      batch.set(accessRef, {
+        // Issue to the first member, others get usage records
+        const primaryMember = selectedMembers[0];
+        const itemRef = doc(db, 'inventory', item.id);
+        const usageRef = doc(collection(db, 'inventoryUsage'));
+
+        // Create usage record
+        batch.set(usageRef, {
+          itemId: item.id,
+          itemNo: item.itemNo || '',
+          itemName: item.itemName || '',
+          userId: primaryMember.id,
+          userName: primaryMember.name || primaryMember.email || 'Member',
+          userEmail: primaryMember.email || '',
+          rfidCardId: primaryMember.rfidCardId || '',
+          checkedOutAt: serverTimestamp(),
+          returnedAt: null,
+          status: 'checkedOut',
+          issuedByUid: profile?.id || null,
+          issuedByName: profile?.name || profile?.email || null,
+          createdAt: serverTimestamp(),
+        });
+
+        // Update item status
+        batch.update(itemRef, {
+          status: 'checkedOut',
+          checkedOutToUserId: primaryMember.id,
+          checkedOutToName: primaryMember.name || primaryMember.email || 'Member',
+          checkedOutAt: serverTimestamp(),
+          currentUsageId: usageRef.id,
+          updatedAt: serverTimestamp(),
+        });
+
+        usageRecords.push({
+          itemId: item.id,
+          itemName: item.itemName,
+          itemNo: item.itemNo,
+        });
+      }
+
+      // Create access record for all items and members
+      batch.set(doc(collection(db, 'accessRecords')), {
         authorized: true,
-        action: 'checkout',
-        rfidCardId: trimmedRfid,
-        userId: uDoc.id,
-        userName: uData.name || null,
-        userEmail: uData.email || null,
-        photoUrl: uData.photoURL || uData.avatarUrl || null,
-        itemId: item.id,
-        itemNo: item.itemNo || null,
-        itemName: item.itemName || null,
+        action: 'issue',
+        itemsIssued: usageRecords,
+        issuedToMembers: selectedMembers.map((m) => ({ id: m.id, name: m.name || m.email })),
         createdByUid: profile?.id || null,
         createdByName: profile?.name || profile?.email || null,
         createdAt: serverTimestamp(),
@@ -381,13 +370,22 @@ const Inventory = () => {
 
       await batch.commit();
 
-      setRfidCardId('');
-      setCheckoutItemId('');
-      setMessage({ type: 'success', text: 'Item checked out successfully.' });
+      const itemNames = selectedItems.length === 1 
+        ? items.find(i => i.id === selectedItems[0])?.itemName 
+        : `${selectedItems.length} items`;
+      const memberNames = selectedMembers.map((m) => m.name || m.email).join(', ');
+      
+      setMessage({
+        type: 'success',
+        text: `${itemNames} issued to ${memberNames} successfully.`,
+      });
+      setSelectedItems([]);
+      setSelectedMembers([]);
+      setShowManualCheckout(false);
       await fetchItems();
     } catch (e) {
       console.error(e);
-      setMessage({ type: 'error', text: 'Failed to check out item.' });
+      setMessage({ type: 'error', text: 'Failed to issue items.' });
     } finally {
       setCheckingOut(false);
     }
@@ -502,84 +500,161 @@ const Inventory = () => {
           </div>
         )}
 
-        {canManageInventory && (
+
+
+        {canManageInventory && toEnabled && (
           <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-6">
-            <h2 className="text-lg sm:text-xl font-semibold text-gray-800 mb-3">RFID Checkout</h2>
-
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-              <div className="sm:col-span-2">
-                <label className="block text-sm font-semibold text-gray-700 mb-1">Item</label>
-                <select
-                  value={checkoutItemId}
-                  onChange={(e) => setCheckoutItemId(e.target.value)}
-                  className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Select an item</option>
-                  {items
-                    .slice()
-                    .sort((a, b) => String(a.itemName || '').localeCompare(String(b.itemName || '')))
-                    .map((i) => (
-                      <option key={i.id} value={i.id}>
-                        {(i.itemName || 'Item') + (i.itemNo ? ` (#${i.itemNo})` : '')}
-                      </option>
-                    ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">RFID Card</label>
-                <input
-                  value={rfidCardId}
-                  onChange={(e) => setRfidCardId(e.target.value)}
-                  placeholder="Scan RFID…"
-                  className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">Due (days)</label>
-                <input
-                  type="number"
-                  min={1}
-                  max={60}
-                  value={dueDays}
-                  onChange={(e) => setDueDays(e.target.value)}
-                  className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-
-            <div className="mt-3 flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg sm:text-xl font-semibold text-gray-800">Issue to Members</h2>
               <button
                 type="button"
-                onClick={handleCheckout}
-                disabled={checkingOut}
-                className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-50"
+                onClick={() => {
+                  setShowManualCheckout(!showManualCheckout);
+                  if (!showManualCheckout) {
+                    setSelectedItems([]);
+                    setSelectedMembers([]);
+                    setItemSearchText('');
+                    setMemberSearchText('');
+                  }
+                }}
+                className="px-3 py-2 rounded border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50"
               >
-                {checkingOut ? 'Checking out…' : 'Check Out'}
+                {showManualCheckout ? 'Cancel' : 'Show'}
               </button>
-
-              {canDownloadReports && (
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={handleDownloadInventoryReport}
-                    disabled={downloading}
-                    className="px-3 py-2 rounded border border-gray-300 text-gray-800 text-sm font-semibold hover:bg-gray-50 disabled:opacity-50"
-                  >
-                    Download Inventory Report
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleDownloadUsageReport}
-                    disabled={downloading}
-                    className="px-3 py-2 rounded border border-gray-300 text-gray-800 text-sm font-semibold hover:bg-gray-50 disabled:opacity-50"
-                  >
-                    Download Usage Report
-                  </button>
-                </div>
-              )}
             </div>
+
+            {showManualCheckout && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Select Items
+                    </label>
+                    <input
+                      type="text"
+                      value={itemSearchText}
+                      onChange={(e) => setItemSearchText(e.target.value)}
+                      placeholder="Search by item no or name"
+                      className="w-full mb-2 px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    />
+                    <div className="border rounded bg-gray-50 p-3 max-h-60 overflow-y-auto">
+                      {availableItems.length === 0 ? (
+                        <p className="text-gray-500 text-sm">No available items.</p>
+                      ) : (
+                        availableItems.map((item) => (
+                            <label key={item.id} className="flex items-center gap-2 p-2 hover:bg-gray-100 rounded cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={selectedItems.includes(item.id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedItems([...selectedItems, item.id]);
+                                  } else {
+                                    setSelectedItems(selectedItems.filter((id) => id !== item.id));
+                                  }
+                                }}
+                                className="w-4 h-4 rounded border-gray-300"
+                              />
+                              <span className="text-sm text-gray-700">
+                                {item.itemName} {item.itemNo && `(#${item.itemNo})`}
+                              </span>
+                            </label>
+                          ))
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Select Users to Issue To
+                    </label>
+                    <input
+                      type="text"
+                      value={memberSearchText}
+                      onChange={(e) => setMemberSearchText(e.target.value)}
+                      placeholder="Search by user name"
+                      className="w-full mb-2 px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    />
+                    <div className="border rounded bg-gray-50 p-3 max-h-60 overflow-y-auto">
+                      {filteredMembers.length === 0 ? (
+                        <p className="text-gray-500 text-sm">No users found.</p>
+                      ) : (
+                        filteredMembers.map((member) => (
+                          <label key={member.id} className="flex items-center gap-2 p-2 hover:bg-gray-100 rounded cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={selectedMembers.some((m) => m.id === member.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedMembers([...selectedMembers, member]);
+                                } else {
+                                  setSelectedMembers(
+                                    selectedMembers.filter((m) => m.id !== member.id)
+                                  );
+                                }
+                              }}
+                              className="w-4 h-4 rounded border-gray-300"
+                            />
+                            <span className="text-sm text-gray-700">
+                              {member.name || member.email}
+                            </span>
+                          </label>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {(selectedItems.length > 0 || selectedMembers.length > 0) && (
+                  <div className="bg-blue-50 border border-blue-200 rounded p-3">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-sm font-semibold text-blue-900 mb-2">Selected Items</p>
+                        <div className="space-y-1">
+                          {selectedItems.length === 0 ? (
+                            <p className="text-sm text-blue-800">No items selected.</p>
+                          ) : (
+                            selectedItems.map((itemId) => {
+                              const item = items.find((entry) => entry.id === itemId);
+                              if (!item) return null;
+                              return (
+                                <div key={itemId} className="text-sm text-blue-800">
+                                  {item.itemName}{item.itemNo ? ` (#${item.itemNo})` : ''}
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+
+                      <div>
+                        <p className="text-sm font-semibold text-blue-900 mb-2">Selected Users</p>
+                        <div className="space-y-1">
+                          {selectedMembers.length === 0 ? (
+                            <p className="text-sm text-blue-800">No users selected.</p>
+                          ) : (
+                            selectedMembers.map((member) => (
+                              <div key={member.id} className="text-sm text-blue-800">
+                                {member.name || member.email}
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleIssueToMembers}
+                  disabled={checkingOut || selectedItems.length === 0 || selectedMembers.length === 0}
+                  className="w-full bg-green-600 text-white py-2 px-4 rounded font-semibold hover:bg-green-700 transition disabled:opacity-50 text-sm"
+                >
+                  {checkingOut ? 'Issuing...' : `Issue ${selectedItems.length > 0 ? selectedItems.length : ''} Item(s)`}
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -760,17 +835,7 @@ const Inventory = () => {
                         >
                           Return
                         </button>
-                      ) : (
-                        <button
-                          onClick={() => {
-                            setCheckoutItemId(item.id);
-                            window.scrollTo({ top: 0, behavior: 'smooth' });
-                          }}
-                          className="inline-flex items-center justify-center gap-1 px-3 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded hover:bg-blue-700 transition"
-                        >
-                          Check Out
-                        </button>
-                      )}
+                      ) : null}
 
                       <button
                         onClick={() => handleEdit(item)}

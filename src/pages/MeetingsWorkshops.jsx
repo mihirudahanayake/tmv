@@ -9,6 +9,7 @@ const MeetingsWorkshops = () => {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [userType, setUserType] = useState('user');
+  const [isTO, setIsTO] = useState(false);
   const [user, setUser] = useState(null);
   const [userLocation, setUserLocation] = useState(null);
   const [locationMeta, setLocationMeta] = useState(null); // { accuracy }
@@ -33,8 +34,10 @@ const MeetingsWorkshops = () => {
         if (!profileSnap.exists()) return;
         const data = profileSnap.data();
         setUserType(data.userType || 'user');
+        setIsTO(!!data.isTO);
       } catch (err) {
         setUserType('user');
+        setIsTO(false);
       }
     };
     fetchUserType();
@@ -229,7 +232,7 @@ const MeetingsWorkshops = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
-      <Header userType={userType} isDarkMode={isDarkMode} toggleDarkMode={toggleDarkMode} />
+      <Header userType={userType} isTO={isTO} isDarkMode={isDarkMode} toggleDarkMode={toggleDarkMode} />
       <main className="container mx-auto px-4 py-8 max-w-3xl">
         <h1 className="text-2xl font-bold mb-6">My Meetings & Workshops</h1>
         {loading ? (

@@ -375,19 +375,16 @@ const Profile = () => {
     }
   };
 
-  const userType = userData?.userType === 'admin'
-    ? 'admin'
-    : userData?.userType === 'TO'
-      ? 'TO'
-      : 'user';
+  const userType = userData?.userType === 'admin' ? 'admin' : 'user';
   const showUserQuickLinks = userType === 'user';
+  const isTO = !!userData?.isTO;
 
   const inputClass =
     'w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
 
   return (
     <div className="min-h-screen bg-gray-100">
-      <Header userType={userType} />
+      <Header userType={userType} isTO={isTO} />
 
       <main className="container mx-auto px-4 py-6 sm:py-8 max-w-2xl">
         <div className="flex items-center justify-between mb-6">

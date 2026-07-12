@@ -19,11 +19,11 @@ import { FaSun, FaMoon } from 'react-icons/fa';
 const Header = ({ userType, isTO = false, isDarkMode, toggleDarkMode }) => {
   const location = useLocation();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const effectiveUserType = userType === 'member' || userType === 'TO' || userType === 'supervisor' || userType === 'supervisorTO'
+  const effectiveUserType = userType === 'member' || userType === 'supervisor' || userType === 'supervisorTO'
     ? 'user'
     : userType;
   const isMemberShell = effectiveUserType === 'user';
-  const showTOInventory = (isTO || userType === 'TO') && isMemberShell && location.pathname === '/task-history';
+  const showTOInventory = isTO && isMemberShell;
 
   const isActive = (path) =>
     location.pathname === path || location.pathname.startsWith(`${path}/`);
