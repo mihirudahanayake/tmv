@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { doc, getDoc, collection, getDocs, query, where } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, query, where, updateDoc } from 'firebase/firestore';
 import { db, functions } from '../firebase/config';
 import Header from '../components/Header';
 import { FaCalendarAlt, FaSpinner, FaCheck, FaTrash } from 'react-icons/fa';
@@ -22,8 +22,12 @@ const UserDetails = () => {
   const [works, setWorks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
+  const [offerLoading, setOfferLoading] = useState(false);
+  const [nfcMessage, setNfcMessage] = useState('');
+  const [duplicateUser, setDuplicateUser] = useState(null);
   const [actionError, setActionError] = useState('');
   const [actionSuccess, setActionSuccess] = useState('');
+  const nfcUrl = (import.meta.env.NFC_URL || import.meta.env.VITE_NFC_URL || '').trim();
 
   useEffect(() => {
     const load = async () => {
@@ -82,6 +86,83 @@ const UserDetails = () => {
     load();
   }, [userId, loadingProfile, profile]);
 
+  useEffect(() => {
+    let timer;
+    let active = true;
+
+    const pollNfc = async () => {
+      if (!offerLoading) return;
+      if (!nfcUrl) {
+        setActionError('NFC_URL is not configured in the environment.');
+        setOfferLoading(false);
+        return;
+      }
+
+      setNfcMessage('Waiting for NFC tap...');
+      try {
+        const resp = await fetch(`${nfcUrl.replace(/\/+$/, '')}/nfc/read`, {
+          cache: 'no-store',
+        });
+        if (!resp.ok) {
+          throw new Error(`Reader returned ${resp.status}`);
+        }
+
+        const data = await resp.json();
+        const uid = data?.uid ?? data?.UID ?? data?.data?.uid ?? data?.data?.UID ?? null;
+
+        if (uid) {
+          const usedQuery = query(
+            collection(db, 'users'),
+            where('NFC_card_id', '==', uid)
+          );
+          const usedSnap = await getDocs(usedQuery);
+          const existingUser = usedSnap.docs.find((d) => d.id !== userId);
+
+          if (existingUser) {
+            const existingData = existingUser.data();
+            const ownerName = existingData.name || existingData.email || 'Unknown user';
+            setDuplicateUser({
+              id: existingUser.id,
+              name: ownerName,
+              email: existingData.email || '',
+              uid,
+            });
+            setActionError(`This NFC card is already assigned to ${ownerName}.`);
+            setNfcMessage(`Card already used by ${ownerName}.`);
+            setOfferLoading(false);
+            return;
+          }
+
+          if (userId) {
+            await updateDoc(doc(db, 'users', userId), { NFC_card_id: uid });
+          }
+          setUser((prev) => (prev ? { ...prev, NFC_card_id: uid } : prev));
+          setActionSuccess(`NFC card detected: ${uid}`);
+          setNfcMessage(`NFC card detected: ${uid}`);
+          setOfferLoading(false);
+          return;
+        }
+
+        if (active) {
+          timer = window.setTimeout(pollNfc, 1500);
+        }
+      } catch (err) {
+        if (!active) return;
+        setNfcMessage('Waiting for NFC tap...');
+        timer = window.setTimeout(pollNfc, 2000);
+      }
+    };
+
+    if (offerLoading) {
+      pollNfc();
+    }
+
+    return () => {
+      active = false;
+      if (timer) clearTimeout(timer);
+    };
+  }, [offerLoading, nfcUrl, userId]);
+
   const canDeleteUsers =
     profile?.role === Roles.DEPARTMENT_HEAD ||
     profile?.role === Roles.SUPER_ADMIN ||
@@ -114,6 +195,49 @@ const UserDetails = () => {
     } finally {
       setDeleting(false);
     }
+  };
+
+  const handleOfferIdClick = () => {
+    setActionError('');
+    setActionSuccess('');
+    setDuplicateUser(null);
+    setNfcMessage('');
+    setOfferLoading(true);
+  };
+
+  const handleScanAnother = () => {
+    setActionError('');
+    setActionSuccess('');
+    setDuplicateUser(null);
+    setNfcMessage('Waiting for NFC tap...');
+    setOfferLoading(true);
+  };
+
+  const handleRemoveAndAssign = async () => {
+    if (!duplicateUser?.uid || !userId) return;
+    setActionError('');
+    setActionSuccess('');
+    setNfcMessage('Reassigning card...');
+    setOfferLoading(true);
+
+    try {
+      await updateDoc(doc(db, 'users', duplicateUser.id), { NFC_card_id: null });
+      await updateDoc(doc(db, 'users', userId), { NFC_card_id: duplicateUser.uid });
+      setUser((prev) => (prev ? { ...prev, NFC_card_id: duplicateUser.uid } : prev));
+      setActionSuccess(`Card reassigned from ${duplicateUser.name} to this user.`);
+      setDuplicateUser(null);
+    } catch (err) {
+      console.error('Failed to reassign NFC card', err);
+      setActionError('Failed to reassign the card. Try again.');
+    } finally {
+      setOfferLoading(false);
+    }
+  };
+
+  const closeOfferPopup = () => {
+    setOfferLoading(false);
+    setDuplicateUser(null);
+    setNfcMessage('');
   };
 
   const getStoredUserRoles = (work) => {
@@ -205,21 +329,35 @@ const UserDetails = () => {
                 </p>
               </div>
 
-              {canDeleteUsers ? (
-                <button
-                  type="button"
-                  onClick={handleDeleteUser}
-                  disabled={deleting || loadingProfile}
-                  aria-label={deleting ? 'Deleting user' : 'Delete user'}
-                  title="Delete user"
-                  className="shrink-0 inline-flex items-center justify-center gap-2 rounded bg-red-600 hover:bg-red-700 text-white font-semibold disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 h-9 w-9 sm:h-auto sm:w-auto sm:px-3 sm:py-2 text-xs"
-                >
-                  <FaTrash />
-                  <span className="hidden sm:inline">
-                    {deleting ? 'Deleting...' : 'Delete'}
-                  </span>
-                </button>
-              ) : null}
+              <div className="flex items-center gap-2">
+                {user.isTO ? (
+                  <button
+                    type="button"
+                    onClick={handleOfferIdClick}
+                    disabled={offerLoading || loadingProfile}
+                    aria-label="Offer ID"
+                    title="Offer ID"
+                    className="shrink-0 inline-flex items-center justify-center gap-2 rounded bg-blue-600 hover:bg-blue-700 text-white font-semibold disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 h-9 w-auto px-3 py-2 text-xs"
+                  >
+                    {offerLoading ? 'Waiting...' : 'Offer ID'}
+                  </button>
+                ) : null}
+                {canDeleteUsers ? (
+                  <button
+                    type="button"
+                    onClick={handleDeleteUser}
+                    disabled={deleting || loadingProfile}
+                    aria-label={deleting ? 'Deleting user' : 'Delete user'}
+                    title="Delete user"
+                    className="shrink-0 inline-flex items-center justify-center gap-2 rounded bg-red-600 hover:bg-red-700 text-white font-semibold disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 h-9 w-9 sm:h-auto sm:w-auto sm:px-3 sm:py-2 text-xs"
+                  >
+                    <FaTrash />
+                    <span className="hidden sm:inline">
+                      {deleting ? 'Deleting...' : 'Delete'}
+                    </span>
+                  </button>
+                ) : null}
+              </div>
             </div>
 
             <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-6 text-sm sm:text-base space-y-2">
@@ -246,6 +384,14 @@ const UserDetails = () => {
               <p>
                 <span className="font-semibold">Card:</span>{' '}
                 {user.cardNumber || '-'}
+              </p>
+              <p>
+                <span className="font-semibold">NFC Card ID:</span>{' '}
+                {user.NFC_card_id || '-'}
+              </p>
+              <p>
+                <span className="font-semibold">TO status:</span>{' '}
+                {user.isTO ? 'Yes' : 'No'}
               </p>
               <p>
                 <span className="font-semibold">Work departments:</span>{' '}
@@ -341,6 +487,69 @@ const UserDetails = () => {
                     </div>
                   );
                 })}
+              </div>
+            )}
+
+            {offerLoading && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+                <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl">
+                  <div className="flex flex-col items-center gap-4">
+                    <FaSpinner className="animate-spin text-4xl text-blue-600" />
+                    <div className="text-lg font-semibold text-gray-900">Offer ID is loading...</div>
+                    <p className="text-sm text-gray-600 text-center">
+                      {nfcMessage || 'Waiting for NFC tap...'}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={closeOfferPopup}
+                      className="mt-2 inline-flex items-center justify-center rounded bg-gray-200 hover:bg-gray-300 px-4 py-2 text-sm font-semibold text-gray-800"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {duplicateUser && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+                <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl">
+                  <div className="flex flex-col items-center gap-4 text-center">
+                    <div className="text-xl font-semibold text-red-700">Card Already In Use</div>
+                    <p className="text-sm text-gray-600">
+                      This NFC card is already assigned to:
+                    </p>
+                    <p className="font-semibold text-gray-900">
+                      {duplicateUser.name}
+                    </p>
+                    {duplicateUser.email ? (
+                      <p className="text-sm text-gray-500">{duplicateUser.email}</p>
+                    ) : null}
+                    <div className="grid grid-cols-1 gap-2 w-full">
+                      <button
+                        type="button"
+                        onClick={handleScanAnother}
+                        className="inline-flex w-full items-center justify-center rounded bg-blue-600 hover:bg-blue-700 px-4 py-2 text-sm font-semibold text-white"
+                      >
+                        Scan another one
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleRemoveAndAssign}
+                        className="inline-flex w-full items-center justify-center rounded bg-red-600 hover:bg-red-700 px-4 py-2 text-sm font-semibold text-white"
+                      >
+                        Remove and assign
+                      </button>
+                      <button
+                        type="button"
+                        onClick={closeOfferPopup}
+                        className="inline-flex w-full items-center justify-center rounded bg-gray-200 hover:bg-gray-300 px-4 py-2 text-sm font-semibold text-gray-800"
+                      >
+                        Close
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
           </>

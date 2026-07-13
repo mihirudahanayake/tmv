@@ -29,6 +29,7 @@ const Signup = () => {
     gender: 'male',
     registrationNumber: '',
     cardNumber: '',
+    NFC_card_id: '',
     birthday: '',
     password: '',
     confirmPassword: ''
@@ -113,6 +114,7 @@ const Signup = () => {
         gender: form.gender,
         registrationNumber: form.registrationNumber,
         cardNumber: form.cardNumber || null,
+        NFC_card_id: form.NFC_card_id || null,
         birthday: form.birthday || null,
         userType,
         createdAt: new Date().toISOString()

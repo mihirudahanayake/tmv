@@ -3,5 +3,6 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
-  base: 'https://tmv.fotmv.online/'
+  base: 'https://tmv.fotmv.online/',
+  envPrefix: ['VITE_', 'NFC_'],
 })

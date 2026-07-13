@@ -19,6 +19,7 @@ const CreateUser = () => {
     gender: '',
     registrationNumber: '',
     cardNumber: '',
+    NFC_card_id: '',
     birthday: '',
   });
   const [loading, setLoading] = useState(false);
@@ -47,24 +48,11 @@ const CreateUser = () => {
         gender: formData.gender,
         registrationNumber: formData.registrationNumber,
         cardNumber: formData.cardNumber,
+        NFC_card_id: formData.NFC_card_id || null,
         birthday: formData.birthday,
         userType: 'user',
         role: 'member',
         createdAt: new Date().toISOString(),
-      });
-
-      setMessage({ type: 'success', text: 'User created successfully.' });
-      setFormData({
-        name: '',
-        batch: '',
-        email: '',
-        phoneNo: '',
-        departments: [managedDept],
-        studyDepartment: '',
-        gender: '',
-        registrationNumber: '',
-        cardNumber: '',
-        birthday: '',
       });
     } catch (error) {
       setMessage({ type: 'error', text: error.message });
@@ -221,6 +209,17 @@ const CreateUser = () => {
                 onChange={handleChange}
                 className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
                 placeholder="If you have one"
+              />
+            </div>
+            <div>
+              <label className="block text-gray-700 font-semibold mb-2 text-sm sm:text-base">NFC Card ID</label>
+              <input
+                type="text"
+                name="NFC_card_id"
+                value={formData.NFC_card_id}
+                onChange={handleChange}
+                className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
+                placeholder="Enter NFC card id"
               />
             </div>
             <div>

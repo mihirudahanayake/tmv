@@ -657,6 +657,20 @@ const Profile = () => {
 
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">
+                    NFC Card ID
+                  </label>
+                  <input
+                    type="text"
+                    name="NFC_card_id"
+                    value={userData.NFC_card_id || ''}
+                    onChange={handleFieldChange}
+                    className={inputClass}
+                    disabled={!isEditingProfile}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
                     Birthday
                   </label>
                   <input
