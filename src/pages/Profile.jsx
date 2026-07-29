@@ -376,7 +376,6 @@ const Profile = () => {
   };
 
   const userType = userData?.userType === 'admin' ? 'admin' : 'user';
-  const showUserQuickLinks = userType === 'user';
   const isTO = !!userData?.isTO;
 
   const inputClass =
@@ -387,16 +386,10 @@ const Profile = () => {
       <Header userType={userType} isTO={isTO} />
 
       <main className="container mx-auto px-4 py-6 sm:py-8 max-w-2xl">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">
             Profile
           </h1>
-          <button
-            onClick={handleLogout}
-            className="text-xs sm:text-sm px-3 py-1 rounded bg-red-600 text-white hover:bg-red-700"
-          >
-            Logout
-          </button>
         </div>
 
         {status === 'loading' && (
@@ -420,7 +413,7 @@ const Profile = () => {
         {status === 'ready' && userData && (
           <>
             {/* Profile picture + basic info */}
-            <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 flex items-center gap-4 mb-6">
+            <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-6">
               <div className="flex-shrink-0">
                 {userData.photoURL ? (
                   <img
@@ -442,7 +435,7 @@ const Profile = () => {
                   </div>
                 )}
               </div>
-              <div className="flex-1">
+              <div className="flex-1 w-full">
                 <p className="text-lg font-semibold text-gray-800">
                   {userData.name || 'Unnamed user'}
                 </p>
@@ -657,20 +650,6 @@ const Profile = () => {
 
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">
-                    NFC Card ID
-                  </label>
-                  <input
-                    type="text"
-                    name="NFC_card_id"
-                    value={userData.NFC_card_id || ''}
-                    onChange={handleFieldChange}
-                    className={inputClass}
-                    disabled={!isEditingProfile}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
                     Birthday
                   </label>
                   <input
@@ -743,26 +722,6 @@ const Profile = () => {
                 </div>
               </div>
             </form>
-
-            {showUserQuickLinks && (
-              <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 space-y-3 mb-6">
-                <h2 className="text-lg font-semibold text-gray-800">Quick links</h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <Link
-                    to="/my-item-usage"
-                    className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 transition"
-                  >
-                    My Item Usage
-                  </Link>
-                  <Link
-                    to="/user-reject-details"
-                    className="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm font-semibold text-gray-800 hover:bg-gray-50 transition"
-                  >
-                    My Rejections
-                  </Link>
-                </div>
-              </div>
-            )}
 
             {/* Change email section */}
             <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 space-y-3 mb-6">
@@ -930,6 +889,15 @@ const Profile = () => {
                   </button>
                 </form>
               )}
+            </div>
+
+            <div className="mt-6 flex justify-end">
+              <button
+                onClick={handleLogout}
+                className="w-full sm:w-auto text-xs sm:text-sm px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700"
+              >
+                Logout
+              </button>
             </div>
           </>
         )}

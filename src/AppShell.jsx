@@ -22,6 +22,7 @@ import UserDetails from './pages/UserDetails.jsx';
 import TaskHistory from './pages/TaskHistory.jsx';
 import TaskDetails from './pages/TaskDetails.jsx';
 import Inventory from './pages/Inventory';
+import InventoryItems from './pages/InventoryItems.jsx';
 import AccessRecords from './pages/AccessRecords.jsx';
 import MyItemUsage from './pages/MyItemUsage.jsx';
 import AdminRejectDetails from './pages/AdminRejectDetails';
@@ -112,6 +113,14 @@ const AppShell = () => {
         element={
           <RoleRoute allowRoles={['departmentHead', 'superAdmin', 'siteAdmin', 'supervisorTO']} redirectTo="/home">
             <Inventory />
+          </RoleRoute>
+        }
+      />
+      <Route
+        path="/inventory/items"
+        element={
+          <RoleRoute allowRoles={['departmentHead', 'superAdmin', 'siteAdmin', 'supervisorTO']} redirectTo="/home">
+            <InventoryItems />
           </RoleRoute>
         }
       />
@@ -226,4 +235,5 @@ const AppShell = () => {
   );
 };
 
+// commitment 
 export default AppShell;
