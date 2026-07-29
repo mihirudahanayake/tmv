@@ -150,7 +150,7 @@ const Homepage = () => {
               </p>
             </div>
 
-            {/* Create Meeting/Workshop (moved, new color/icon) */}
+            {/* Create Meeting/Workshop (moved, new color/icon)
             <div
               role="button"
               tabIndex={0}
@@ -169,7 +169,7 @@ const Homepage = () => {
               <p className="text-gray-600 mb-4 text-sm sm:text-base">
                 Schedule a new meeting or workshop and set the location for attendance.
               </p>
-            </div>
+            </div> */}
 
             {/* Send Notifications */}
             <div
@@ -184,7 +184,7 @@ const Homepage = () => {
               <div className="flex items-center gap-3 mb-4">
                 <FaPaperPlane className="text-3xl sm:text-4xl text-orange-500" />
                 <h3 className="text-lg sm:text-xl font-semibold text-orange-500">
-                  Send Notifications
+                  Make Announcements
                 </h3>
               </div>
               <p className="text-gray-600 mb-4 text-sm sm:text-base">
@@ -192,7 +192,7 @@ const Homepage = () => {
               </p>
             </div>
 
-            {/* Schedule Posting */}
+            {/* Schedule Posting
             <div
               role="button"
               tabIndex={0}
@@ -212,7 +212,7 @@ const Homepage = () => {
                 Set posting dates, mark as posted, and view the posting
                 queue.
               </p>
-            </div>
+            </div> */}
           </div>
         </div>
       </main>

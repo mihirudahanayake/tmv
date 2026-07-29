@@ -68,7 +68,7 @@ const Header = ({ userType, isTO = false, isDarkMode, toggleDarkMode }) => {
     { path: homePath, label: 'Dashboard', icon: <FaHome /> },
     ...(isMemberShell
       ? [
-          { path: '/my-meetings', label: 'My Meetings / Workshops', icon: <FaCalendarAlt /> },
+          // { path: '/my-meetings', label: 'My Meetings / Workshops', icon: <FaCalendarAlt /> },
           { path: '/task-history', label: 'Task History', icon: <FaHistory /> },
           { path: '/my-item-usage', label: 'My Item Usage', icon: <FaHistory /> },
           { path: '/user-reject-details', label: 'My Rejections', icon: <FaBan /> },
