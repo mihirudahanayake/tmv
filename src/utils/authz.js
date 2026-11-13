@@ -51,5 +51,9 @@ export const getManagedDepartments = (userDoc) => {
 
 export const canEdit = (userDoc) => {
   const role = normalizeRole(userDoc);
-  return role === Roles.DEPARTMENT_HEAD || role === Roles.SITE_ADMIN;
+  return (
+    role === Roles.DEPARTMENT_HEAD ||
+    role === Roles.SUPER_ADMIN ||
+    role === Roles.SITE_ADMIN
+  );
 };

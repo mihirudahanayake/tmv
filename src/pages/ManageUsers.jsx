@@ -7,7 +7,7 @@ import Header from '../components/Header';
 import { FaUser, FaEnvelope, FaSpinner, FaSearch, FaTrash } from 'react-icons/fa';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { httpsCallable } from 'firebase/functions';
-import { Roles } from '../utils/authz';
+import { canEdit } from '../utils/authz';
 
 const ManageUsers = () => {
   const { profile, loading: loadingProfile } = useUserProfile();
@@ -93,10 +93,7 @@ const ManageUsers = () => {
     XLSX.writeFile(workbook, 'users_completed_works.xlsx');
   };
 
-  const canDeleteUsers =
-    profile?.role === Roles.DEPARTMENT_HEAD ||
-    profile?.role === Roles.SUPER_ADMIN ||
-    profile?.role === Roles.SITE_ADMIN;
+  const canDeleteUsers = canEdit(profile);
 
   const handleDeleteUser = async (userId, userName) => {
     if (!canDeleteUsers) return;

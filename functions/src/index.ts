@@ -264,38 +264,130 @@ export const inventoryOverdueSweep = onSchedule('every 60 minutes', async () => 
   const q = db
     .collection('inventoryUsage')
     .where('returnedAt', '==', null)
-    .where('overdueAlertSent', '==', false)
+    .where('status', 'in', ['checkedOut', 'overdue'])
     .where('dueAt', '<=', now)
     .limit(200);
 
   const snap = await q.get();
   if (snap.empty) return;
 
+  const usersSnap = await db.collection('users').get();
+  const adminRecipients = usersSnap.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .filter((u: any) => {
+      const role = normalizeRole({ ...u, email: u?.email || '' });
+      return role === Roles.SUPER_ADMIN || role === Roles.SUPERVISOR_TO || role === Roles.SITE_ADMIN;
+    })
+    .map((u: any) => ({
+      id: u.id,
+      email: isNonEmptyString(u?.email) ? u.email : '',
+      tokens: extractTokens(u),
+    }))
+    .filter((u) => u.id || u.email || u.tokens.length);
+
   const batch = db.batch();
 
   for (const docSnap of snap.docs) {
     const usage: any = docSnap.data();
+    const dueAtValue = usage?.dueAt;
+    const dueAt = dueAtValue && typeof dueAtValue.toDate === 'function' ? dueAtValue.toDate() : dueAtValue ? new Date(dueAtValue) : null;
+    const isExpired = dueAt && dueAt.getTime() <= Date.now();
+
+    if (!isExpired) continue;
+
+    const itemId = String(usage?.itemId || '').trim();
     const userId = String(usage?.userId || '').trim();
-    if (!userId) {
-      batch.update(docSnap.ref, { overdueAlertSent: true, overdueAlertSentAt: now });
-      continue;
+    const overdueAt = now;
+    const itemLabel = usage?.itemName || 'an item';
+    const itemNo = usage?.itemNo ? ` (#${usage.itemNo})` : '';
+    const overdueMessage = `Please return: ${itemLabel}${itemNo}. This item is overdue by more than 24 hours.`;
+
+    batch.update(docSnap.ref, {
+      status: 'overdue',
+      overdueAt,
+      overdueAlertSent: true,
+      overdueAlertSentAt: overdueAt,
+      updatedAt: overdueAt,
+    });
+
+    if (itemId) {
+      batch.update(db.collection('inventory').doc(itemId), {
+        status: 'overdue',
+        overdueAt,
+        overdueAlertSent: true,
+        updatedAt: overdueAt,
+      });
     }
 
-    const notifRef = db.collection('users').doc(userId).collection('notifications').doc(`overdue-${docSnap.id}`);
-    batch.set(
-      notifRef,
-      {
-        type: 'inventory-overdue',
-        title: 'Inventory overdue',
-        message: `Please return: ${usage?.itemName || 'an item'}${usage?.itemNo ? ` (#${usage.itemNo})` : ''}.`,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        read: false,
-        source: 'system',
-      },
-      { merge: true }
-    );
+    if (userId) {
+      const notifRef = db.collection('users').doc(userId).collection('notifications').doc(`overdue-${docSnap.id}`);
+      batch.set(
+        notifRef,
+        {
+          type: 'inventory-overdue',
+          title: 'Inventory overdue',
+          message: overdueMessage,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          read: false,
+          source: 'system',
+        },
+        { merge: true }
+      );
+    }
 
-    batch.update(docSnap.ref, { overdueAlertSent: true, overdueAlertSentAt: now });
+    for (const admin of adminRecipients) {
+      const adminNotifRef = db.collection('users').doc(admin.id).collection('notifications').doc(`inventory-overdue-${docSnap.id}`);
+      batch.set(
+        adminNotifRef,
+        {
+          type: 'inventory-overdue-admin',
+          title: 'Inventory overdue alert',
+          message: `${itemLabel}${itemNo} is overdue and has not been returned within 24 hours.`,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          read: false,
+          source: 'system',
+        },
+        { merge: true }
+      );
+    }
+
+    if (adminRecipients.length > 0) {
+      const adminTokens = Array.from(new Set(adminRecipients.flatMap((u) => u.tokens))).filter(isNonEmptyString);
+      const adminEmails = Array.from(new Set(adminRecipients.map((u) => u.email).filter(isNonEmptyString)));
+
+      if (adminTokens.length > 0) {
+        const link = `${APP_URL}/inventory`;
+        batch.set(db.collection('notifications').doc(`admin-overdue-${docSnap.id}`), {
+          type: 'inventory-overdue-admin',
+          title: 'Inventory overdue alert',
+          message: `${itemLabel}${itemNo} is overdue and has not been returned within 24 hours.`,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          read: false,
+          source: 'system',
+          link,
+        }, { merge: true });
+      }
+
+      if (adminEmails.length > 0 && GMAIL_USER && process.env.GMAIL_PASS) {
+        const subject = `Inventory overdue alert: ${itemLabel}${itemNo}`;
+        const html = `
+          <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111827;">
+            <h3 style="margin: 0 0 12px; color: #b91c1c;">Inventory overdue alert</h3>
+            <p><strong>Item:</strong> ${itemLabel}${itemNo}</p>
+            <p>This item has been overdue and has not been returned within 24 hours.</p>
+            <p>Please review and follow up with the assigned user.</p>
+          </div>
+        `;
+
+        await transporter.sendMail({
+          from: GMAIL_USER,
+          to: adminEmails.join(','),
+          subject,
+          text: `${itemLabel}${itemNo} is overdue and has not been returned within 24 hours.`,
+          html,
+        });
+      }
+    }
   }
 
   await batch.commit();

@@ -1,4 +1,7 @@
 import { useEffect, useState } from 'react';
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import {
   collection,
   addDoc,
@@ -40,6 +43,9 @@ const Inventory = () => {
   const [showIssueCloseConfirm, setShowIssueCloseConfirm] = useState(false);
   const [checkingOut, setCheckingOut] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [reportStartDate, setReportStartDate] = useState('');
+  const [reportEndDate, setReportEndDate] = useState('');
+  const [reportGenerating, setReportGenerating] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
   const [showAddForm, setShowAddForm] = useState(false);
   const [formData, setFormData] = useState({
@@ -132,7 +138,12 @@ const Inventory = () => {
 
   const role = profile?.role || 'member';
   const toEnabled = isUserTO(profile);
-  const canManageInventory = toEnabled || role === 'superAdmin' || role === 'siteAdmin';
+  const canManageInventory =
+    toEnabled ||
+    role === 'superAdmin' ||
+    role === 'siteAdmin' ||
+    role === 'departmentHead' ||
+    role === 'supervisorTO';
   const headerUserType = role === 'departmentHead'
     ? 'admin'
     : role === 'superAdmin'
@@ -140,6 +151,165 @@ const Inventory = () => {
       : role === 'siteAdmin'
         ? 'siteAdmin'
         : 'user';
+
+  const handleDownloadInventoryExcel = () => {
+    const rows = items.map((item, index) => ({
+      No: index + 1,
+      'Item No': item.itemNo || '',
+      'Item Name': item.itemName || '',
+      Category: item.category || '',
+      Status: item.status || 'available',
+      Description: item.description || '',
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Inventory');
+    XLSX.writeFile(workbook, `inventory_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
+  const handleDownloadInventoryPdf = () => {
+    const doc = new jsPDF();
+    doc.setFontSize(16);
+    doc.text('Inventory Records', 14, 16);
+
+    const rows = items.map((item, index) => [
+      index + 1,
+      item.itemNo || '-',
+      item.itemName || '-',
+      item.category || '-',
+      item.status || 'available',
+    ]);
+
+    autoTable(doc, {
+      head: [['#', 'Item No', 'Item Name', 'Category', 'Status']],
+      body: rows,
+      startY: 22,
+      styles: { fontSize: 9 },
+      headStyles: { fillColor: [22, 163, 74] },
+    });
+
+    doc.save(`inventory_${new Date().toISOString().slice(0, 10)}.pdf`);
+  };
+
+  const toReportDate = (value, endOfDay = false) => {
+    if (!value) return null;
+    const date = new Date(`${value}T00:00:00`);
+    if (Number.isNaN(date.getTime())) return null;
+    if (endOfDay) date.setHours(23, 59, 59, 999);
+    return date;
+  };
+
+  const buildUsageReportRows = (records) => {
+    const rows = [];
+
+    records.forEach((record) => {
+      const recordDate = record.createdAt?.toDate ? record.createdAt.toDate() : new Date(record.createdAt || Date.now());
+      if (record.action === 'issue' && Array.isArray(record.itemsIssued)) {
+        record.itemsIssued.forEach((item) => {
+          rows.push({
+            'Record Type': 'Issue',
+            'Issue Date': recordDate.toLocaleString(),
+            'Item No': item.itemNo || item.itemId || '',
+            'Item Name': item.itemName || '',
+            'Issued To': Array.isArray(record.issuedToMembers)
+              ? record.issuedToMembers.map((member) => member.name || member.email || 'Unknown').join('; ')
+              : record.userName || record.userId || '',
+            'Issued By': record.createdByName || record.createdByUid || '',
+            'Return Status': item.returnStatus || (item.returnedAt ? 'returned' : 'not returned'),
+            'Returned Date': item.returnedAt ? (item.returnedAt instanceof Date ? item.returnedAt.toLocaleString() : new Date(item.returnedAt).toLocaleString()) : '',
+            'Returned By': item.returnedByName || item.returnedByUid || '',
+            'Comment': Array.isArray(item.comments) ? item.comments.map((comment) => comment.text).join(' | ') : '',
+          });
+        });
+      }
+
+      if (record.action === 'return') {
+        rows.push({
+          'Record Type': 'Return',
+          'Issue Date': recordDate.toLocaleString(),
+          'Item No': record.itemNo || '',
+          'Item Name': record.itemName || '',
+          'Issued To': record.userName || '',
+          'Issued By': record.createdByName || record.createdByUid || '',
+          'Return Status': 'returned',
+          'Returned Date': recordDate.toLocaleString(),
+          'Returned By': record.createdByName || record.createdByUid || '',
+          'Comment': record.comment || '',
+        });
+      }
+    });
+
+    return rows;
+  };
+
+  const handleDownloadUsageReport = async (format = 'excel') => {
+    if (!canManageInventory) return;
+    setReportGenerating(true);
+    setMessage({ type: '', text: '' });
+
+    try {
+      const recordsSnap = await getDocs(collection(db, 'accessRecords'));
+      const records = recordsSnap.docs.map((entry) => ({ id: entry.id, ...entry.data() }));
+
+      const start = toReportDate(reportStartDate, false);
+      const end = toReportDate(reportEndDate, true);
+
+      const filtered = records.filter((record) => {
+        const recordDate = record.createdAt?.toDate ? record.createdAt.toDate() : new Date(record.createdAt || 0);
+        if (Number.isNaN(recordDate.getTime())) return false;
+        if (record.action !== 'issue' && record.action !== 'return') return false;
+        if (start && recordDate < start) return false;
+        if (end && recordDate > end) return false;
+        return true;
+      });
+
+      const rows = buildUsageReportRows(filtered);
+      if (!rows.length) {
+        setMessage({ type: 'error', text: 'No usage records found for the selected date range.' });
+        return;
+      }
+
+      if (format === 'pdf') {
+        const doc = new jsPDF();
+        doc.setFontSize(16);
+        doc.text('Item Usage Report', 14, 16);
+
+        const tableRows = rows.map((row) => [
+          row['Record Type'],
+          row['Issue Date'],
+          row['Item No'],
+          row['Item Name'],
+          row['Issued To'],
+          row['Return Status'],
+          row['Returned Date'],
+        ]);
+
+        autoTable(doc, {
+          head: [['Type', 'Issue/Return Date', 'Item No', 'Item Name', 'Issued To', 'Status', 'Returned Date']],
+          body: tableRows,
+          startY: 22,
+          styles: { fontSize: 8 },
+          headStyles: { fillColor: [22, 163, 74] },
+        });
+
+        doc.save(`item_usage_report_${new Date().toISOString().slice(0, 10)}.pdf`);
+        setMessage({ type: 'success', text: 'Usage report downloaded as PDF.' });
+        return;
+      }
+
+      const worksheet = XLSX.utils.json_to_sheet(rows);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'UsageReport');
+      XLSX.writeFile(workbook, `item_usage_report_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      setMessage({ type: 'success', text: 'Usage report downloaded as Excel.' });
+    } catch (error) {
+      console.error('Error exporting usage report:', error);
+      setMessage({ type: 'error', text: 'Failed to download usage report.' });
+    } finally {
+      setReportGenerating(false);
+    }
+  };
 
   const handleChange = (e) => {
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
@@ -232,6 +402,16 @@ const Inventory = () => {
     if (!item) return 'not returned';
     if (item.returnStatus === 'returned' || item.returnedAt) return 'returned';
     if (item.status === 'returned') return 'returned';
+
+    const dueAtValue = item.dueAt;
+    const dueAtDate = dueAtValue && typeof dueAtValue.toDate === 'function'
+      ? dueAtValue.toDate()
+      : dueAtValue ? new Date(dueAtValue) : null;
+
+    if (dueAtDate && !Number.isNaN(dueAtDate.getTime()) && dueAtDate.getTime() <= Date.now()) {
+      return 'overdue';
+    }
+
     return 'not returned';
   };
 
@@ -318,8 +498,8 @@ const Inventory = () => {
         const item = items.find((entry) => entry.id === itemId);
         if (!item) continue;
 
-        if ((item.status || 'available') === 'checkedOut') {
-          setMessage({ type: 'error', text: `Item "${item.itemName}" is already checked out. Return it first.` });
+        if ((item.status || 'available') === 'checkedOut' || (item.status || 'available') === 'overdue') {
+          setMessage({ type: 'error', text: `Item "${item.itemName}" is already checked out or overdue. Return it first.` });
           setCheckingOut(false);
           return;
         }
@@ -327,6 +507,7 @@ const Inventory = () => {
         const primaryMember = selectedMembers[0];
         const itemRef = doc(db, 'inventory', item.id);
         const usageRef = doc(collection(db, 'inventoryUsage'));
+        const dueAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
         batch.set(usageRef, {
           itemId: item.id,
@@ -342,8 +523,11 @@ const Inventory = () => {
           })),
           rfidCardId: primaryMember.rfidCardId || '',
           checkedOutAt: serverTimestamp(),
+          dueAt,
           returnedAt: null,
           status: 'checkedOut',
+          overdueAlertSent: false,
+          overdueAt: null,
           issuedByUid: profile?.id || null,
           issuedByName: profile?.name || profile?.email || null,
           createdAt: serverTimestamp(),
@@ -354,6 +538,9 @@ const Inventory = () => {
           checkedOutToUserId: primaryMember.id,
           checkedOutToName: primaryMember.name || primaryMember.email || 'Member',
           checkedOutAt: serverTimestamp(),
+          dueAt,
+          overdueAt: null,
+          overdueAlertSent: false,
           currentUsageId: usageRef.id,
           updatedAt: serverTimestamp(),
         });
@@ -444,7 +631,10 @@ const Inventory = () => {
         if (usageId) {
           batch.update(doc(db, 'inventoryUsage', usageId), {
             returnedAt: serverTimestamp(),
+            dueAt: null,
             status: 'returned',
+            overdueAt: null,
+            overdueAlertSent: false,
             updatedAt: serverTimestamp(),
             updatedByUid: profile?.id || null,
           });
@@ -457,6 +647,8 @@ const Inventory = () => {
           checkedOutRfidCardId: null,
           checkedOutAt: null,
           dueAt: null,
+          overdueAt: null,
+          overdueAlertSent: false,
           currentUsageId: null,
           updatedAt: serverTimestamp(),
         });
@@ -654,7 +846,66 @@ const Inventory = () => {
       <main className="container mx-auto px-4 py-6 sm:py-8">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 sm:mb-6">
           <h1 className="text-xl sm:text-2xl font-bold text-gray-800">Inventory</h1>
+          {/* <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={handleDownloadInventoryExcel}
+              className="inline-flex items-center justify-center rounded bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:bg-green-700"
+            >
+              Download Excel
+            </button>
+            <button
+              type="button"
+              onClick={handleDownloadInventoryPdf}
+              className="inline-flex items-center justify-center rounded bg-red-600 px-3 py-2 text-xs font-semibold text-white hover:bg-red-700"
+            >
+              Download PDF
+            </button>
+          </div> */}
         </div>
+
+        {canManageInventory && (
+          <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">From date</label>
+                <input
+                  type="date"
+                  value={reportStartDate}
+                  onChange={(e) => setReportStartDate(e.target.value)}
+                  className="border rounded px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">To date</label>
+                <input
+                  type="date"
+                  value={reportEndDate}
+                  onChange={(e) => setReportEndDate(e.target.value)}
+                  className="border rounded px-3 py-2 text-sm"
+                />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleDownloadUsageReport('excel')}
+                  disabled={reportGenerating}
+                  className="inline-flex items-center justify-center rounded bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                >
+                  {reportGenerating ? 'Preparing...' : 'Usage Excel'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDownloadUsageReport('pdf')}
+                  disabled={reportGenerating}
+                  className="inline-flex items-center justify-center rounded bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  Usage PDF
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {message.text && (
           <div className="fixed top-4 right-4 z-[60] max-w-md w-[calc(100vw-2rem)] sm:w-auto">
@@ -664,7 +915,7 @@ const Inventory = () => {
           </div>
         )}
 
-        {canManageInventory && toEnabled && (
+        {canManageInventory && (
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 mb-6">
             <button
               type="button"
@@ -698,7 +949,7 @@ const Inventory = () => {
           </div>
         )}
 
-        {canManageInventory && toEnabled && (
+        {canManageInventory && (
           <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
               <h2 className="text-lg sm:text-xl font-semibold text-gray-800">Issued History</h2>
@@ -818,8 +1069,8 @@ const Inventory = () => {
                                             <span className="text-xs">{comments.length}</span>
                                           </button>
                                         </div>
-                                        <span className={`text-xs px-2 py-1 rounded ${itemStatus === 'returned' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-800'}`}>
-                                          {itemStatus === 'returned' ? 'Returned' : 'Not returned'}
+                                        <span className={`text-xs px-2 py-1 rounded ${itemStatus === 'returned' ? 'bg-green-100 text-green-700' : itemStatus === 'overdue' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-800'}`}>
+                                          {itemStatus === 'returned' ? 'Returned' : itemStatus === 'overdue' ? 'Overdue' : 'Not returned'}
                                         </span>
                                       </div>
 

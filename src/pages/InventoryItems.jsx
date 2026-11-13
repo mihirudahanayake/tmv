@@ -1,4 +1,7 @@
 import { useEffect, useState } from 'react';
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import {
   collection,
   deleteDoc,
@@ -79,7 +82,12 @@ const InventoryItems = () => {
 
   const role = profile?.role || 'member';
   const toEnabled = isUserTO(profile);
-  const canManageInventory = toEnabled || role === 'superAdmin' || role === 'siteAdmin';
+  const canManageInventory =
+    toEnabled ||
+    role === 'superAdmin' ||
+    role === 'siteAdmin' ||
+    role === 'departmentHead' ||
+    role === 'supervisorTO';
 
   const headerUserType = role === 'departmentHead'
     ? 'admin'
@@ -88,6 +96,46 @@ const InventoryItems = () => {
       : role === 'siteAdmin'
         ? 'siteAdmin'
         : 'user';
+
+  const handleDownloadInventoryExcel = () => {
+    const rows = filteredItems.map((item, index) => ({
+      No: index + 1,
+      'Item No': item.itemNo || '',
+      'Item Name': item.itemName || '',
+      Category: item.category || '',
+      Status: item.status || 'available',
+      Description: item.description || '',
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Inventory');
+    XLSX.writeFile(workbook, `inventory_items_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
+  const handleDownloadInventoryPdf = () => {
+    const doc = new jsPDF();
+    doc.setFontSize(16);
+    doc.text('Inventory Items', 14, 16);
+
+    const rows = filteredItems.map((item, index) => [
+      index + 1,
+      item.itemNo || '-',
+      item.itemName || '-',
+      item.category || '-',
+      item.status || 'available',
+    ]);
+
+    autoTable(doc, {
+      head: [['#', 'Item No', 'Item Name', 'Category', 'Status']],
+      body: rows,
+      startY: 22,
+      styles: { fontSize: 9 },
+      headStyles: { fillColor: [22, 163, 74] },
+    });
+
+    doc.save(`inventory_items_${new Date().toISOString().slice(0, 10)}.pdf`);
+  };
 
   const formatDateTime = (value) => {
     if (!value) return 'Unknown time';
@@ -293,7 +341,7 @@ const InventoryItems = () => {
 
     if (!canManageInventory) return;
     if (!item) return;
-    if ((item.status || 'available') !== 'checkedOut') return;
+    if ((item.status || 'available') !== 'checkedOut' && (item.status || 'available') !== 'overdue') return;
 
     setSaving(true);
     setMessage({ type: '', text: '' });
@@ -353,7 +401,10 @@ const InventoryItems = () => {
       if (usageId) {
         batch.update(doc(db, 'inventoryUsage', usageId), {
           returnedAt: serverTimestamp(),
+          dueAt: null,
           status: 'returned',
+          overdueAt: null,
+          overdueAlertSent: false,
           updatedAt: serverTimestamp(),
           updatedByUid: profile?.id || null,
           returnedByUid: profile?.id || null,
@@ -368,6 +419,8 @@ const InventoryItems = () => {
         checkedOutRfidCardId: null,
         checkedOutAt: null,
         dueAt: null,
+        overdueAt: null,
+        overdueAlertSent: false,
         currentUsageId: null,
         updatedAt: serverTimestamp(),
       });
@@ -423,14 +476,30 @@ const InventoryItems = () => {
             <p className="text-sm text-gray-600 mt-1">Browse, edit, return, and remove inventory cards here.</p>
           </div>
 
-          <button
-            type="button"
-            onClick={() => navigate('/inventory')}
-            className="inline-flex items-center justify-center gap-2 rounded border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-          >
-            <FaArrowLeft />
-            Back to Inventory
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={handleDownloadInventoryExcel}
+              className="inline-flex items-center justify-center rounded bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:bg-green-700"
+            >
+              Download Excel
+            </button>
+            <button
+              type="button"
+              onClick={handleDownloadInventoryPdf}
+              className="inline-flex items-center justify-center rounded bg-red-600 px-3 py-2 text-xs font-semibold text-white hover:bg-red-700"
+            >
+              Download PDF
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('/inventory')}
+              className="inline-flex items-center justify-center gap-2 rounded border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+            >
+              <FaArrowLeft />
+              Back to Inventory
+            </button>
+          </div>
         </div>
 
         {message.text && (
@@ -511,14 +580,20 @@ const InventoryItems = () => {
                   <div className="flex-1 flex items-center gap-2">
                     <span
                       className={`text-xs px-2 py-1 rounded ${
-                        (item.status || 'available') === 'checkedOut'
-                          ? 'bg-yellow-100 text-yellow-800'
-                          : 'bg-green-100 text-green-700'
+                        (item.status || 'available') === 'overdue'
+                          ? 'bg-red-100 text-red-700'
+                          : (item.status || 'available') === 'checkedOut'
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : 'bg-green-100 text-green-700'
                       }`}
                     >
-                      {(item.status || 'available') === 'checkedOut' ? 'Checked out' : 'Available'}
+                      {(item.status || 'available') === 'overdue'
+                        ? 'Overdue'
+                        : (item.status || 'available') === 'checkedOut'
+                          ? 'Checked out'
+                          : 'Available'}
                     </span>
-                    {(item.status || 'available') === 'checkedOut' && item.dueAt && (
+                    {((item.status || 'available') === 'checkedOut' || (item.status || 'available') === 'overdue') && item.dueAt && (
                       <span className="text-xs text-gray-500">
                         Due: {item.dueAt?.toDate ? item.dueAt.toDate().toLocaleDateString() : ''}
                       </span>
@@ -527,7 +602,7 @@ const InventoryItems = () => {
 
                   {canManageInventory && (
                     <>
-                      {(item.status || 'available') === 'checkedOut' ? (
+                      {(item.status || 'available') === 'checkedOut' || (item.status || 'available') === 'overdue' ? (
                         <button
                           type="button"
                           onClick={(e) => {

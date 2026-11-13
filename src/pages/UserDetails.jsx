@@ -6,7 +6,7 @@ import Header from '../components/Header';
 import { FaCalendarAlt, FaSpinner, FaCheck, FaTrash } from 'react-icons/fa';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { httpsCallable } from 'firebase/functions';
-import { Roles } from '../utils/authz';
+import { canEdit, Roles } from '../utils/authz';
 import {
   getWorkRolesForDepartment,
   normalizeRolesForDepartment,
@@ -25,6 +25,9 @@ const UserDetails = () => {
   const [offerLoading, setOfferLoading] = useState(false);
   const [nfcMessage, setNfcMessage] = useState('');
   const [duplicateUser, setDuplicateUser] = useState(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState(null);
+  const [savingDetails, setSavingDetails] = useState(false);
   const [actionError, setActionError] = useState('');
   const [actionSuccess, setActionSuccess] = useState('');
   const nfcUrl = (import.meta.env.NFC_URL || import.meta.env.VITE_NFC_URL || '').trim();
@@ -163,10 +166,122 @@ const UserDetails = () => {
     };
   }, [offerLoading, nfcUrl, userId]);
 
-  const canDeleteUsers =
-    profile?.role === Roles.DEPARTMENT_HEAD ||
-    profile?.role === Roles.SUPER_ADMIN ||
-    profile?.role === Roles.SITE_ADMIN;
+  const canEditUser = canEdit(profile);
+  const canDeleteUsers = canEditUser;
+  const canAssignTO = profile?.role === Roles.SUPER_ADMIN || profile?.userType === 'superAdmin';
+
+  const handleToggleTO = async () => {
+    if (!userId || !user || !canAssignTO) return;
+
+    const nextValue = !Boolean(user.isTO);
+    setActionError('');
+    setActionSuccess('');
+
+    try {
+      const patch = {
+        isTO: nextValue,
+      };
+
+      if (user.role === Roles.SUPERVISOR_TO) patch.role = Roles.MEMBER;
+      if (user.userType === 'supervisor') patch.userType = 'user';
+
+      if (nextValue) {
+        patch.role = Roles.MEMBER;
+        patch.userType = 'user';
+      }
+
+      await updateDoc(doc(db, 'users', userId), patch);
+      setUser((prev) => (prev ? { ...prev, ...patch } : prev));
+      setActionSuccess(nextValue ? 'User marked as TO.' : 'TO status removed.');
+    } catch (err) {
+      console.error('Failed to update TO status', err);
+      setActionError('Failed to update TO status. Please try again.');
+    }
+  };
+
+  const handleStartEdit = () => {
+    if (!user) return;
+    setEditForm({
+      name: user.name || '',
+      email: user.email || '',
+      phoneNo: user.phoneNo || '',
+      batch: user.batch || '',
+      studyDepartment: user.studyDepartment || '',
+      gender: user.gender || '',
+      registrationNumber: user.registrationNumber || '',
+      cardNumber: user.cardNumber || '',
+      userType: user.userType || 'user',
+      isTO: Boolean(user.isTO),
+      departments: Array.isArray(user.departments)
+        ? user.departments.join(', ')
+        : user.department || '',
+      firstPriority: user.firstPriority || user.department || '',
+    });
+    setActionError('');
+    setActionSuccess('');
+    setIsEditing(true);
+  };
+
+  const handleEditFieldChange = (event) => {
+    const { name, value, type, checked } = event.target;
+    setEditForm((prev) => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value,
+    }));
+  };
+
+  const handleCancelEdit = () => {
+    setEditForm(null);
+    setIsEditing(false);
+    setActionError('');
+    setActionSuccess('');
+  };
+
+  const handleSaveUserDetails = async () => {
+    if (!userId || !editForm) return;
+
+    setSavingDetails(true);
+    setActionError('');
+    setActionSuccess('');
+
+    try {
+      const selectedDepartments = (editForm.departments || '')
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean);
+
+      const primaryDepartment =
+        (editForm.firstPriority || selectedDepartments[0] || editForm.studyDepartment || 'videography')
+          .trim();
+
+      const normalized = {
+        name: editForm.name?.trim() || '',
+        email: editForm.email?.trim() || '',
+        phoneNo: editForm.phoneNo?.trim() || '',
+        batch: editForm.batch?.trim() || '',
+        studyDepartment: editForm.studyDepartment?.trim() || '',
+        gender: editForm.gender?.trim() || '',
+        registrationNumber: editForm.registrationNumber?.trim() || '',
+        cardNumber: editForm.cardNumber?.trim() || '',
+        userType: editForm.userType?.trim() || 'user',
+        isTO: Boolean(editForm.isTO),
+        departments: selectedDepartments.length ? selectedDepartments : [primaryDepartment],
+        firstPriority: primaryDepartment,
+        department: primaryDepartment,
+      };
+
+      await updateDoc(doc(db, 'users', userId), normalized);
+      setUser((prev) => (prev ? { ...prev, ...normalized } : prev));
+      setActionSuccess('User details updated successfully.');
+      setIsEditing(false);
+      setEditForm(null);
+    } catch (err) {
+      console.error('Failed to update user details', err);
+      setActionError('Failed to update user details. Please try again.');
+    } finally {
+      setSavingDetails(false);
+    }
+  };
 
   const handleDeleteUser = async () => {
     if (!canDeleteUsers || !userId) return;
@@ -330,6 +445,33 @@ const UserDetails = () => {
               </div>
 
               <div className="flex items-center gap-2">
+                {canAssignTO ? (
+                  <button
+                    type="button"
+                    onClick={handleToggleTO}
+                    className={`shrink-0 inline-flex items-center justify-center gap-2 rounded font-semibold focus:outline-none focus:ring-2 focus:ring-offset-2 h-9 w-auto px-3 py-2 text-xs ${user.isTO ? 'bg-red-600 hover:bg-red-700 text-white focus:ring-red-400' : 'bg-blue-600 hover:bg-blue-700 text-white focus:ring-blue-400'}`}
+                  >
+                    {user.isTO ? 'Remove TO' : 'Make TO'}
+                  </button>
+                ) : null}
+                {canEditUser && !isEditing ? (
+                  <button
+                    type="button"
+                    onClick={handleStartEdit}
+                    className="shrink-0 inline-flex items-center justify-center gap-2 rounded bg-amber-500 hover:bg-amber-600 text-white font-semibold focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2 h-9 w-auto px-3 py-2 text-xs"
+                  >
+                    Edit
+                  </button>
+                ) : null}
+                {canEditUser && isEditing ? (
+                  <button
+                    type="button"
+                    onClick={handleCancelEdit}
+                    className="shrink-0 inline-flex items-center justify-center gap-2 rounded bg-gray-500 hover:bg-gray-600 text-white font-semibold focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 h-9 w-auto px-3 py-2 text-xs"
+                  >
+                    Cancel
+                  </button>
+                ) : null}
                 {user.isTO ? (
                   <button
                     type="button"
@@ -360,50 +502,176 @@ const UserDetails = () => {
               </div>
             </div>
 
-            <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-6 text-sm sm:text-base space-y-2">
-              <p>
-                <span className="font-semibold">Phone:</span>{' '}
-                {user.phoneNo || '-'}
-              </p>
-              <p>
-                <span className="font-semibold">Batch:</span>{' '}
-                {user.batch || '-'}
-              </p>
-              <p>
-                <span className="font-semibold">Study department:</span>{' '}
-                {user.studyDepartment || '-'}
-              </p>
-              <p>
-                <span className="font-semibold">Gender:</span>{' '}
-                {user.gender || '-'}
-              </p>
-              <p>
-                <span className="font-semibold">Registration no:</span>{' '}
-                {user.registrationNumber || '-'}
-              </p>
-              <p>
-                <span className="font-semibold">Card:</span>{' '}
-                {user.cardNumber || '-'}
-              </p>
-              <p>
-                <span className="font-semibold">NFC Card ID:</span>{' '}
-                {user.NFC_card_id || '-'}
-              </p>
-              <p>
-                <span className="font-semibold">TO status:</span>{' '}
-                {user.isTO ? 'Yes' : 'No'}
-              </p>
-              <p>
-                <span className="font-semibold">Work departments:</span>{' '}
-                {Array.isArray(user.departments)
-                  ? user.departments.join(', ')
-                  : user.department || '-'}
-              </p>
-              <p>
-                <span className="font-semibold">User type:</span>{' '}
-                {user.userType || 'user'}
-              </p>
-            </div>
+            {isEditing && editForm ? (
+              <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-6 text-sm sm:text-base">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <label className="flex flex-col gap-1">
+                    <span className="font-semibold text-gray-700">Name</span>
+                    <input
+                      name="name"
+                      value={editForm.name}
+                      onChange={handleEditFieldChange}
+                      className="border rounded px-3 py-2"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="font-semibold text-gray-700">Email</span>
+                    <input
+                      name="email"
+                      value={editForm.email}
+                      onChange={handleEditFieldChange}
+                      className="border rounded px-3 py-2"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="font-semibold text-gray-700">Phone</span>
+                    <input
+                      name="phoneNo"
+                      value={editForm.phoneNo}
+                      onChange={handleEditFieldChange}
+                      className="border rounded px-3 py-2"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="font-semibold text-gray-700">Batch</span>
+                    <input
+                      name="batch"
+                      value={editForm.batch}
+                      onChange={handleEditFieldChange}
+                      className="border rounded px-3 py-2"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="font-semibold text-gray-700">Study department</span>
+                    <input
+                      name="studyDepartment"
+                      value={editForm.studyDepartment}
+                      onChange={handleEditFieldChange}
+                      className="border rounded px-3 py-2"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="font-semibold text-gray-700">Gender</span>
+                    <input
+                      name="gender"
+                      value={editForm.gender}
+                      onChange={handleEditFieldChange}
+                      className="border rounded px-3 py-2"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="font-semibold text-gray-700">Registration no</span>
+                    <input
+                      name="registrationNumber"
+                      value={editForm.registrationNumber}
+                      onChange={handleEditFieldChange}
+                      className="border rounded px-3 py-2"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="font-semibold text-gray-700">Card</span>
+                    <input
+                      name="cardNumber"
+                      value={editForm.cardNumber}
+                      onChange={handleEditFieldChange}
+                      className="border rounded px-3 py-2"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="font-semibold text-gray-700">User type</span>
+                    <input
+                      name="userType"
+                      value={editForm.userType}
+                      onChange={handleEditFieldChange}
+                      className="border rounded px-3 py-2"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 md:col-span-2">
+                    <span className="font-semibold text-gray-700">Work departments</span>
+                    <input
+                      name="departments"
+                      value={editForm.departments}
+                      onChange={handleEditFieldChange}
+                      placeholder="ITT, EET"
+                      className="border rounded px-3 py-2"
+                    />
+                  </label>
+                </div>
+
+                <label className="mt-4 flex items-center gap-2 text-sm font-medium text-gray-700">
+                  <input
+                    name="isTO"
+                    type="checkbox"
+                    checked={Boolean(editForm.isTO)}
+                    onChange={handleEditFieldChange}
+                  />
+                  TO status
+                </label>
+
+                <div className="mt-4 flex gap-3">
+                  <button
+                    type="button"
+                    onClick={handleSaveUserDetails}
+                    disabled={savingDetails}
+                    className="rounded bg-green-600 hover:bg-green-700 text-white font-semibold disabled:opacity-50 px-4 py-2"
+                  >
+                    {savingDetails ? 'Saving...' : 'Save changes'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCancelEdit}
+                    className="rounded bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold px-4 py-2"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-6 text-sm sm:text-base space-y-2">
+                <p>
+                  <span className="font-semibold">Phone:</span>{' '}
+                  {user.phoneNo || '-'}
+                </p>
+                <p>
+                  <span className="font-semibold">Batch:</span>{' '}
+                  {user.batch || '-'}
+                </p>
+                <p>
+                  <span className="font-semibold">Study department:</span>{' '}
+                  {user.studyDepartment || '-'}
+                </p>
+                <p>
+                  <span className="font-semibold">Gender:</span>{' '}
+                  {user.gender || '-'}
+                </p>
+                <p>
+                  <span className="font-semibold">Registration no:</span>{' '}
+                  {user.registrationNumber || '-'}
+                </p>
+                <p>
+                  <span className="font-semibold">Card:</span>{' '}
+                  {user.cardNumber || '-'}
+                </p>
+                <p>
+                  <span className="font-semibold">NFC Card ID:</span>{' '}
+                  {user.NFC_card_id || '-'}
+                </p>
+                <p>
+                  <span className="font-semibold">TO status:</span>{' '}
+                  {user.isTO ? 'Yes' : 'No'}
+                </p>
+                <p>
+                  <span className="font-semibold">Work departments:</span>{' '}
+                  {Array.isArray(user.departments)
+                    ? user.departments.join(', ')
+                    : user.department || '-'}
+                </p>
+                <p>
+                  <span className="font-semibold">User type:</span>{' '}
+                  {user.userType || 'user'}
+                </p>
+              </div>
+            )}
 
             <h2 className="text-xl sm:text-2xl font-semibold text-gray-800 mb-3">
               Task history

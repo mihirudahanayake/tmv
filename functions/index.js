@@ -1,5 +1,6 @@
 const { onDocumentCreated } = require('firebase-functions/v2/firestore');
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
+const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { addDoc, collection } = require('firebase-admin/firestore');
 const logger = require('firebase-functions/logger');
 const admin = require('firebase-admin');
@@ -24,6 +25,7 @@ const Roles = {
   SITE_ADMIN: 'siteAdmin',
   SUPER_ADMIN: 'superAdmin',
   DEPARTMENT_HEAD: 'departmentHead',
+  SUPERVISOR_TO: 'supervisorTO',
   MEMBER: 'member',
 };
 
@@ -37,11 +39,13 @@ function normalizeRole(userDoc) {
   if (role === Roles.SITE_ADMIN) return Roles.SITE_ADMIN;
   if (role === Roles.SUPER_ADMIN) return Roles.SUPER_ADMIN;
   if (role === Roles.DEPARTMENT_HEAD) return Roles.DEPARTMENT_HEAD;
+  if (role === Roles.SUPERVISOR_TO) return Roles.SUPERVISOR_TO;
   if (role === Roles.MEMBER) return Roles.MEMBER;
 
   // Backward compatibility
   if (userDoc?.userType === 'admin') return Roles.DEPARTMENT_HEAD;
   if (userDoc?.userType === 'superAdmin') return Roles.SUPER_ADMIN;
+  if (userDoc?.userType === 'supervisor') return Roles.SUPERVISOR_TO;
   return Roles.MEMBER;
 }
 
@@ -166,7 +170,42 @@ const transporter = nodemailer.createTransport({
 
 /* ================== FCM HELPER ================== */
 
-async function sendToUser(userId, title, body) {
+function isNonEmptyString(value) {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function extractTokens(userData) {
+  if (Array.isArray(userData?.fcmTokens)) {
+    return userData.fcmTokens.filter(isNonEmptyString);
+  }
+  if (isNonEmptyString(userData?.fcmToken)) {
+    return [userData.fcmToken];
+  }
+  return [];
+}
+
+async function sendToTokens(tokens, title, body, link) {
+  const deduped = Array.from(new Set(tokens)).filter(isNonEmptyString);
+  if (!deduped.length) return;
+
+  const chunkSize = 450;
+  for (let i = 0; i < deduped.length; i += chunkSize) {
+    const chunk = deduped.slice(i, i + chunkSize);
+    const res = await admin.messaging().sendEachForMulticast({
+      tokens: chunk,
+      notification: { title, body },
+      data: link ? { url: link } : undefined,
+      webpush: link ? { fcmOptions: { link } } : undefined,
+    });
+
+    logger.info('FCM multicast result', {
+      successCount: res.successCount,
+      failureCount: res.failureCount,
+    });
+  }
+}
+
+async function sendToUser(userId, title, body, link) {
   const snap = await db.collection('users').doc(userId).get();
 
   if (!snap.exists) {
@@ -175,31 +214,14 @@ async function sendToUser(userId, title, body) {
   }
 
   const data = snap.data();
-  let tokens = [];
-
-  if (Array.isArray(data.fcmTokens) && data.fcmTokens.length) {
-    tokens = data.fcmTokens;
-  } else if (typeof data.fcmToken === 'string' && data.fcmToken) {
-    tokens = [data.fcmToken];
-  }
+  const tokens = extractTokens(data);
 
   if (!tokens.length) {
     logger.warn('No FCM tokens', { userId });
     return;
   }
 
-  const message = {
-    notification: { title, body },
-    tokens,
-  };
-
-  const res = await admin.messaging().sendEachForMulticast(message);
-
-  logger.info('FCM result', {
-    userId,
-    success: res.successCount,
-    failed: res.failureCount,
-  });
+  await sendToTokens(tokens, title, body, link);
 }
 
 /* ================== NOTIFICATION HANDLER ================== */
@@ -239,6 +261,134 @@ exports.onNotificationCreated = onDocumentCreated(
     await sendToUser(userId, title, body);
   }
 );
+
+/* ================== INVENTORY: OVERDUE SWEEP ================== */
+
+exports.inventoryOverdueSweep = onSchedule('every 60 minutes', async () => {
+  const now = admin.firestore.Timestamp.now();
+  const usageSnap = await db
+    .collection('inventoryUsage')
+    .where('returnedAt', '==', null)
+    .where('status', 'in', ['checkedOut', 'overdue'])
+    .where('dueAt', '<=', now)
+    .limit(200)
+    .get();
+
+  if (usageSnap.empty) return;
+
+  const usersSnap = await db.collection('users').get();
+  const adminRecipients = usersSnap.docs
+    .map((doc) => ({ id: doc.id, ...doc.data() }))
+    .filter((u) => {
+      const role = normalizeRole({ ...u, email: u?.email || '' });
+      return role === Roles.SUPER_ADMIN || role === Roles.SUPERVISOR_TO || role === Roles.SITE_ADMIN;
+    })
+    .map((u) => ({
+      id: u.id,
+      email: isNonEmptyString(u?.email) ? u.email : '',
+      tokens: extractTokens(u),
+    }))
+    .filter((u) => u.id || u.email || u.tokens.length);
+
+  const batch = db.batch();
+
+  for (const docSnap of usageSnap.docs) {
+    const usage = docSnap.data();
+    const dueAtValue = usage?.dueAt;
+    const dueAt = dueAtValue && typeof dueAtValue.toDate === 'function'
+      ? dueAtValue.toDate()
+      : dueAtValue ? new Date(dueAtValue) : null;
+
+    if (!dueAt || dueAt.getTime() > Date.now()) continue;
+
+    const itemId = String(usage?.itemId || '').trim();
+    const userId = String(usage?.userId || '').trim();
+    const overdueAt = now;
+    const itemLabel = usage?.itemName || 'an item';
+    const itemNo = usage?.itemNo ? ` (#${usage.itemNo})` : '';
+    const overdueMessage = `Please return: ${itemLabel}${itemNo}. This item is overdue by more than 24 hours.`;
+
+    batch.update(docSnap.ref, {
+      status: 'overdue',
+      overdueAt,
+      overdueAlertSent: true,
+      overdueAlertSentAt: overdueAt,
+      updatedAt: overdueAt,
+    });
+
+    if (itemId) {
+      batch.update(db.collection('inventory').doc(itemId), {
+        status: 'overdue',
+        overdueAt,
+        overdueAlertSent: true,
+        updatedAt: overdueAt,
+      });
+    }
+
+    if (userId) {
+      const notifRef = db.collection('users').doc(userId).collection('notifications').doc(`overdue-${docSnap.id}`);
+      batch.set(
+        notifRef,
+        {
+          type: 'inventory-overdue',
+          title: 'Inventory overdue',
+          message: overdueMessage,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          read: false,
+          source: 'system',
+        },
+        { merge: true }
+      );
+    }
+
+    for (const admin of adminRecipients) {
+      const adminNotifRef = db.collection('users').doc(admin.id).collection('notifications').doc(`inventory-overdue-${docSnap.id}`);
+      batch.set(
+        adminNotifRef,
+        {
+          type: 'inventory-overdue-admin',
+          title: 'Inventory overdue alert',
+          message: `${itemLabel}${itemNo} is overdue and has not been returned within 24 hours.`,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          read: false,
+          source: 'system',
+        },
+        { merge: true }
+      );
+    }
+
+    if (adminRecipients.length > 0) {
+      const adminTokens = Array.from(new Set(adminRecipients.flatMap((u) => u.tokens))).filter(isNonEmptyString);
+      const adminEmails = Array.from(new Set(adminRecipients.map((u) => u.email).filter(isNonEmptyString)));
+
+      if (adminTokens.length > 0) {
+        await sendToTokens(adminTokens, 'Inventory overdue alert', `${itemLabel}${itemNo} is overdue and has not been returned within 24 hours.`, `${process.env.APP_URL || 'https://tmv.fotmv.online'}/inventory`);
+      }
+
+      if (adminEmails.length > 0 && GMAIL_USER && GMAIL_PASS) {
+        const subject = `Inventory overdue alert: ${itemLabel}${itemNo}`;
+        const html = `
+          <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111827;">
+            <h3 style="margin: 0 0 12px; color: #b91c1c;">Inventory overdue alert</h3>
+            <p><strong>Item:</strong> ${itemLabel}${itemNo}</p>
+            <p>This item has been overdue and has not been returned within 24 hours.</p>
+            <p>Please review and follow up with the assigned user.</p>
+          </div>
+        `;
+
+        await transporter.sendMail({
+          from: GMAIL_USER,
+          to: adminEmails.join(','),
+          subject,
+          text: `${itemLabel}${itemNo} is overdue and has not been returned within 24 hours.`,
+          html,
+        });
+      }
+    }
+  }
+
+  await batch.commit();
+});
 
 /* ================== EMAIL HANDLER ================== */
 
