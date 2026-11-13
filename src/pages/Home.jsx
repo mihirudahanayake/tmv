@@ -30,6 +30,7 @@ import {
 import { useDarkMode } from '../context/DarkModeContext';
 import { useIdleLogout } from '../hooks/useIdleLogout';
 import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import {
   getWorkRolesForDepartment,
   normalizeRolesForDepartment,
@@ -675,9 +676,9 @@ const renderTeamMembers = (task) => {
         {/* Admin: Add event creation button */}
         {userType === 'admin' && (
           <div className="mb-6 flex justify-end">
-            <a href="/admin-create-event" className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded shadow">
+            <Link to="/admin-create-event" className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded shadow">
               Create Meeting/Workshop
-            </a>
+            </Link>
           </div>
         )}
         <div className="mb-8">

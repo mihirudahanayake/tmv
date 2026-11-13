@@ -86,8 +86,8 @@ const Header = ({ userType, isTO = false, isDarkMode, toggleDarkMode }) => {
     navItems.push(
       { path: '/manage-users', label: 'Users', icon: <FaUserPlus /> },
       { path: '/work-list', label: 'Work List', icon: <FaList /> },
-      ...(isDepartmentHead ? [] : [{ path: '/inventory', label: 'Inventory', icon: <FaBox /> }]),
-      { path: '/access-records', label: 'Access Records', icon: <FaIdCard /> },
+      // ...(isDepartmentHead ? [] : [{ path: '/inventory', label: 'Inventory', icon: <FaBox /> }]),
+      // { path: '/access-records', label: 'Access Records', icon: <FaIdCard /> },
       { path: '/profile', label: 'Profile', icon: <FaUser /> },
       { path: '/notifications', label: 'Notification History', icon: <FaBell /> }
     );

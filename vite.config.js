@@ -1,8 +1,8 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react()],
-  base: 'https://tmv.fotmv.online/',
+  base: mode === 'production' ? '/tmv/' : '/',
   envPrefix: ['VITE_', 'NFC_'],
-})
+}))

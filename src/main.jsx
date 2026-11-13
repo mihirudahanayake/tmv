@@ -56,9 +56,11 @@ function AppWithFCM() {
   );
 }
 
+const routerBasename = window.location.pathname.startsWith('/tmv') ? '/tmv' : '/';
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <BrowserRouter>
+    <BrowserRouter basename={routerBasename}>
       <DarkModeProvider>
         <AppWithFCM />
       </DarkModeProvider>
