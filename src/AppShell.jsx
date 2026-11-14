@@ -38,7 +38,7 @@ import SuperAdminDashboard from './pages/SuperAdminDashboard.jsx';
 import SiteAdminDashboard from './pages/SiteAdminDashboard.jsx';
 
 const AppShell = () => {
-  useIdleLogout(); // idle timer active for all routes
+  useIdleLogout();
   const location = useLocation();
   const hideGlobalLayout = ['/', '/login', '/forgot-password', '/signup'].includes(location.pathname);
 
@@ -65,9 +65,7 @@ const AppShell = () => {
     );
 
     if (isSuperAdminArea) return 'superAdmin';
-
     if (location.pathname.startsWith('/site-admin')) return 'siteAdmin';
-
     if (
       location.pathname.startsWith('/admin-home') ||
       location.pathname.startsWith('/create-user') ||
@@ -86,22 +84,17 @@ const AppShell = () => {
     ) {
       return 'admin';
     }
-
     return 'user';
   };
 
-  return (
-    <>
-      {!hideGlobalLayout && <Header userType={getHeaderUserType()} isGlobalLayout />}
-      <Routes>
-        {/* auth / common */}
-        <Route path="/" element={<Welcome />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/signup" element={<Signup />} />
-        <Route path="/home" element={<Home />} />
+  const routes = (
+    <Routes>
+      <Route path="/" element={<Welcome />} />
+      <Route path="/login" element={<Login />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/signup" element={<Signup />} />
+      <Route path="/home" element={<Home />} />
 
-      {/* admin core */}
       <Route
         path="/admin-home"
         element={
@@ -176,7 +169,6 @@ const AppShell = () => {
           </RoleRoute>
         }
       />
-
       <Route
         path="/access-records"
         element={
@@ -185,7 +177,6 @@ const AppShell = () => {
           </DeptHeadRoute>
         }
       />
-
       <Route
         path="/my-item-usage"
         element={
@@ -211,8 +202,6 @@ const AppShell = () => {
           </DeptHeadRoute>
         }
       />
-
-      {/* ADMIN notifications list + details */}
       <Route
         path="/notifications"
         element={
@@ -237,14 +226,8 @@ const AppShell = () => {
           </DeptHeadRoute>
         }
       />
-
-      {/* USER notifications list + details */}
       <Route path="/user/notifications" element={<UserNotifications />} />
-      <Route
-        path="/user/notifications/:notifId"
-        element={<UserNotificationDetail />}
-      />
-
+      <Route path="/user/notifications/:notifId" element={<UserNotificationDetail />} />
       <Route
         path="/add-old-work"
         element={
@@ -253,7 +236,6 @@ const AppShell = () => {
           </DeptHeadRoute>
         }
       />
-
       <Route
         path="/edit-old-work/:id"
         element={
@@ -262,8 +244,6 @@ const AppShell = () => {
           </DeptHeadRoute>
         }
       />
-
-      {/* super admin (read-only) */}
       <Route
         path="/super-admin"
         element={
@@ -272,8 +252,6 @@ const AppShell = () => {
           </SuperAdminRoute>
         }
       />
-
-      {/* site admin (can manage roles) */}
       <Route
         path="/site-admin"
         element={
@@ -282,11 +260,23 @@ const AppShell = () => {
           </SiteAdminRoute>
         }
       />
+    </Routes>
+  );
 
-      </Routes>
+  return (
+    <>
+      {!hideGlobalLayout && <Header userType={getHeaderUserType()} isGlobalLayout />}
+      {hideGlobalLayout ? (
+        routes
+      ) : (
+        <div className="min-h-screen bg-slate-100 pt-16 lg:pl-[280px]">
+          <div className="mx-auto max-w-[1400px] px-3 pb-8 pt-4 sm:px-5 lg:px-6">
+            {routes}
+          </div>
+        </div>
+      )}
     </>
   );
 };
 
-// commitment 
 export default AppShell;

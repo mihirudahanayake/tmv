@@ -16,7 +16,7 @@ import {
   FaMoon,
   FaSignOutAlt,
 } from 'react-icons/fa';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { signOut } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
 import { useDarkMode } from '../context/DarkModeContext';
@@ -117,25 +117,6 @@ const Header = ({ userType, isTO = false, isDarkMode, toggleDarkMode, isGlobalLa
       { path: '/notifications', label: 'Notification History', icon: <FaBell /> }
     );
   }
-
-  useEffect(() => {
-    const syncOffsets = () => {
-      const desktop = window.innerWidth >= 1024;
-      document.body.style.paddingTop = '64px';
-      document.body.style.paddingLeft = desktop ? '280px' : '0';
-      document.body.style.minHeight = '100vh';
-    };
-
-    syncOffsets();
-    window.addEventListener('resize', syncOffsets);
-
-    return () => {
-      window.removeEventListener('resize', syncOffsets);
-      document.body.style.paddingTop = '';
-      document.body.style.paddingLeft = '';
-      document.body.style.minHeight = '';
-    };
-  }, []);
 
   return (
     <>
