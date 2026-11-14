@@ -52,7 +52,8 @@ const Header = ({ userType, isTO = false, isDarkMode, toggleDarkMode, isGlobalLa
               ? 'user'
               : userType;
   const isMemberShell = effectiveUserType === 'user';
-  const showTOInventory = isTO && isMemberShell;
+  const isTOUser = Boolean(isTO || profile?.isTO || profileRole === 'supervisorTO' || profileRole === 'supervisor' || userType === 'supervisorTO' || userType === 'supervisor');
+  const showTOInventory = isTOUser && isMemberShell;
   const userDisplayName = profile?.name || profile?.displayName || profile?.email || 'Profile';
   const userAvatarUrl = profile?.photoURL || profile?.avatarUrl || '';
 
