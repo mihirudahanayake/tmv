@@ -557,39 +557,69 @@ const InventoryItems = () => {
   });
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-white to-blue-50">
       <Header userType={headerUserType} isTO={toEnabled} />
 
-      <main className="container mx-auto px-4 py-6 sm:py-8">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 sm:mb-6">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-800">Inventory Items</h1>
-            <p className="text-sm text-gray-600 mt-1">Browse, edit, return, and remove inventory cards here.</p>
-          </div>
+      <main className="container mx-auto px-4 py-5 sm:py-6">
+        <div className="mb-5 rounded-[22px] border border-white/80 bg-white/80 p-4 shadow-[0_14px_30px_rgba(15,23,42,0.06)] backdrop-blur-sm sm:p-5">
+          <div className="flex flex-col gap-4">
+            <div className="grid grid-cols-[auto_1fr_auto] items-center gap-2 sm:gap-3">
+              <button
+                type="button"
+                onClick={() => navigate('/inventory')}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 sm:px-5 sm:text-base"
+              >
+                <FaArrowLeft className="text-base sm:text-lg" />
+                Back
+              </button>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={handleDownloadInventoryExcel}
-              className="inline-flex items-center justify-center rounded bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:bg-green-700"
-            >
-              Download Excel
-            </button>
-            <button
-              type="button"
-              onClick={handleDownloadInventoryPdf}
-              className="inline-flex items-center justify-center rounded bg-red-600 px-3 py-2 text-xs font-semibold text-white hover:bg-red-700"
-            >
-              Download PDF
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate('/inventory')}
-              className="inline-flex items-center justify-center gap-2 rounded border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-            >
-              <FaArrowLeft />
-              Back to Inventory
-            </button>
+              <div className="text-center">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-blue-600">Inventory items</p>
+                <h1 className="mt-2 text-2xl font-bold text-slate-800 sm:text-3xl">Item cards</h1>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={handleDownloadInventoryExcel}
+                  className="inline-flex items-center justify-center rounded-xl bg-green-600 px-3 py-2 text-[11px] font-semibold text-white shadow-sm hover:bg-green-700"
+                >
+                  Download Item List (.xlsx)
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDownloadInventoryPdf}
+                  className="inline-flex items-center justify-center rounded-xl bg-red-600 px-3 py-2 text-[11px] font-semibold text-white shadow-sm hover:bg-red-700"
+                >
+                  Download Item List (.pdf)
+                </button>
+              </div>
+            </div>
+
+            {/* Removed duplicate title block to keep the row layout clean */}
+            <div className="hidden">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-blue-600">Inventory items</p>
+              <h1 className="mt-2 text-2xl font-bold text-slate-800 sm:text-3xl">Item cards</h1>
+            </div>
+          </div>
+        </div>
+
+        <div className="mb-5 grid grid-cols-2 gap-3 xl:grid-cols-4">
+          <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_8px_20px_rgba(15,23,42,0.04)]">
+            <p className="text-xs text-slate-500">Total</p>
+            <p className="mt-2 text-xl font-bold text-slate-800">{items.length}</p>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_8px_20px_rgba(15,23,42,0.04)]">
+            <p className="text-xs text-slate-500">Available</p>
+            <p className="mt-2 text-xl font-bold text-emerald-600">{items.filter((item) => (item.status || 'available') !== 'checkedOut' && (item.status || 'available') !== 'overdue').length}</p>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_8px_20px_rgba(15,23,42,0.04)]">
+            <p className="text-xs text-slate-500">Checked out</p>
+            <p className="mt-2 text-xl font-bold text-amber-600">{items.filter((item) => (item.status || 'available') === 'checkedOut').length}</p>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_8px_20px_rgba(15,23,42,0.04)]">
+            <p className="text-xs text-slate-500">Overdue</p>
+            <p className="mt-2 text-xl font-bold text-red-600">{items.filter((item) => (item.status || 'available') === 'overdue').length}</p>
           </div>
         </div>
 
@@ -614,7 +644,7 @@ const InventoryItems = () => {
             placeholder="Search by item name or number..."
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-sm shadow-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
           />
         </div>
 
@@ -631,7 +661,7 @@ const InventoryItems = () => {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+          <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {filteredItems.map((item) => (
               <div
                 key={item.id}
@@ -644,38 +674,42 @@ const InventoryItems = () => {
                     openItemDetailModal(item);
                   }
                 }}
-                className="bg-white rounded-lg shadow-md p-4 hover:shadow-lg transition cursor-pointer"
+                className="cursor-pointer rounded-[22px] border border-slate-200 bg-white/90 p-3 shadow-[0_10px_24px_rgba(15,23,42,0.04)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_16px_28px_rgba(59,130,246,0.08)]"
               >
                 {item.imageUrl && (
-                  <div className="mb-3">
+                  <div className="mb-3 overflow-hidden rounded-xl bg-slate-50">
                     <img
                       src={item.imageUrl}
                       alt={item.itemName || 'Item'}
-                      className="h-36 w-full rounded object-contain bg-gray-50"
+                      className="h-32 w-full object-contain"
                     />
                   </div>
                 )}
-                <div className="flex items-start justify-between mb-2">
-                  <h3 className="font-semibold text-gray-800 text-sm sm:text-base flex-1">{item.itemName}</h3>
-                  <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded ml-2">{item.itemNo}</span>
+
+                <div className="mb-2 flex items-start justify-between gap-2">
+                  <h3 className="flex-1 text-sm font-bold text-slate-800 sm:text-base">{item.itemName}</h3>
+                  <span className="rounded-full bg-blue-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-blue-800">{item.itemNo}</span>
                 </div>
+
                 {item.category && (
-                  <p className="text-xs bg-slate-100 text-slate-800 px-2 py-1 rounded inline-block mb-2">
+                  <p className="mb-2 inline-flex rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-700">
                     {item.category}
                   </p>
                 )}
+
                 {item.description && (
-                  <p className="text-gray-600 text-xs sm:text-sm mb-3">{item.description}</p>
+                  <p className="mb-3 line-clamp-2 text-xs text-slate-600 sm:text-sm">{item.description}</p>
                 )}
-                <div className="flex gap-2 mt-3 pt-3 border-t">
-                  <div className="flex-1 flex items-center gap-2">
+
+                <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-3">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span
-                      className={`text-xs px-2 py-1 rounded ${
+                      className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wide ${
                         (item.status || 'available') === 'overdue'
                           ? 'bg-red-100 text-red-700'
                           : (item.status || 'available') === 'checkedOut'
                             ? 'bg-yellow-100 text-yellow-800'
-                            : 'bg-green-100 text-green-700'
+                            : 'bg-emerald-100 text-emerald-700'
                       }`}
                     >
                       {(item.status || 'available') === 'overdue'
@@ -684,15 +718,16 @@ const InventoryItems = () => {
                           ? 'Checked out'
                           : 'Available'}
                     </span>
+
                     {((item.status || 'available') === 'checkedOut' || (item.status || 'available') === 'overdue') && item.dueAt && (
-                      <span className="text-xs text-gray-500">
+                      <span className="text-[10px] text-slate-500">
                         Due: {item.dueAt?.toDate ? item.dueAt.toDate().toLocaleDateString() : ''}
                       </span>
                     )}
                   </div>
 
                   {canManageInventory && (
-                    <>
+                    <div className="flex flex-wrap justify-end gap-1.5">
                       {(item.status || 'available') === 'checkedOut' || (item.status || 'available') === 'overdue' ? (
                         <button
                           type="button"
@@ -700,7 +735,7 @@ const InventoryItems = () => {
                             e.stopPropagation();
                             openReturnConfirmModal(item);
                           }}
-                          className="inline-flex items-center justify-center gap-1 px-3 py-1.5 bg-emerald-600 text-white text-xs font-semibold rounded hover:bg-emerald-700 transition"
+                          className="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-2.5 py-1.5 text-[10px] font-semibold text-white hover:bg-emerald-700"
                         >
                           Return
                         </button>
@@ -712,9 +747,9 @@ const InventoryItems = () => {
                           e.stopPropagation();
                           handleEdit(item);
                         }}
-                        className="inline-flex items-center justify-center gap-1 px-3 py-1.5 bg-slate-700 text-white text-xs font-semibold rounded hover:bg-slate-800 transition"
+                        className="inline-flex items-center justify-center rounded-lg bg-slate-700 px-2.5 py-1.5 text-[10px] font-semibold text-white hover:bg-slate-800"
                       >
-                        <FaEdit />
+                        <FaEdit className="mr-1" />
                         Edit
                       </button>
                       <button
@@ -723,12 +758,12 @@ const InventoryItems = () => {
                           e.stopPropagation();
                           handleDelete(item.id, item.itemName);
                         }}
-                        className="inline-flex items-center justify-center gap-1 px-3 py-1.5 bg-red-600 text-white text-xs font-semibold rounded hover:bg-red-700 transition"
+                        className="inline-flex items-center justify-center rounded-lg bg-red-600 px-2.5 py-1.5 text-[10px] font-semibold text-white hover:bg-red-700"
                       >
-                        <FaTrash />
+                        <FaTrash className="mr-1" />
                         Delete
                       </button>
-                    </>
+                    </div>
                   )}
                 </div>
               </div>
@@ -738,48 +773,59 @@ const InventoryItems = () => {
 
         {showEditModal && editingItem && (
           <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={handleCloseEditModal}>
-            <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-lg bg-white shadow-xl p-5 sm:p-6" onClick={(e) => e.stopPropagation()}>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg sm:text-xl font-semibold text-gray-800">Edit Item</h2>
+            <div className="w-full max-w-2xl max-h-[88vh] overflow-y-auto rounded-2xl bg-white shadow-xl p-4 sm:p-5" onClick={(e) => e.stopPropagation()}>
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-gray-800 sm:text-xl">Edit Item</h2>
                 <button type="button" onClick={handleCloseEditModal} className="text-gray-500 hover:text-gray-700" title="Close">
-                  <FaTimes className="text-xl" />
+                  <FaTimes className="text-lg" />
                 </button>
               </div>
 
-              <form onSubmit={handleSaveEditItem} className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="mb-3 rounded-xl border border-sky-200 bg-sky-50 p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full bg-sky-600 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-white">Edit</span>
+                  <span className="text-xs font-medium text-sky-700">{editFormData.itemName || 'Item name pending'}</span>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-2 text-xs text-sky-800">
+                  <span className="rounded-full bg-white px-2 py-1 ring-1 ring-sky-200">{editFormData.category || 'Category pending'}</span>
+                  <span className="rounded-full bg-white px-2 py-1 ring-1 ring-sky-200">{editFormData.rfidCardId ? 'RFID linked' : 'No RFID'}</span>
+                </div>
+              </div>
+
+              <form onSubmit={handleSaveEditItem} className="space-y-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">Item No</label>
+                    <label className="mb-1 block text-sm font-semibold text-gray-700">Item No</label>
                     <input
                       type="text"
                       name="itemNo"
                       value={editFormData.itemNo}
                       onChange={handleEditModalChange}
                       required
-                      className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                      className="w-full rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">Item Name</label>
+                    <label className="mb-1 block text-sm font-semibold text-gray-700">Item Name</label>
                     <input
                       type="text"
                       name="itemName"
                       value={editFormData.itemName}
                       onChange={handleEditModalChange}
                       required
-                      className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                      className="w-full rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">Category</label>
+                    <label className="mb-1 block text-sm font-semibold text-gray-700">Category</label>
                     <select
                       name="category"
                       value={editFormData.category}
                       onChange={handleEditModalChange}
                       required
-                      className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                      className="w-full rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                     >
                       <option value="">Select a category</option>
                       <option value="Photography">Photography</option>
@@ -792,33 +838,33 @@ const InventoryItems = () => {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">Item Image</label>
+                    <label className="mb-1 block text-sm font-semibold text-gray-700">Item Image</label>
                     <input type="file" accept="image/*" onChange={handleEditImageChange} className="w-full text-sm" />
                   </div>
                 </div>
 
                 {(editImagePreview || editImageError) && (
-                  <div className="rounded border p-3 bg-gray-50">
+                  <div className="rounded border border-slate-200 bg-slate-50 p-3">
                     {editImagePreview && (
-                      <img src={editImagePreview} alt="Item preview" className="h-40 w-full rounded object-contain bg-white" />
+                      <img src={editImagePreview} alt="Item preview" className="h-32 w-full rounded object-contain bg-white" />
                     )}
                     {editImageError && <p className="mt-2 text-sm text-red-600">{editImageError}</p>}
                   </div>
                 )}
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Description</label>
+                  <label className="mb-1 block text-sm font-semibold text-gray-700">Description</label>
                   <textarea
                     name="description"
                     value={editFormData.description}
                     onChange={handleEditModalChange}
                     rows="3"
-                    className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    className="w-full rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                   />
                 </div>
 
                 <div>
-                  <label htmlFor="edit-rfid-card-id" className="block text-sm font-semibold text-gray-700 mb-1">RFID Card ID</label>
+                  <label htmlFor="edit-rfid-card-id" className="mb-1 block text-sm font-semibold text-gray-700">RFID Card ID</label>
                   <div className="flex gap-2">
                     <input
                       id="edit-rfid-card-id"
@@ -827,12 +873,12 @@ const InventoryItems = () => {
                       value={editFormData.rfidCardId}
                       onChange={handleEditModalChange}
                       placeholder="Scan a card or enter its ID"
-                      className="min-w-0 flex-1 px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                      className="min-w-0 flex-1 rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                     />
                     <button
                       type="button"
                       onClick={handleScanRfid}
-                      className="inline-flex items-center justify-center rounded border border-blue-600 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100 transition disabled:opacity-50"
+                      className="inline-flex items-center justify-center rounded border border-blue-600 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-100 disabled:opacity-50"
                     >
                       {rfidScanning ? 'Cancel scan' : 'Add RFID'}
                     </button>
@@ -844,18 +890,18 @@ const InventoryItems = () => {
                   )}
                 </div>
 
-                <div className="flex gap-2">
+                <div className="flex flex-col gap-2 sm:flex-row">
                   <button
                     type="submit"
                     disabled={saving || editImageUploading || rfidScanning}
-                    className="flex-1 bg-green-600 text-white py-2 px-4 rounded font-semibold hover:bg-green-700 transition disabled:opacity-50 text-sm"
+                    className="flex-1 rounded bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-700 disabled:opacity-50"
                   >
                     {saving || editImageUploading ? 'Saving...' : 'Update Item'}
                   </button>
                   <button
                     type="button"
                     onClick={handleCloseEditModal}
-                    className="px-4 py-2 border border-gray-300 rounded text-gray-700 font-semibold hover:bg-gray-100 transition text-sm"
+                    className="rounded border border-slate-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100"
                   >
                     Cancel
                   </button>
@@ -867,8 +913,8 @@ const InventoryItems = () => {
 
         {itemDetailModal.open && itemDetailModal.item && (
           <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={closeItemDetailModal}>
-            <div className="w-full max-w-3xl max-h-[90vh] overflow-hidden rounded-lg bg-white shadow-xl flex flex-col" onClick={(e) => e.stopPropagation()}>
-              <div className="flex items-start justify-between gap-4 p-5 border-b">
+            <div className="w-full max-w-3xl max-h-[88vh] overflow-hidden rounded-2xl bg-white shadow-xl flex flex-col" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-start justify-between gap-4 border-b border-slate-200 p-4 sm:p-5">
                 <div>
                   <h3 className="text-lg font-semibold text-gray-800">{itemDetailModal.item.itemName}</h3>
                   <p className="text-sm text-gray-600">
@@ -881,7 +927,7 @@ const InventoryItems = () => {
                 </button>
               </div>
 
-              <div className="p-5 overflow-y-auto space-y-4">
+              <div className="space-y-4 overflow-y-auto p-4 sm:p-5">
                 {itemDetailModal.loading ? (
                   <div className="flex items-center gap-2 text-gray-600">
                     <FaSpinner className="animate-spin text-blue-600" />
@@ -889,66 +935,66 @@ const InventoryItems = () => {
                   </div>
                 ) : (
                   <>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                      <div className="rounded border p-3">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 text-sm">
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                         <p className="text-gray-500">Status</p>
-                        <p className="font-semibold text-gray-800">
+                        <p className="mt-1 font-semibold text-gray-800">
                           {(itemDetailModal.item.status || 'available') === 'checkedOut' ? 'Checked out' : 'Available'}
                         </p>
                       </div>
-                      <div className="rounded border p-3">
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                         <p className="text-gray-500">Current Holder</p>
-                        <p className="font-semibold text-gray-800">{itemDetailModal.item.checkedOutToName || 'None'}</p>
+                        <p className="mt-1 font-semibold text-gray-800">{itemDetailModal.item.checkedOutToName || 'None'}</p>
                       </div>
-                      <div className="rounded border p-3">
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                         <p className="text-gray-500">Checked Out At</p>
-                        <p className="font-semibold text-gray-800">{formatDateTime(itemDetailModal.item.checkedOutAt)}</p>
+                        <p className="mt-1 font-semibold text-gray-800">{formatDateTime(itemDetailModal.item.checkedOutAt)}</p>
                       </div>
-                      <div className="rounded border p-3">
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                         <p className="text-gray-500">Due Date</p>
-                        <p className="font-semibold text-gray-800">
+                        <p className="mt-1 font-semibold text-gray-800">
                           {itemDetailModal.item.dueAt?.toDate ? itemDetailModal.item.dueAt.toDate().toLocaleString() : 'N/A'}
                         </p>
                       </div>
                     </div>
 
                     {itemDetailModal.item.description && (
-                      <div className="rounded border p-3 text-sm">
-                        <p className="text-gray-500 mb-1">Description</p>
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">
+                        <p className="mb-1 text-gray-500">Description</p>
                         <p className="text-gray-800">{itemDetailModal.item.description}</p>
                       </div>
                     )}
 
                     {itemDetailModal.item.imageUrl && (
-                      <div className="rounded border p-3 text-sm">
-                        <p className="text-gray-500 mb-2">Item Image</p>
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">
+                        <p className="mb-2 text-gray-500">Item Image</p>
                         <img
                           src={itemDetailModal.item.imageUrl}
                           alt={itemDetailModal.item.itemName || 'Item'}
-                          className="w-full max-h-80 rounded object-contain bg-gray-50"
+                          className="w-full max-h-72 rounded object-contain bg-white"
                         />
                       </div>
                     )}
 
                     <div>
-                      <h4 className="text-sm font-semibold text-gray-800 mb-2">Usage History</h4>
+                      <h4 className="mb-2 text-sm font-semibold text-gray-800">Usage History</h4>
                       {itemDetailModal.usageHistory.length === 0 ? (
                         <p className="text-sm text-gray-600">No usage history found for this item.</p>
                       ) : (
                         <div className="space-y-3">
                           {itemDetailModal.usageHistory.map((usage) => (
-                            <div key={usage.id} className="rounded border p-3 text-sm bg-gray-50">
-                              <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                            <div key={usage.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">
+                              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                                 <p className="font-semibold text-gray-800">{usage.userName || 'Unknown user'}</p>
                                 <span
-                                  className={`px-2 py-1 rounded text-xs font-semibold ${
+                                  className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wide ${
                                     usage.status === 'returned' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-800'
                                   }`}
                                 >
                                   {usage.status === 'returned' ? 'Returned' : 'Checked out'}
                                 </span>
                               </div>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-gray-700">
+                              <div className="grid grid-cols-1 gap-2 text-gray-700 sm:grid-cols-2">
                                 <p><span className="text-gray-500">Checked out:</span> {formatDateTime(usage.checkedOutAt)}</p>
                                 <p><span className="text-gray-500">Returned:</span> {formatDateTime(usage.returnedAt)}</p>
                                 <p><span className="text-gray-500">Issued by:</span> {usage.issuedByName || 'Unknown'}</p>
@@ -956,11 +1002,11 @@ const InventoryItems = () => {
                                 <p><span className="text-gray-500">RFID:</span> {usage.rfidCardId || 'N/A'}</p>
                               </div>
                               <div className="mt-2">
-                                <p className="text-gray-500 mb-1">Issued users</p>
+                                <p className="mb-1 text-gray-500">Issued users</p>
                                 {Array.isArray(usage.issuedToMembers) && usage.issuedToMembers.length > 0 ? (
                                   <div className="flex flex-wrap gap-2">
                                     {usage.issuedToMembers.map((member) => (
-                                      <span key={member.id || member.email || member.name} className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-800">
+                                      <span key={member.id || member.email || member.name} className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-1 text-[10px] font-semibold text-blue-800">
                                         {member.name || member.email || 'Member'}
                                       </span>
                                     ))}
@@ -970,11 +1016,11 @@ const InventoryItems = () => {
                                 )}
                               </div>
                               {Array.isArray(usage.comments) && usage.comments.length > 0 && (
-                                <div className="mt-3 border-t pt-3">
-                                  <p className="text-gray-500 mb-2">Comments</p>
+                                <div className="mt-3 border-t border-slate-200 pt-3">
+                                  <p className="mb-2 text-gray-500">Comments</p>
                                   <div className="space-y-2">
                                     {usage.comments.map((comment, index) => (
-                                      <div key={`${usage.id}-comment-${index}`} className="rounded bg-white border p-2 text-sm text-gray-700">
+                                      <div key={`${usage.id}-comment-${index}`} className="rounded-lg border border-slate-200 bg-white p-2 text-sm text-gray-700">
                                         <div>{comment.text}</div>
                                         <div className="mt-1 text-[11px] text-gray-400">
                                           {formatDateTime(comment.createdAt)}{comment.createdByName ? ` · ${comment.createdByName}` : ''}
@@ -999,32 +1045,32 @@ const InventoryItems = () => {
 
         {returnConfirmModal.open && returnConfirmModal.item && (
           <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={closeReturnConfirmModal}>
-            <div className="w-full max-w-lg rounded-lg bg-white shadow-xl p-5" onClick={(e) => e.stopPropagation()}>
-              <div className="flex items-center justify-between mb-4">
+            <div className="w-full max-w-lg rounded-2xl bg-white shadow-xl p-4 sm:p-5" onClick={(e) => e.stopPropagation()}>
+              <div className="mb-4 flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-gray-800">Confirm Return</h3>
                 <button type="button" onClick={closeReturnConfirmModal} className="text-gray-500 hover:text-gray-700">
                   <FaTimes />
                 </button>
               </div>
 
-              <p className="text-sm text-gray-600 mb-3">
-                Return <span className="font-semibold text-gray-800">{returnConfirmModal.item.itemName}</span> now?
-              </p>
+              <div className="mb-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+                Return <span className="font-bold">{returnConfirmModal.item.itemName}</span> now?
+              </div>
 
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Comment</label>
+              <label className="mb-2 block text-sm font-semibold text-gray-700">Comment</label>
               <textarea
                 value={returnConfirmModal.comment}
                 onChange={(e) => setReturnConfirmModal((prev) => ({ ...prev, comment: e.target.value }))}
                 rows="4"
                 placeholder="Optional note for this return"
-                className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
 
-              <div className="mt-4 flex justify-end gap-2">
+              <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-end">
                 <button
                   type="button"
                   onClick={closeReturnConfirmModal}
-                  className="px-4 py-2 rounded border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50"
+                  className="rounded border border-slate-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
                 >
                   Cancel
                 </button>
@@ -1032,7 +1078,7 @@ const InventoryItems = () => {
                   type="button"
                   onClick={handleConfirmReturn}
                   disabled={saving}
-                  className="px-4 py-2 rounded bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50"
+                  className="rounded bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
                 >
                   {saving ? 'Returning...' : 'Confirm Return'}
                 </button>

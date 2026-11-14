@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { collection, getDocs, doc, updateDoc, query, where } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../firebase/config';
@@ -16,7 +16,7 @@ import {
 } from 'react-icons/fa';
 import Header from '../components/Header';
 import { useUserProfile } from '../hooks/useUserProfile';
-import { formatWorkDepartmentLabel } from '../constants/workDepartments';
+import { WORK_DEPARTMENTS, formatWorkDepartmentLabel } from '../constants/workDepartments';
 import { getWorkRolesForDepartment, normalizeRolesForDepartment, formatWorkRoleLabel } from '../constants/workRoles';
 import { Roles } from '../utils/authz';
 import { sortWorksByNearestToNow, getWorkDateTime } from '../utils/workDateTime';
@@ -34,10 +34,23 @@ const WorkList = () => {
   const [endDate, setEndDate] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
 
+  const departmentTaskCounts = useMemo(() => {
+    const counts = {};
+    WORK_DEPARTMENTS.forEach((dept) => {
+      counts[dept] = tasks.filter((task) => (task.department || department) === dept).length;
+    });
+    return counts;
+  }, [tasks, department]);
+
   const navigate = useNavigate();
 
   useEffect(() => {
     if (loadingProfile || !profile) return;
+
+    if (profile.role === Roles.SUPER_ADMIN) {
+      setDepartment('all');
+      return;
+    }
 
     // Department Heads are locked to their department.
     if (profile.role === Roles.DEPARTMENT_HEAD) {
@@ -60,13 +73,19 @@ const WorkList = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const effectiveDepartment =
-        profile?.role === Roles.DEPARTMENT_HEAD
+      const isSuperAdmin = profile?.role === Roles.SUPER_ADMIN;
+      const effectiveDepartment = isSuperAdmin
+        ? department === 'all'
+          ? null
+          : department
+        : profile?.role === Roles.DEPARTMENT_HEAD
           ? (profile?.managedDepartments || [])[0] || department
           : department;
 
       const usersSnapshot = await getDocs(
-        query(collection(db, 'users'), where('departments', 'array-contains', effectiveDepartment))
+        isSuperAdmin
+          ? collection(db, 'users')
+          : query(collection(db, 'users'), where('departments', 'array-contains', effectiveDepartment))
       );
       const usersMap = {};
       usersSnapshot.docs.forEach((d) => {
@@ -81,23 +100,22 @@ const WorkList = () => {
       });
       setItems(itemsMap);
 
-      const worksSnaps = [];
-      worksSnaps.push(
-        await getDocs(query(collection(db, 'works'), where('department', '==', effectiveDepartment)))
-      );
-
-      // Legacy fallback: old works without department are treated as videography.
-      if (effectiveDepartment === 'videography') {
-        worksSnaps.push(await getDocs(query(collection(db, 'works'), where('department', '==', null))));
-      }
+      const worksSnap = isSuperAdmin
+        ? await getDocs(collection(db, 'works'))
+        : await getDocs(query(collection(db, 'works'), where('department', '==', effectiveDepartment)));
 
       const dedup = new Map();
-      worksSnaps.forEach((snap) => {
-        snap.docs.forEach((d) => {
-          dedup.set(d.id, { id: d.id, ...d.data() });
-        });
+      worksSnap.docs.forEach((d) => {
+        dedup.set(d.id, { id: d.id, ...d.data() });
       });
-      setTasks(sortWorksByNearestToNow(Array.from(dedup.values())));
+
+      if (!isSuperAdmin && effectiveDepartment === 'videography') {
+        const legacySnap = await getDocs(query(collection(db, 'works'), where('department', '==', null)));
+        legacySnap.docs.forEach((d) => dedup.set(d.id, { id: d.id, ...d.data() }));
+      }
+
+      const allTasks = Array.from(dedup.values());
+      setTasks(sortWorksByNearestToNow(allTasks));
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -349,6 +367,11 @@ const WorkList = () => {
   // Separate old works and normal tasks
   const filteredAndSorted = sortWorksByNearestToNow(
     tasks.filter((task) => {
+      if (profile?.role === Roles.SUPER_ADMIN && department !== 'all') {
+        const taskDepartment = task.department || department;
+        if (taskDepartment !== department) return false;
+      }
+
       // date filter
       if (startDate || endDate) {
         if (!task.date) return false;
@@ -394,11 +417,11 @@ const WorkList = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-100">
+      <div className="min-h-screen bg-gradient-to-br from-slate-100 via-white to-blue-50">
         <Header userType="admin" />
-        <div className="flex flex-col justify-center items-center h-64">
-          <FaSpinner className="animate-spin text-4xl text-blue-600 mb-4" />
-          <p className="text-gray-600">Loading tasks...</p>
+        <div className="flex h-64 flex-col items-center justify-center">
+          <FaSpinner className="mb-4 animate-spin text-4xl text-blue-600" />
+          <p className="text-sm font-medium text-slate-600">Loading tasks...</p>
         </div>
       </div>
     );
@@ -453,177 +476,164 @@ const WorkList = () => {
     return (
       <div
         key={task.id}
-        className="bg-white rounded-lg shadow-md p-4 sm:p-6 hover:shadow-xl transition cursor-pointer"
+        className="group cursor-pointer rounded-[26px] border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-blue-50 p-4 shadow-[0_18px_36px_rgba(15,23,42,0.08)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_22px_42px_rgba(37,99,235,0.14)]"
         onClick={() => navigate(`/tasks/${task.id}`)}
       >
-        <div className="flex justify-between items-start mb-3">
-          <div className="flex-1 pr-2">
-            <h3 className="text-lg sm:text-xl font-semibold text-gray-800">
-              {task.title || 'Task'}
-            </h3>
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <div className="flex min-w-0 flex-1 items-start gap-2.5">
+            <div className="mt-1 h-9 w-1.5 rounded-full bg-gradient-to-b from-blue-500 via-indigo-500 to-violet-500" />
+            <div className="min-w-0 flex-1">
+              <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.24em] text-slate-400">
+                {formatWorkDepartmentLabel(task.department || department)}
+              </p>
+              <h3 className="text-base font-bold text-slate-800 sm:text-lg">
+                {task.title || 'Task'}
+              </h3>
+            </div>
           </div>
           <span
-            className={`px-2 sm:px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(
-              status
-            )}`}
+            className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${getStatusColor(status)}`}
           >
             {status}
           </span>
         </div>
 
         {task.description && (
-          <p className="text-gray-600 mb-4 text-sm sm:text-base line-clamp-3">
+          <p className="mb-4 line-clamp-3 text-sm text-slate-600">
             {task.description}
           </p>
         )}
 
-{(task.date || task.deadline) && (
-  <div className="mb-3">
-    <div className="flex flex-col gap-1 text-xs sm:text-sm text-gray-500">
-      {task.date && (
-        <p className="flex items-center gap-2">
-          <FaCalendarAlt />
-          <span>
-            Date:{' '}
-            {new Date(task.date).toLocaleDateString('en-GB', {
-              day: '2-digit',
-              month: 'short',
-              year: 'numeric'
-            })}
-          </span>
-        </p>
-      )}
-      {task.deadline && (
-        <p className="flex items-center gap-2">
-          <FaCalendarAlt />
-          <span>
-            Deadline:{' '}
-            {new Date(task.deadline).toLocaleDateString('en-GB', {
-              day: '2-digit',
-              month: 'short',
-              year: 'numeric'
-            })}
-          </span>
-        </p>
-      )}
-    </div>
-  </div>
-)}
+        {(task.date || task.deadline) && (
+          <div className="mb-4 grid gap-2 text-xs text-slate-500 sm:text-sm">
+            {task.date && (
+              <div className="flex items-center gap-2 rounded-lg bg-slate-50 px-2.5 py-1.5">
+                <FaCalendarAlt className="text-slate-400" />
+                <span>
+                  Date: {new Date(task.date).toLocaleDateString('en-GB', {
+                    day: '2-digit',
+                    month: 'short',
+                    year: 'numeric',
+                  })}
+                </span>
+              </div>
+            )}
+            {task.deadline && (
+              <div className="flex items-center gap-2 rounded-lg bg-slate-50 px-2.5 py-1.5">
+                <FaCalendarAlt className="text-slate-400" />
+                <span>
+                  Deadline: {new Date(task.deadline).toLocaleDateString('en-GB', {
+                    day: '2-digit',
+                    month: 'short',
+                    year: 'numeric',
+                  })}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
 
-
-
-        <div className="mb-3">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-gray-700">
-              <FaUsers />
-              <span>Assigned to:</span>
-            </div>
+        <div className="mb-4">
+          <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+            <FaUsers className="text-[11px]" />
+            <span>Staff</span>
           </div>
           <div className="space-y-2">
-{userDetailsLocal.map((detail) => {
-  const userId = detail.userId;
-  const roles = detail.roles || [];
-  const userData = users[userId] || {};
-  const userName = userData.name || 'Unknown';
-  const avatarUrl = userData.photoURL || userData.avatarUrl || null;
+            {userDetailsLocal.map((detail) => {
+              const userId = detail.userId;
+              const roles = detail.roles || [];
+              const userData = users[userId] || {};
+              const userName = userData.name || 'Unknown';
+              const avatarUrl = userData.photoURL || userData.avatarUrl || null;
 
-  return (
-<div
-  key={userId}
-  onClick={(e) => {
-    e.stopPropagation();
-    navigate(`/users/${userId}`);
-  }}
-  className="bg-gray-50 px-2 py-1 rounded text-xs sm:text-sm cursor-pointer hover:bg-blue-50 transition"
->
+              return (
+                <div
+                  key={userId}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate(`/users/${userId}`);
+                  }}
+                  className="rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-2 transition hover:bg-blue-50"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      {avatarUrl ? (
+                        <img
+                          src={avatarUrl}
+                          alt={userName}
+                          className="h-7 w-7 rounded-full border border-white object-cover shadow-sm"
+                        />
+                      ) : (
+                        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-500 text-[10px] font-bold text-white">
+                          {userName.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <p className="text-sm font-semibold text-slate-800">{userName}</p>
+                    </div>
+                    {renderAcceptanceBadge(task, userId)}
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {roles.map((role) => {
+                      const key = `${userId}_${role}`;
+                      const isDone = roleCompletion[key] === 'done';
+                      return (
+                        <span
+                          key={role}
+                          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                            isDone ? 'bg-green-100 text-green-800' : 'bg-slate-200 text-slate-700'
+                          }`}
+                        >
+                          {isDone && <FaCheck className="text-[9px]" />}
+                          {role}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
 
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          {avatarUrl ? (
-            <img
-              src={avatarUrl}
-              alt={userName}
-              className="w-7 h-7 rounded-full object-cover border border-white shadow-sm"
-            />
-          ) : (
-            <div className="w-7 h-7 rounded-full bg-blue-500 flex items-center justify-center text-xs font-bold text-white">
-              {userName.charAt(0).toUpperCase()}
-            </div>
-          )}
-          <p className="font-semibold text-gray-800">
-            {userName}
-          </p>
-        </div>
-        {renderAcceptanceBadge(task, userId)}
-      </div>
-      <div className="flex flex-wrap gap-1 mt-1">
-        {roles.map((role) => {
-          const key = `${userId}_${role}`;
-          const isDone = roleCompletion[key] === 'done';
-          return (
-            <span
-              key={role}
-              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs ${
-                isDone
-                  ? 'bg-green-100 text-green-800'
-                  : 'bg-gray-200 text-gray-700'
-              }`}
-            >
-              {isDone && <FaCheck className="text-xs" />}
-              {role}
-            </span>
-          );
-        })}
-      </div>
-    </div>
-  );
-})}
+            {userDetailsLocal.length === 0 &&
+              task.assignedUsers?.map((userId) => {
+                const userData = users[userId] || {};
+                const userName = userData.name || 'Unknown';
+                const avatarUrl = userData.photoURL || userData.avatarUrl || null;
 
-{userDetailsLocal.length === 0 &&
-  task.assignedUsers?.map((userId) => {
-    const userData = users[userId] || {};
-    const userName = userData.name || 'Unknown';
-    const avatarUrl = userData.photoURL || userData.avatarUrl || null;
-
-    return (
-<div
-  key={userId}
-  onClick={(e) => {
-    e.stopPropagation();
-    navigate(`/users/${userId}`);
-  }}
-  className="bg-gray-50 px-2 py-1 rounded text-xs sm:text-sm flex items-center justify-between cursor-pointer hover:bg-blue-50 transition"
->
-
-        <div className="flex items-center gap-2">
-          {avatarUrl ? (
-            <img
-              src={avatarUrl}
-              alt={userName}
-              className="w-7 h-7 rounded-full object-cover border border-white shadow-sm"
-            />
-          ) : (
-            <div className="w-7 h-7 rounded-full bg-blue-500 flex items-center justify-center text-xs font-bold text-white">
-              {userName.charAt(0).toUpperCase()}
-            </div>
-          )}
-          <span className="text-gray-700">
-            {userName}
-          </span>
-        </div>
-        {renderAcceptanceBadge(task, userId)}
-      </div>
-    );
-  })}
-
+                return (
+                  <div
+                    key={userId}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/users/${userId}`);
+                    }}
+                    className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-2 transition hover:bg-blue-50"
+                  >
+                    <div className="flex items-center gap-2">
+                      {avatarUrl ? (
+                        <img
+                          src={avatarUrl}
+                          alt={userName}
+                          className="h-7 w-7 rounded-full border border-white object-cover shadow-sm"
+                        />
+                      ) : (
+                        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-500 text-[10px] font-bold text-white">
+                          {userName.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <span className="text-sm text-slate-700">{userName}</span>
+                    </div>
+                    {renderAcceptanceBadge(task, userId)}
+                  </div>
+                );
+              })}
           </div>
         </div>
 
         {assignedItems.length > 0 && (
-          <div className="mb-3">
-            <div className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-gray-700 mb-2">
-              <FaBox />
-              <span>Items:</span>
+          <div className="mb-4">
+            <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+              <FaBox className="text-[11px]" />
+              <span>Items</span>
             </div>
             <div className="flex flex-wrap gap-2">
               {assignedItems.map((itemId) => {
@@ -631,7 +641,7 @@ const WorkList = () => {
                 return (
                   <span
                     key={itemId}
-                    className="bg-blue-50 px-2 py-1 rounded text-xs sm:text-sm text-blue-800"
+                    className="rounded-full bg-blue-50 px-2 py-1 text-[10px] font-semibold text-blue-800 ring-1 ring-blue-100"
                   >
                     {item ? `${item.itemName} (${item.itemNo})` : 'Unknown item'}
                   </span>
@@ -648,7 +658,7 @@ const WorkList = () => {
               e.stopPropagation();
               handleMarkComplete(task.id);
             }}
-            className="mt-2 inline-flex items-center gap-2 px-3 py-1.5 rounded bg-green-600 text-white text-xs sm:text-sm hover:bg-green-700"
+            className="mt-2 inline-flex items-center gap-2 rounded-xl bg-green-600 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-green-700"
           >
             <FaCheck />
             Mark as complete
@@ -656,17 +666,15 @@ const WorkList = () => {
         )}
 
         {isCompleteSection && (
-          <div className="mt-2 flex items-center justify-between gap-2">
-            <p className="text-xs sm:text-sm text-green-700 font-semibold">
-              Completed
-            </p>
+          <div className="mt-3 flex items-center justify-between gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-2.5 py-2">
+            <p className="text-xs font-semibold text-emerald-700">Completed</p>
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 handleUndoComplete(task.id);
               }}
-              className="inline-flex items-center gap-1 px-2 py-1 rounded border border-gray-200 bg-white text-gray-700 text-[11px] hover:bg-gray-50"
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
               title="Undo complete"
             >
               Undo
@@ -678,56 +686,162 @@ const WorkList = () => {
   };
 
   const hasAnyTasks = incompleteTasks.length > 0 || completeTasks.length > 0 || oldWorks.length > 0;
+  const totalWorkCount = tasks.length || 1;
+  const currentDepartmentLabel = profile?.role === Roles.SUPER_ADMIN
+    ? (department === 'all' ? 'All Departments' : formatWorkDepartmentLabel(department))
+    : formatWorkDepartmentLabel(
+        profile?.role === Roles.DEPARTMENT_HEAD
+          ? ((profile?.managedDepartments || [])[0] || department)
+          : department
+      );
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-white to-blue-50">
       <Header userType="admin" />
 
-      <main className="container mx-auto px-4 py-6 sm:py-8">
-        <div className="flex flex-col gap-3 mb-4 sm:mb-6">
-          <h2 className="text-xl sm:text-2xl font-bold text-gray-800">
-            All Tasks
-          </h2>
+      <main className="container mx-auto px-4 py-5 sm:py-6">
+        <div className="mb-5 rounded-[28px] border border-white/80 bg-gradient-to-r from-white via-sky-50 to-indigo-50 p-4 shadow-[0_18px_38px_rgba(15,23,42,0.08)] backdrop-blur-sm sm:p-5">
+          <div className="mb-4 flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-blue-600">Work list</p>
+              <h2 className="mt-2 text-2xl font-bold text-slate-800 sm:text-3xl">All Tasks</h2>
+            </div>
+          </div>
 
-          <p className="text-sm text-gray-600">
-            Department: <span className="font-semibold">{formatWorkDepartmentLabel(
-              profile?.role === Roles.DEPARTMENT_HEAD
-                ? ((profile?.managedDepartments || [])[0] || department)
-                : department
-            )}</span>
+          <div className="mb-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
+            <div className="rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-500 to-cyan-500 p-3 text-white shadow-[0_10px_25px_rgba(59,130,246,0.25)]">
+              <p className="text-xs font-medium text-blue-100">Total</p>
+              <p className="mt-2 text-xl font-bold">{tasks.length}</p>
+            </div>
+            <div className="rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-400 to-orange-500 p-3 text-white shadow-[0_10px_25px_rgba(245,158,11,0.22)]">
+              <p className="text-xs font-medium text-amber-50">Pending</p>
+              <p className="mt-2 text-xl font-bold">{normalTasks.filter((t) => getDerivedStatus(t) === 'pending').length}</p>
+            </div>
+            <div className="rounded-2xl border border-orange-100 bg-gradient-to-br from-orange-400 to-red-500 p-3 text-white shadow-[0_10px_25px_rgba(249,115,22,0.22)]">
+              <p className="text-xs font-medium text-orange-50">Accepted</p>
+              <p className="mt-2 text-xl font-bold">{normalTasks.filter((t) => getDerivedStatus(t) === 'accepted').length}</p>
+            </div>
+            <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-500 to-teal-500 p-3 text-white shadow-[0_10px_25px_rgba(16,185,129,0.22)]">
+              <p className="text-xs font-medium text-emerald-50">Completed</p>
+              <p className="mt-2 text-xl font-bold">{completeTasks.length}</p>
+            </div>
+          </div>
+
+          {profile?.role === Roles.SUPER_ADMIN && (
+            <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+              {WORK_DEPARTMENTS.map((dept, index) => {
+                const isActive = department === dept;
+                const count = departmentTaskCounts[dept] || 0;
+                const percentage = Math.max((count / totalWorkCount) * 100, count > 0 ? 8 : 0);
+                const palette = [
+                  'from-blue-500 to-cyan-500',
+                  'from-amber-400 to-orange-500',
+                  'from-emerald-500 to-teal-500',
+                  'from-violet-500 to-purple-500',
+                  'from-rose-500 to-pink-500',
+                ];
+                const accent = palette[index % palette.length];
+
+                return (
+                  <button
+                    key={dept}
+                    type="button"
+                    onClick={() => setDepartment(dept)}
+                    className={`group rounded-2xl border p-3 text-left shadow-sm transition-all duration-200 ease-out ${
+                      isActive
+                        ? `border-transparent bg-gradient-to-br ${accent} text-white shadow-[0_12px_24px_rgba(59,130,246,0.25)] ring-2 ring-blue-200`
+                        : 'border-slate-200 bg-white hover:-translate-y-1 hover:border-blue-200 hover:bg-blue-50/60 hover:shadow-md'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className={`text-[11px] font-semibold uppercase tracking-[0.14em] ${isActive ? 'text-blue-50' : 'text-slate-500'}`}>
+                        {formatWorkDepartmentLabel(dept)}
+                      </p>
+                      <span className={`flex h-2.5 w-2.5 rounded-full ${isActive ? 'bg-white/90' : 'bg-slate-300 group-hover:bg-blue-400'}`} />
+                    </div>
+
+                    <div className="mt-2 flex items-end justify-between gap-2">
+                      <p className={`text-lg font-bold ${isActive ? 'text-white' : 'text-slate-800'}`}>
+                        {count}
+                      </p>
+                    </div>
+
+                    <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-black/10">
+                      <div
+                        className={`h-full rounded-full bg-gradient-to-r ${accent} ${isActive ? 'opacity-100' : 'opacity-90'}`}
+                        style={{ width: `${percentage}%` }}
+                      />
+                    </div>
+                  </button>
+                );
+              })}
+              <button
+                type="button"
+                onClick={() => setDepartment('all')}
+                className={`group rounded-2xl border p-3 text-left shadow-sm transition-all duration-200 ease-out ${
+                  department === 'all'
+                    ? 'border-violet-500 bg-gradient-to-br from-violet-600 to-indigo-600 text-white shadow-[0_12px_24px_rgba(139,92,246,0.25)] ring-2 ring-violet-200'
+                    : 'border-slate-200 bg-white hover:-translate-y-1 hover:border-violet-200 hover:bg-violet-50/60 hover:shadow-md'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <p className={`text-[11px] font-semibold uppercase tracking-[0.14em] ${department === 'all' ? 'text-violet-50' : 'text-slate-500'}`}>
+                    All
+                  </p>
+                  <span className={`flex h-2.5 w-2.5 rounded-full ${department === 'all' ? 'bg-white/90' : 'bg-slate-300 group-hover:bg-violet-400'}`} />
+                </div>
+
+                <div className="mt-2 flex items-end justify-between gap-2">
+                  <p className={`text-lg font-bold ${department === 'all' ? 'text-white' : 'text-slate-800'}`}>
+                    {tasks.length}
+                  </p>
+                </div>
+
+                <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-black/10">
+                  <div
+                    className={`h-full rounded-full bg-gradient-to-r from-violet-500 to-indigo-500 ${department === 'all' ? 'opacity-100' : 'opacity-90'}`}
+                    style={{ width: '100%' }}
+                  />
+                </div>
+              </button>
+            </div>
+          )}
+
+          <p className="mb-3 text-sm text-slate-600">
+            Department: <span className="font-semibold text-slate-800">{currentDepartmentLabel}</span>
           </p>
 
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-            <div className="relative flex-1 min-w-0">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+            <div className="relative min-w-0 flex-1">
               <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm" />
               <input
                 type="text"
                 placeholder="Search title, user name, or card..."
                 value={searchText}
                 onChange={(e) => setSearchText(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-sm shadow-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-2 sm:flex sm:gap-2 w-full sm:w-auto">
+            <div className="grid w-full gap-2 sm:grid-cols-3 lg:w-auto">
               <input
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="w-full px-2 py-2 border rounded text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs shadow-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 sm:text-sm"
                 aria-label="Start date"
               />
               <input
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="w-full px-2 py-2 border rounded text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs shadow-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 sm:text-sm"
                 aria-label="End date"
               />
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-full px-2 py-2 border rounded text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs shadow-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 sm:text-sm"
               >
                 <option value="accepted">Accepted</option>
                 <option value="pending">Pending</option>
@@ -739,74 +853,83 @@ const WorkList = () => {
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="mt-3 flex flex-wrap justify-end gap-2">
             <button
               type="button"
               onClick={handleDownloadExcelAll}
-              className="inline-flex items-center gap-2 px-3 py-2 rounded bg-emerald-600 text-white text-xs sm:text-sm hover:bg-emerald-700"
+              className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-[11px] font-semibold text-white shadow-sm transition hover:bg-emerald-700"
             >
               <FaFileExcel />
-              Download Excel (All)
+              Download All Task Details
             </button>
             <button
               type="button"
               onClick={handleDownloadExcelDateRange}
-              className="inline-flex items-center gap-2 px-3 py-2 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs sm:text-sm hover:bg-emerald-100"
+              className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] font-semibold text-emerald-800 shadow-sm transition hover:bg-emerald-100"
             >
               <FaFileExcel />
-              Download Excel (Date Range)
+              Download Task Details Selected Date Range
             </button>
           </div>
         </div>
 
         {!hasAnyTasks ? (
-          <div className="bg-white rounded-lg shadow-md p-6 sm:p-8 text-center">
-            <p className="text-gray-600 text-sm sm:text-base">
-              No tasks match your filters.
-            </p>
+          <div className="rounded-[24px] border border-dashed border-slate-300 bg-white/80 p-8 text-center shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+            <p className="text-sm text-slate-600 sm:text-base">No tasks match your filters.</p>
           </div>
         ) : (
           <>
             {incompleteTasks.length > 0 && (
               <section className="mb-6">
-                <h3 className="text-lg sm:text-xl font-semibold text-gray-800 mb-3">
-                  Incomplete / waiting for admin
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+                <div className="mb-4 flex items-center justify-between gap-2">
+                  <h3 className="text-lg font-bold text-slate-800 sm:text-xl">Incomplete / waiting for admin</h3>
+                  <span className="rounded-full bg-gradient-to-r from-amber-400 to-orange-500 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-white shadow-sm">
+                    {incompleteTasks.length}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
                   {incompleteTasks.map((task) => renderTaskCard(task, false))}
                 </div>
               </section>
             )}
             {completeTasks.length > 0 && (
               <section>
-                <h3 className="text-lg sm:text-xl font-semibold text-gray-800 mb-3">
-                  Completed tasks
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+                <div className="mb-4 flex items-center justify-between gap-2">
+                  <h3 className="text-lg font-bold text-slate-800 sm:text-xl">Completed tasks</h3>
+                  <span className="rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-white shadow-sm">
+                    {completeTasks.length}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
                   {completeTasks.map((task) => renderTaskCard(task, true))}
                 </div>
               </section>
             )}
             {oldWorks.length > 0 && (
-              <section className="mb-6">
-                <h3 className="text-lg sm:text-xl font-semibold text-gray-800 mb-3">
-                  Old Works
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+              <section className="mt-6">
+                <div className="mb-4 flex items-center justify-between gap-2">
+                  <h3 className="text-lg font-bold text-slate-800 sm:text-xl">Old Works</h3>
+                  <span className="rounded-full bg-slate-200 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-700">
+                    {oldWorks.length}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
                   {oldWorks.map((task) => (
                     <div
                       key={task.id}
-                      className="bg-white rounded-lg shadow-md p-4 sm:p-6 cursor-pointer hover:shadow-xl transition"
+                      className="cursor-pointer rounded-[26px] border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-violet-50 p-4 shadow-[0_14px_30px_rgba(15,23,42,0.06)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_18px_35px_rgba(124,58,237,0.12)]"
                       onClick={() => navigate(`/edit-old-work/${task.id}`)}
                     >
-                      <h3 className="text-lg font-semibold text-gray-800">{task.title || 'old Work'}</h3>
-                      <p className="text-gray-600 mb-2 text-sm">{task.description}</p>
+                      <div className="mb-2 flex items-center justify-between">
+                        <h3 className="text-base font-bold text-slate-800">{task.title || 'Old Work'}</h3>
+                        <span className={`inline-block rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-[0.18em] ${getStatusColor(task.status)}`}>
+                          {task.status || 'old work'}
+                        </span>
+                      </div>
+                      <p className="mb-3 text-sm text-slate-600">{task.description}</p>
                       {task.date && (
-                        <p className="text-xs text-gray-500 mb-1">Date: {new Date(task.date).toLocaleDateString('en-GB')}</p>
+                        <p className="text-xs text-slate-500">Date: {new Date(task.date).toLocaleDateString('en-GB')}</p>
                       )}
-                      <span className={`inline-block px-2 py-1 rounded text-xs font-semibold mt-2 ${getStatusColor(task.status)}`}>
-                        {task.status || 'old work'}
-                      </span>
                     </div>
                   ))}
                 </div>

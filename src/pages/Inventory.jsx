@@ -1001,69 +1001,114 @@ const Inventory = () => {
     }
   };
 
+  const inventoryStats = [
+    {
+      label: 'Total items',
+      value: items.length,
+      accent: 'from-emerald-500 to-green-500',
+      soft: 'bg-emerald-50 text-emerald-700',
+    },
+    {
+      label: 'Available',
+      value: items.filter((item) => (item.status || 'available') === 'available').length,
+      accent: 'from-blue-500 to-cyan-500',
+      soft: 'bg-blue-50 text-blue-700',
+    },
+    {
+      label: 'Checked out',
+      value: items.filter((item) => (item.status || 'available') === 'checkedOut').length,
+      accent: 'from-amber-500 to-orange-500',
+      soft: 'bg-amber-50 text-amber-700',
+    },
+    {
+      label: 'Overdue',
+      value: items.filter((item) => (item.status || 'available') === 'overdue').length,
+      accent: 'from-rose-500 to-red-500',
+      soft: 'bg-rose-50 text-red-700',
+    },
+  ];
+
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-white to-blue-50">
       <Header userType={headerUserType} isTO={toEnabled} />
 
-      <main className="container mx-auto px-4 py-6 sm:py-8">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 sm:mb-6">
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-800">Inventory</h1>
-          {/* <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={handleDownloadInventoryExcel}
-              className="inline-flex items-center justify-center rounded bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:bg-green-700"
+      <main className="container mx-auto px-4 py-5 sm:py-6">
+        <div className="mb-5 rounded-[22px] border border-white/80 bg-white/80 p-4 shadow-[0_14px_30px_rgba(15,23,42,0.06)] backdrop-blur-sm sm:p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-emerald-600">Inventory</p>
+              <h1 className="mt-2 text-2xl font-bold text-slate-800 sm:text-3xl">Operations overview</h1>
+            </div>
+            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 sm:text-sm">
+              <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
+              {items.length} total records
+            </div>
+          </div>
+        </div>
+
+        <div className="mb-5 grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
+          {inventoryStats.map((stat) => (
+            <div
+              key={stat.label}
+              className="rounded-2xl border border-slate-200 bg-white/85 p-3 shadow-[0_8px_20px_rgba(15,23,42,0.04)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_14px_24px_rgba(59,130,246,0.06)]"
             >
-              Download Excel
-            </button>
-            <button
-              type="button"
-              onClick={handleDownloadInventoryPdf}
-              className="inline-flex items-center justify-center rounded bg-red-600 px-3 py-2 text-xs font-semibold text-white hover:bg-red-700"
-            >
-              Download PDF
-            </button>
-          </div> */}
+              <div className={`mb-2.5 h-1.5 w-12 rounded-full bg-gradient-to-r ${stat.accent}`} />
+              <p className="text-xs text-slate-500 sm:text-sm">{stat.label}</p>
+              <div className="mt-2 flex items-center justify-between gap-2">
+                <span className="text-xl font-bold text-slate-800 sm:text-2xl">{stat.value}</span>
+                <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide ${stat.soft}`}>
+                  live
+                </span>
+              </div>
+            </div>
+          ))}
         </div>
 
         {canManageInventory && (
-          <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-6">
-            <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+          <div className="mb-6 rounded-[28px] border border-slate-200 bg-white/90 p-4 shadow-[0_15px_30px_rgba(15,23,42,0.05)] sm:p-6">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">From date</label>
-                <input
-                  type="date"
-                  value={reportStartDate}
-                  onChange={(e) => setReportStartDate(e.target.value)}
-                  className="border rounded px-3 py-2 text-sm"
-                />
+                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">Reports</p>
+                <h2 className="mt-1 text-xl font-bold text-slate-800">Usage export</h2>
               </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">To date</label>
-                <input
-                  type="date"
-                  value={reportEndDate}
-                  onChange={(e) => setReportEndDate(e.target.value)}
-                  className="border rounded px-3 py-2 text-sm"
-                />
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleDownloadUsageReport('excel')}
-                  disabled={reportGenerating}
-                  className="inline-flex items-center justify-center rounded bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
-                >
-                  {reportGenerating ? 'Preparing...' : 'Usage Excel'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleDownloadUsageReport('pdf')}
-                  disabled={reportGenerating}
-                  className="inline-flex items-center justify-center rounded bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
-                >
-                  Usage PDF
-                </button>
+
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                <div>
+                  <label className="mb-1 block text-sm font-semibold text-gray-700">From date</label>
+                  <input
+                    type="date"
+                    value={reportStartDate}
+                    onChange={(e) => setReportStartDate(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-emerald-400 focus:bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-semibold text-gray-700">To date</label>
+                  <input
+                    type="date"
+                    value={reportEndDate}
+                    onChange={(e) => setReportEndDate(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-emerald-400 focus:bg-white"
+                  />
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadUsageReport('excel')}
+                    disabled={reportGenerating}
+                    className="inline-flex items-center justify-center rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-50"
+                  >
+                    {reportGenerating ? 'Preparing...' : 'Usage Excel'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadUsageReport('pdf')}
+                    disabled={reportGenerating}
+                    className="inline-flex items-center justify-center rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-50"
+                  >
+                    Usage PDF
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -1078,49 +1123,80 @@ const Inventory = () => {
         )}
 
         {canManageInventory && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 mb-6">
+          <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-3">
             <button
               type="button"
               onClick={() => {
                 setShowAddForm(true);
                 setMessage({ type: '', text: '' });
               }}
-              className="w-full min-h-[104px] sm:min-h-[140px] rounded-lg bg-green-600 text-white shadow-md hover:bg-green-700 transition flex flex-col items-center justify-center gap-1 sm:gap-2 px-2 py-3"
+              className="group relative overflow-hidden rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-500 via-green-500 to-teal-500 p-4 text-left text-white shadow-[0_14px_26px_rgba(16,185,129,0.2)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_18px_28px_rgba(16,185,129,0.28)]"
             >
-              <FaPlus className="text-xl sm:text-2xl" />
-              <span className="text-sm sm:text-base font-semibold text-center">Add Item</span>
+              <div className="absolute inset-0 bg-white/10 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+              <div className="relative flex items-center justify-between gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/40 backdrop-blur-sm">
+                  <FaPlus className="text-base" />
+                </div>
+                <span className="rounded-full bg-white/10 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.18em] text-emerald-50">Create</span>
+              </div>
+              <div className="relative mt-4">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-50/80">Inventory</p>
+                <h3 className="mt-2 text-lg font-bold">Add Item</h3>
+                <p className="mt-1 text-xs text-emerald-50/90">Create a new inventory record</p>
+              </div>
             </button>
 
             <button
               type="button"
               onClick={openIssueModal}
-              className="w-full min-h-[104px] sm:min-h-[140px] rounded-lg bg-blue-600 text-white shadow-md hover:bg-blue-700 transition flex flex-col items-center justify-center gap-1 sm:gap-2 px-2 py-3"
+              className="group relative overflow-hidden rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-500 via-indigo-500 to-cyan-500 p-4 text-left text-white shadow-[0_14px_26px_rgba(59,130,246,0.2)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_18px_28px_rgba(59,130,246,0.28)]"
             >
-              <FaBox className="text-xl sm:text-2xl" />
-              <span className="text-sm sm:text-base font-semibold text-center">Issue Items</span>
+              <div className="absolute inset-0 bg-white/10 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+              <div className="relative flex items-center justify-between gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/40 backdrop-blur-sm">
+                  <FaBox className="text-base" />
+                </div>
+                <span className="rounded-full bg-white/10 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.18em] text-blue-50">Issue</span>
+              </div>
+              <div className="relative mt-4">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-blue-50/80">Workflow</p>
+                <h3 className="mt-2 text-lg font-bold">Issue Items</h3>
+                <p className="mt-1 text-xs text-blue-50/90">Assign equipment to members</p>
+              </div>
             </button>
 
             <button
               type="button"
               onClick={() => navigate('/inventory/items')}
-              className="w-full min-h-[104px] sm:min-h-[140px] rounded-lg bg-slate-700 text-white shadow-md hover:bg-slate-800 transition flex flex-col items-center justify-center gap-1 sm:gap-2 px-2 py-3"
+              className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-700 via-slate-800 to-slate-900 p-4 text-left text-white shadow-[0_14px_26px_rgba(15,23,42,0.2)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_18px_28px_rgba(15,23,42,0.28)]"
             >
-              <FaList className="text-xl sm:text-2xl" />
-              <span className="text-sm sm:text-base font-semibold text-center">Item Cards</span>
+              <div className="absolute inset-0 bg-white/10 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+              <div className="relative flex items-center justify-between gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 ring-1 ring-white/30 backdrop-blur-sm">
+                  <FaList className="text-base" />
+                </div>
+                <span className="rounded-full bg-white/10 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.18em] text-slate-100">Browse</span>
+              </div>
+              <div className="relative mt-4">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-300">Inventory</p>
+                <h3 className="mt-2 text-lg font-bold">Item Cards</h3>
+                <p className="mt-1 text-xs text-slate-200">See item details and manage cards</p>
+              </div>
             </button>
           </div>
         )}
 
         {canManageInventory && (
-          <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-6">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
+          <div className="mb-5 rounded-[22px] border border-slate-200 bg-white/90 p-4 shadow-[0_12px_24px_rgba(15,23,42,0.04)] sm:p-5">
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h2 className="text-lg sm:text-xl font-semibold text-gray-800">Issued History</h2>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Tracking</p>
+                <h2 className="mt-1 text-lg font-bold text-slate-800 sm:text-xl">Issued History</h2>
               </div>
-              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                <button type="button" onClick={() => setIssueHistoryTab('active')} className={`px-3 py-2 rounded border text-sm font-semibold ${issueHistoryTab === 'active' ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-300 text-gray-700 hover:bg-gray-50'}`}>Active Issues</button>
-                <button type="button" onClick={() => setIssueHistoryTab('completed')} className={`px-3 py-2 rounded border text-sm font-semibold ${issueHistoryTab === 'completed' ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-300 text-gray-700 hover:bg-gray-50'}`}>Completed Issues</button>
-                <button type="button" onClick={fetchIssueHistory} className="px-3 py-2 rounded border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50">Refresh</button>
+              <div className="flex flex-col gap-2 sm:flex-row sm:w-auto">
+                <button type="button" onClick={() => setIssueHistoryTab('active')} className={`rounded-xl border px-3 py-1.5 text-xs font-semibold transition sm:text-sm ${issueHistoryTab === 'active' ? 'border-blue-600 bg-blue-600 text-white shadow-sm' : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'}`}>Active</button>
+                <button type="button" onClick={() => setIssueHistoryTab('completed')} className={`rounded-xl border px-3 py-1.5 text-xs font-semibold transition sm:text-sm ${issueHistoryTab === 'completed' ? 'border-blue-600 bg-blue-600 text-white shadow-sm' : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'}`}>Completed</button>
+                <button type="button" onClick={fetchIssueHistory} className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 sm:text-sm">Refresh</button>
               </div>
             </div>
 
@@ -1130,9 +1206,9 @@ const Inventory = () => {
                 <span>Loading issue history...</span>
               </div>
             ) : (issueHistoryTab === 'active' ? activeIssueHistory : completedIssueHistory).length === 0 ? (
-              <p className="text-sm text-gray-600">{issueHistoryTab === 'active' ? 'No active issues.' : 'No completed issues yet.'}</p>
+              <p className="text-sm text-slate-600">{issueHistoryTab === 'active' ? 'No active issues.' : 'No completed issues yet.'}</p>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {(issueHistoryTab === 'active' ? activeIssueHistory : completedIssueHistory).map((record) => {
                   const isOpen = expandedIssueIds.includes(record.id);
                   const itemList = record.itemList || [];
@@ -1148,7 +1224,7 @@ const Inventory = () => {
                   const returnedByNames = Array.from(new Set(itemList.map((item) => item.returnedByName).filter(Boolean)));
 
                   return (
-                    <div key={record.id} className="border rounded-lg overflow-hidden">
+                    <div key={record.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/70 shadow-sm transition-all duration-200 hover:border-slate-300">
                       <button
                         type="button"
                         onClick={() => {
@@ -1161,25 +1237,30 @@ const Inventory = () => {
                             prev.includes(record.id) ? prev.filter((id) => id !== record.id) : [...prev, record.id]
                           ));
                         }}
-                        className="w-full flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-3 px-4 py-3 bg-gray-50 hover:bg-gray-100 text-left"
+                        className="w-full bg-gradient-to-r from-slate-50 to-slate-100 px-4 py-4 text-left transition hover:from-blue-50 hover:to-indigo-50"
                       >
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className={`font-semibold ${recordHasOverdue ? 'text-red-600' : 'text-gray-800'}`}>{formatDateTime(record.createdAt)}</p>
-                            {recordHasOverdue && <span className="text-xs px-2 py-1 rounded bg-red-100 text-red-700 font-semibold">Overdue</span>}
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className={`text-base font-bold ${recordHasOverdue ? 'text-red-600' : 'text-slate-800'}`}>{formatDateTime(record.createdAt)}</p>
+                              {recordHasOverdue && <span className="rounded-full bg-red-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-red-700">Overdue</span>}
+                              {!record.isCompleted && <span className="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-700">Open</span>}
+                            </div>
+                            {record.reason && <p className="mt-1 text-sm text-slate-600">Reason: {record.reason}</p>}
                           </div>
-                          {record.reason && <p className="text-sm text-gray-600">Reason: {record.reason}</p>}
-                          <p className="text-sm text-gray-600">{itemList.length} item(s) issued to {userList.length} user(s)</p>
-                          {record.isCompleted && userList.length > 0 && <p className="text-sm text-gray-600">Issued to: {userList.map((user) => user.name || user.email || 'User').join(', ')}</p>}
-                          {record.isCompleted && returnedByNames.length > 0 && <p className="text-sm text-gray-600">Get Returned by: {returnedByNames.join(', ')}</p>}
+
+                          <div className="flex flex-wrap items-center gap-3 text-sm text-slate-600">
+                            <span className="rounded-full bg-white px-2 py-1 font-semibold text-slate-700 ring-1 ring-slate-200">{itemList.length} items</span>
+                            <span className="rounded-full bg-white px-2 py-1 font-semibold text-slate-700 ring-1 ring-slate-200">{userList.length} users</span>
+                            <span className="font-medium text-slate-500">{isOpen ? 'Hide' : 'Show details'}</span>
+                          </div>
                         </div>
-                        <span className="self-end sm:self-auto text-gray-500 text-sm">{isOpen ? 'Hide' : 'Show'}</span>
                       </button>
 
                       {isOpen && (
-                        <div className="p-4 bg-white">
+                        <div className="border-t border-slate-200 bg-white p-4 sm:p-5">
                           {issueHistoryTab === 'active' && (
-                            <div className="mb-3 flex flex-wrap items-center gap-3">
+                            <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl bg-blue-50 px-3 py-2">
                               <button
                                 type="button"
                                 onClick={() => {
@@ -1193,7 +1274,7 @@ const Inventory = () => {
                                     setRfidReturnScanRecordId(record.id);
                                   }
                                 }}
-                                className="inline-flex items-center gap-2 rounded border border-blue-600 bg-blue-50 px-3 py-1.5 text-sm font-semibold text-blue-700 hover:bg-blue-100"
+                                className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-sm font-semibold text-blue-700 transition hover:bg-blue-100"
                               >
                                 {rfidReturnScanRecordId === record.id && rfidScanning && <FaSpinner className="animate-spin" />}
                                 {rfidReturnScanRecordId === record.id ? 'Cancel RFID scan' : 'Scan RFID'}
@@ -1206,34 +1287,39 @@ const Inventory = () => {
                               )}
                             </div>
                           )}
-                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+                          <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1.5fr_0.9fr]">
                             <div>
-                              <p className="text-sm font-semibold text-gray-800 mb-2">Items</p>
-                              {issueHistoryTab === 'active' && (
-                                <div className="flex items-center gap-2 mb-2">
-                                  <input
-                                    type="checkbox"
-                                    checked={allSelected}
-                                    ref={(input) => { if (input) input.indeterminate = !allSelected && someSelected; }}
-                                    onChange={(e) => {
-                                      const nextSelected = e.target.checked ? selectableIds : [];
-                                      setSelectedReturnItems((prev) => ({ ...prev, [record.id]: nextSelected }));
-                                    }}
-                                    className="w-4 h-4 rounded border-gray-300"
-                                  />
-                                  <span className="text-sm text-gray-700">Select all</span>
-                                </div>
-                              )}
-                              <div className="space-y-1">
+                              <div className="mb-3 flex items-center justify-between gap-2">
+                                <p className="text-sm font-semibold uppercase tracking-wide text-slate-600">Items</p>
+                                {issueHistoryTab === 'active' && (
+                                  <label className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
+                                    <input
+                                      type="checkbox"
+                                      checked={allSelected}
+                                      ref={(input) => { if (input) input.indeterminate = !allSelected && someSelected; }}
+                                      onChange={(e) => {
+                                        const nextSelected = e.target.checked ? selectableIds : [];
+                                        setSelectedReturnItems((prev) => ({ ...prev, [record.id]: nextSelected }));
+                                      }}
+                                      className="h-4 w-4 rounded border-slate-300 text-blue-600"
+                                    />
+                                    Select all
+                                  </label>
+                                )}
+                              </div>
+
+                              <div className="space-y-3">
                                 {itemList.map((item, index) => {
                                   const itemStatus = (record.itemsWithStatus || [])[index]?.returnStatus || 'not returned';
                                   const comments = Array.isArray(item.comments) ? item.comments : [];
                                   const isSelected = selectedIds.includes(item.itemId);
                                   const canSelect = itemStatus !== 'returned';
+
                                   return (
-                                    <div key={`${record.id}-item-${index}`} className="text-sm text-gray-700 space-y-2">
-                                      <div className="flex items-center justify-between gap-2">
-                                        <div className="flex items-center gap-2">
+                                    <div key={`${record.id}-item-${index}`} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                        <div className="flex min-w-0 items-center gap-2">
                                           <input
                                             type="checkbox"
                                             checked={isSelected}
@@ -1248,7 +1334,7 @@ const Inventory = () => {
                                                 return { ...prev, [record.id]: next };
                                               });
                                             }}
-                                            className="w-4 h-4 rounded border-gray-300"
+                                            className="h-4 w-4 rounded border-slate-300 text-blue-600"
                                           />
                                           <span
                                             onClick={() => {
@@ -1261,40 +1347,43 @@ const Inventory = () => {
                                                 return { ...prev, [record.id]: next };
                                               });
                                             }}
-                                            className={`cursor-pointer ${canSelect && issueHistoryTab === 'active' ? 'select-none' : ''}`}
+                                            className={`truncate text-sm font-semibold ${canSelect && issueHistoryTab === 'active' ? 'cursor-pointer text-slate-800' : 'text-slate-700'}`}
                                           >
                                             {item.itemName || 'Item'}{item.itemNo ? ` (#${item.itemNo})` : ''}
                                           </span>
-                                          <button type="button" onClick={() => openCommentModal(record, item)} className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800" title="Add comment">
+                                          <button type="button" onClick={() => openCommentModal(record, item)} className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-1 text-blue-600 ring-1 ring-blue-200 hover:bg-blue-50" title="Add comment">
                                             <FaCommentDots />
-                                            <span className="text-xs">{comments.length}</span>
+                                            <span className="text-xs font-semibold">{comments.length}</span>
                                           </button>
                                         </div>
-                                        <span className={`text-xs px-2 py-1 rounded ${itemStatus === 'returned' ? 'bg-green-100 text-green-700' : itemStatus === 'overdue' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-800'}`}>
+
+                                        <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide ${itemStatus === 'returned' ? 'bg-emerald-100 text-emerald-700' : itemStatus === 'overdue' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
                                           {itemStatus === 'returned' ? 'Returned' : itemStatus === 'overdue' ? 'Overdue' : 'Not returned'}
                                         </span>
                                       </div>
 
                                       {record.isCompleted && (
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pl-4 sm:pl-6 text-xs text-gray-600">
-                                          <div><span className="text-gray-500">Issued by:</span> {record.createdByName || record.createdByUid || 'Unknown'}</div>
-                                          <div><span className="text-gray-500">Issued at:</span> {formatDateTime(record.createdAt)}</div>
-                                          <div><span className="text-gray-500">Returned by:</span> {item.returnedByName || item.returnedByUid || 'Unknown'}</div>
-                                          <div><span className="text-gray-500">Returned at:</span> {formatDateTime(item.returnedAt)}</div>
+                                        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 text-xs text-slate-600">
+                                          <div><span className="font-semibold text-slate-500">Issued by:</span> {record.createdByName || record.createdByUid || 'Unknown'}</div>
+                                          <div><span className="font-semibold text-slate-500">Issued at:</span> {formatDateTime(record.createdAt)}</div>
+                                          <div><span className="font-semibold text-slate-500">Returned by:</span> {item.returnedByName || item.returnedByUid || 'Unknown'}</div>
+                                          <div><span className="font-semibold text-slate-500">Returned at:</span> {formatDateTime(item.returnedAt)}</div>
                                         </div>
                                       )}
 
                                       {comments.length > 0 && (
-                                        <div className="pl-2 border-l-2 border-gray-200 space-y-1">
+                                        <div className="mt-3 space-y-2 border-l-2 border-slate-200 pl-3">
                                           {comments.map((comment, commentIndex) => (
-                                            <div key={`${record.id}-comment-${index}-${commentIndex}`} className="text-xs text-gray-600 bg-gray-50 rounded p-2 flex items-start justify-between gap-2">
-                                              <div>
-                                                <div>{comment.text}</div>
-                                                <div className="text-[11px] text-gray-400 mt-1">{comment.createdByName || 'Unknown'}{comment.updatedAt ? ' (edited)' : ''}</div>
-                                              </div>
-                                              <div className="flex items-center gap-2 shrink-0">
-                                                <button type="button" onClick={() => handleEditComment(record, item, commentIndex)} className="text-blue-600 hover:text-blue-800" title="Edit comment"><FaEdit /></button>
-                                                <button type="button" onClick={() => deleteCommentFromHistory(record, item, commentIndex)} className="text-red-600 hover:text-red-800" title="Delete comment"><FaTrash /></button>
+                                            <div key={`${record.id}-comment-${index}-${commentIndex}`} className="rounded-xl bg-white p-2 text-xs text-slate-600 ring-1 ring-slate-200">
+                                              <div className="flex items-start justify-between gap-2">
+                                                <div>
+                                                  <div>{comment.text}</div>
+                                                  <div className="mt-1 text-[10px] font-medium text-slate-400">{comment.createdByName || 'Unknown'}{comment.updatedAt ? ' • edited' : ''}</div>
+                                                </div>
+                                                <div className="flex shrink-0 items-center gap-2">
+                                                  <button type="button" onClick={() => handleEditComment(record, item, commentIndex)} className="text-blue-600 hover:text-blue-800" title="Edit comment"><FaEdit /></button>
+                                                  <button type="button" onClick={() => deleteCommentFromHistory(record, item, commentIndex)} className="text-red-600 hover:text-red-800" title="Delete comment"><FaTrash /></button>
+                                                </div>
                                               </div>
                                             </div>
                                           ))}
@@ -1307,32 +1396,33 @@ const Inventory = () => {
                             </div>
 
                             <div>
-                              <p className="text-sm font-semibold text-gray-800 mb-2">Users</p>
-                              <div className="space-y-1">
+                              <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-600">Users</p>
+                              <div className="space-y-2">
                                 {userList.map((user, index) => (
-                                  <div key={`${record.id}-user-${index}`} className="text-sm text-gray-700">{user.name || user.email || 'User'}</div>
+                                  <div key={`${record.id}-user-${index}`} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700">
+                                    {user.name || user.email || 'User'}
+                                  </div>
                                 ))}
                               </div>
+
+                              {record.isCompleted ? (
+                                <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
+                                  All items in this issue batch have been returned.
+                                </div>
+                              ) : (
+                                <div className="mt-4">
+                                  <button type="button" onClick={() => handleReturnSelectedItems(record)} disabled={selectedIds.length === 0} className="w-full rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50">
+                                    Return Selected Items
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           </div>
 
                           {record.description && (
-                            <div className="mt-4 border-t pt-4">
-                              <p className="text-sm font-semibold text-gray-800 mb-1">Description</p>
-                              <p className="text-sm text-gray-700">{record.description}</p>
-                            </div>
-                          )}
-
-                          {record.isCompleted ? (
-                            <div className="mt-4 border-t pt-4">
-                              <p className="text-sm font-semibold text-gray-800 mb-1">Completed</p>
-                              <p className="text-sm text-gray-700">All items in this issue batch have been returned.</p>
-                            </div>
-                          ) : (
-                            <div className="mt-4 border-t pt-4">
-                              <button type="button" onClick={() => handleReturnSelectedItems(record)} disabled={selectedIds.length === 0} className="w-full sm:w-auto px-4 py-2 rounded bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50">
-                                Return Selected Items
-                              </button>
+                            <div className="mt-5 border-t border-slate-200 pt-4">
+                              <p className="text-sm font-semibold text-slate-700">Description</p>
+                              <p className="mt-1 text-sm text-slate-600">{record.description}</p>
                             </div>
                           )}
                         </div>
@@ -1347,25 +1437,36 @@ const Inventory = () => {
 
         {showAddForm && (
           <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={handleCloseAddModal}>
-            <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-lg bg-white shadow-xl p-5 sm:p-6" onClick={(e) => e.stopPropagation()}>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg sm:text-xl font-semibold text-gray-800">Add New Item</h2>
-                <button type="button" onClick={handleCloseAddModal} className="text-gray-500 hover:text-gray-700" title="Close"><FaTimes className="text-xl" /></button>
+            <div className="w-full max-w-xl max-h-[88vh] overflow-y-auto rounded-2xl bg-white shadow-xl p-4 sm:p-5" onClick={(e) => e.stopPropagation()}>
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-gray-800 sm:text-xl">Add New Item</h2>
+                <button type="button" onClick={handleCloseAddModal} className="text-gray-500 hover:text-gray-700" title="Close"><FaTimes className="text-lg" /></button>
               </div>
 
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="mb-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full bg-emerald-600 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-white">New item</span>
+                  <span className="text-xs font-medium text-emerald-700">{formData.itemName || 'Item name pending'}</span>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-2 text-xs text-emerald-800">
+                  <span className="rounded-full bg-white px-2 py-1 ring-1 ring-emerald-200">{formData.category || 'Category pending'}</span>
+                  <span className="rounded-full bg-white px-2 py-1 ring-1 ring-emerald-200">{addImagePreview ? 'Image ready' : 'No image yet'}</span>
+                </div>
+              </div>
+
+              <form onSubmit={handleSubmit} className="space-y-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">Item No</label>
-                    <input type="text" name="itemNo" value={formData.itemNo} onChange={handleChange} required className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+                    <label className="mb-1 block text-sm font-semibold text-gray-700">Item No</label>
+                    <input type="text" name="itemNo" value={formData.itemNo} onChange={handleChange} required className="w-full rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">Item Name</label>
-                    <input type="text" name="itemName" value={formData.itemName} onChange={handleChange} required className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+                    <label className="mb-1 block text-sm font-semibold text-gray-700">Item Name</label>
+                    <input type="text" name="itemName" value={formData.itemName} onChange={handleChange} required className="w-full rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">Category</label>
-                    <select name="category" value={formData.category} onChange={handleChange} required className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
+                    <label className="mb-1 block text-sm font-semibold text-gray-700">Category</label>
+                    <select name="category" value={formData.category} onChange={handleChange} required className="w-full rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
                       <option value="">Select a category</option>
                       <option value="Photography">Photography</option>
                       <option value="Videography">Videography</option>
@@ -1376,35 +1477,35 @@ const Inventory = () => {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">Item Image</label>
+                    <label className="mb-1 block text-sm font-semibold text-gray-700">Item Image</label>
                     <input type="file" accept="image/*" onChange={handleAddImageChange} className="w-full text-sm" />
                   </div>
                 </div>
 
                 {(addImagePreview || addImageError) && (
-                  <div className="rounded border p-3 bg-gray-50">
-                    {addImagePreview && <img src={addImagePreview} alt="Item preview" className="h-40 w-full rounded object-contain bg-white" />}
+                  <div className="rounded border border-slate-200 bg-slate-50 p-3">
+                    {addImagePreview && <img src={addImagePreview} alt="Item preview" className="h-32 w-full rounded object-contain bg-white" />}
                     {addImageError && <p className="mt-2 text-sm text-red-600">{addImageError}</p>}
                   </div>
                 )}
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Description</label>
-                  <textarea name="description" value={formData.description} onChange={handleChange} rows="3" className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+                  <label className="mb-1 block text-sm font-semibold text-gray-700">Description</label>
+                  <textarea name="description" value={formData.description} onChange={handleChange} rows="3" className="w-full rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
                 </div>
 
-                <div className="flex gap-2">
-                  <button type="submit" disabled={saving || addImageUploading} className="flex-1 bg-green-600 text-white py-2 px-4 rounded font-semibold hover:bg-green-700 transition disabled:opacity-50 text-sm">
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <button type="submit" disabled={saving || addImageUploading} className="flex-1 rounded bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-700 disabled:opacity-50">
                     {saving || addImageUploading ? 'Saving...' : 'Add Item'}
                   </button>
                   <button
                     type="button"
                     onClick={() => {}}
-                    className="inline-flex items-center justify-center rounded border border-blue-600 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100 transition"
+                    className="inline-flex items-center justify-center rounded border border-blue-600 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-100"
                   >
                     Add RFID
                   </button>
-                  <button type="button" onClick={handleCloseAddModal} className="px-4 py-2 border border-gray-300 rounded text-gray-700 font-semibold hover:bg-gray-100 transition text-sm">
+                  <button type="button" onClick={handleCloseAddModal} className="rounded border border-slate-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100">
                     Cancel
                   </button>
                 </div>
@@ -1415,32 +1516,32 @@ const Inventory = () => {
 
         {showManualCheckout && (
           <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={requestCloseIssueModal}>
-            <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-lg bg-white shadow-xl p-5 sm:p-6" onClick={(e) => e.stopPropagation()}>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg sm:text-xl font-semibold text-gray-800">Issue to Members</h2>
-                <button type="button" onClick={requestCloseIssueModal} className="text-gray-500 hover:text-gray-700" title="Close"><FaTimes className="text-xl" /></button>
+            <div className="w-full max-w-2xl max-h-[88vh] overflow-y-auto rounded-2xl bg-white shadow-xl p-4 sm:p-5" onClick={(e) => e.stopPropagation()}>
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-gray-800 sm:text-xl">Issue to Members</h2>
+                <button type="button" onClick={requestCloseIssueModal} className="text-gray-500 hover:text-gray-700" title="Close"><FaTimes className="text-lg" /></button>
               </div>
 
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Reason *</label>
-                    <input type="text" value={issueReason} onChange={(e) => setIssueReason(e.target.value)} placeholder="Enter issue reason" className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+                    <label className="mb-2 block text-sm font-semibold text-gray-700">Reason *</label>
+                    <input type="text" value={issueReason} onChange={(e) => setIssueReason(e.target.value)} placeholder="Enter issue reason" className="w-full rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Description</label>
-                    <textarea value={issueDescription} onChange={(e) => setIssueDescription(e.target.value)} placeholder="Optional note for this issue" rows="3" className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+                    <label className="mb-2 block text-sm font-semibold text-gray-700">Description</label>
+                    <textarea value={issueDescription} onChange={(e) => setIssueDescription(e.target.value)} placeholder="Optional note for this issue" rows="3" className="w-full rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
                   <div>
                     <div className="mb-2 flex items-center justify-between gap-2">
                       <label className="block text-sm font-semibold text-gray-700">Select Items</label>
                       {rfidScanning && (
-                        <span className="inline-flex items-center gap-2 text-sm text-blue-700">
+                        <span className="inline-flex items-center gap-2 text-xs text-blue-700">
                           <FaSpinner className="animate-spin" />
-                          RFID reader active
+                          RFID active
                         </span>
                       )}
                     </div>
@@ -1457,17 +1558,17 @@ const Inventory = () => {
                         {rfidScanMessage}
                       </p>
                     )}
-                    <input type="text" value={itemSearchText} onChange={(e) => setItemSearchText(e.target.value)} placeholder="Search by item no or name" className="w-full mb-2 px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
-                    <div className="border rounded bg-gray-50 p-3 max-h-60 overflow-y-auto">
+                    <input type="text" value={itemSearchText} onChange={(e) => setItemSearchText(e.target.value)} placeholder="Search by item no or name" className="mb-2 w-full rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+                    <div className="max-h-52 overflow-y-auto rounded border border-slate-200 bg-slate-50 p-2">
                       {availableItems.length === 0 ? (
-                        <p className="text-gray-500 text-sm">No available items.</p>
+                        <p className="text-sm text-gray-500">No available items.</p>
                       ) : (
                         availableItems.map((item) => (
-                          <label key={item.id} className="flex items-center gap-2 p-2 hover:bg-gray-100 rounded cursor-pointer">
+                          <label key={item.id} className="flex cursor-pointer items-center gap-2 rounded p-2 hover:bg-gray-100">
                             <input type="checkbox" checked={selectedItems.includes(item.id)} onChange={(e) => {
                               if (e.target.checked) setSelectedItems([...selectedItems, item.id]);
                               else setSelectedItems(selectedItems.filter((id) => id !== item.id));
-                            }} className="w-4 h-4 rounded border-gray-300" />
+                            }} className="h-4 w-4 rounded border-gray-300" />
                             <span className="text-sm text-gray-700">{item.itemName} {item.itemNo && `(#${item.itemNo})`}</span>
                           </label>
                         ))
@@ -1476,18 +1577,18 @@ const Inventory = () => {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Select Users to Issue To</label>
-                    <input type="text" value={memberSearchText} onChange={(e) => setMemberSearchText(e.target.value)} placeholder="Search by user name" className="w-full mb-2 px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
-                    <div className="border rounded bg-gray-50 p-3 max-h-60 overflow-y-auto">
+                    <label className="mb-2 block text-sm font-semibold text-gray-700">Select Users to Issue To</label>
+                    <input type="text" value={memberSearchText} onChange={(e) => setMemberSearchText(e.target.value)} placeholder="Search by user name" className="mb-2 w-full rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+                    <div className="max-h-52 overflow-y-auto rounded border border-slate-200 bg-slate-50 p-2">
                       {filteredMembers.length === 0 ? (
-                        <p className="text-gray-500 text-sm">No users found.</p>
+                        <p className="text-sm text-gray-500">No users found.</p>
                       ) : (
                         filteredMembers.map((member) => (
-                          <label key={member.id} className="flex items-center gap-2 p-2 hover:bg-gray-100 rounded cursor-pointer">
+                          <label key={member.id} className="flex cursor-pointer items-center gap-2 rounded p-2 hover:bg-gray-100">
                             <input type="checkbox" checked={selectedMembers.some((m) => m.id === member.id)} onChange={(e) => {
                               if (e.target.checked) setSelectedMembers([...selectedMembers, member]);
                               else setSelectedMembers(selectedMembers.filter((m) => m.id !== member.id));
-                            }} className="w-4 h-4 rounded border-gray-300" />
+                            }} className="h-4 w-4 rounded border-gray-300" />
                             <span className="text-sm text-gray-700">{member.name || member.email}</span>
                           </label>
                         ))
@@ -1496,39 +1597,72 @@ const Inventory = () => {
                   </div>
                 </div>
 
-                {(selectedItems.length > 0 || selectedMembers.length > 0) && (
-                  <div className="bg-blue-50 border border-blue-200 rounded p-3">
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-sm font-semibold text-blue-900 mb-2">Selected Items</p>
-                        <div className="space-y-1">
+                {(selectedItems.length > 0 || selectedMembers.length > 0 || issueReason || issueDescription) && (
+                  <div className="rounded-xl border border-blue-200 bg-blue-50 p-3">
+                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm font-semibold text-blue-900">Issue summary</p>
+                      <span className="rounded-full bg-white px-2 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-blue-700 ring-1 ring-blue-200">
+                        {selectedItems.length} items • {selectedMembers.length} users
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                      <div className="rounded-lg bg-white p-2.5 ring-1 ring-blue-100">
+                        <p className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-blue-700">Selected items</p>
+                        <div className="flex flex-wrap gap-2">
                           {selectedItems.length === 0 ? (
-                            <p className="text-sm text-blue-800">No items selected.</p>
+                            <span className="text-sm text-blue-800">No items selected.</span>
                           ) : (
                             selectedItems.map((itemId) => {
                               const item = items.find((entry) => entry.id === itemId);
                               if (!item) return null;
-                              return <div key={itemId} className="text-sm text-blue-800">{item.itemName}{item.itemNo ? ` (#${item.itemNo})` : ''}</div>;
+                              return (
+                                <button
+                                  key={itemId}
+                                  type="button"
+                                  onClick={() => setSelectedItems((prev) => prev.filter((id) => id !== itemId))}
+                                  className="rounded-full border border-blue-200 bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-800 transition hover:bg-blue-200"
+                                >
+                                  {item.itemName}{item.itemNo ? ` #${item.itemNo}` : ''}
+                                </button>
+                              );
                             })
                           )}
                         </div>
                       </div>
 
-                      <div>
-                        <p className="text-sm font-semibold text-blue-900 mb-2">Selected Users</p>
-                        <div className="space-y-1">
+                      <div className="rounded-lg bg-white p-2.5 ring-1 ring-blue-100">
+                        <p className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-blue-700">Selected users</p>
+                        <div className="flex flex-wrap gap-2">
                           {selectedMembers.length === 0 ? (
-                            <p className="text-sm text-blue-800">No users selected.</p>
+                            <span className="text-sm text-blue-800">No users selected.</span>
                           ) : (
-                            selectedMembers.map((member) => <div key={member.id} className="text-sm text-blue-800">{member.name || member.email}</div>)
+                            selectedMembers.map((member) => (
+                              <button
+                                key={member.id}
+                                type="button"
+                                onClick={() => setSelectedMembers((prev) => prev.filter((m) => m.id !== member.id))}
+                                className="rounded-full border border-blue-200 bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-800 transition hover:bg-blue-200"
+                              >
+                                {member.name || member.email}
+                              </button>
+                            ))
                           )}
                         </div>
                       </div>
                     </div>
+
+                    {(issueReason || issueDescription) && (
+                      <div className="mt-3 rounded-lg bg-white p-2.5 ring-1 ring-blue-100">
+                        <p className="mb-1 text-xs font-bold uppercase tracking-[0.18em] text-blue-700">Details</p>
+                        {issueReason && <p className="text-sm text-blue-900">Reason: {issueReason}</p>}
+                        {issueDescription && <p className="mt-1 text-sm text-blue-800">Note: {issueDescription}</p>}
+                      </div>
+                    )}
                   </div>
                 )}
 
-                <button type="button" onClick={handleIssueToMembers} disabled={checkingOut || selectedItems.length === 0 || selectedMembers.length === 0} className="w-full bg-green-600 text-white py-2 px-4 rounded font-semibold hover:bg-green-700 transition disabled:opacity-50 text-sm">
+                <button type="button" onClick={handleIssueToMembers} disabled={checkingOut || selectedItems.length === 0 || selectedMembers.length === 0} className="w-full rounded bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-700 disabled:opacity-50">
                   {checkingOut ? 'Issuing...' : `Issue ${selectedItems.length > 0 ? selectedItems.length : ''} Item(s)`}
                 </button>
               </div>

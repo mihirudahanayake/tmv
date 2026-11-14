@@ -44,7 +44,15 @@ const SuperAdminDashboard = () => {
   }, []);
 
   const strongestDepartment = departmentBreakdown.reduce((top, current) => (current.count > top.count ? current : top), { count: 0, label: 'N/A' });
-  const maxCount = Math.max(...departmentBreakdown.map((item) => item.count), 1);
+
+  const departmentPalette = [
+    'from-blue-500 via-cyan-500 to-sky-400',
+    'from-violet-500 via-purple-500 to-indigo-500',
+    'from-emerald-500 via-teal-500 to-cyan-500',
+    'from-amber-500 via-orange-500 to-rose-500',
+    'from-pink-500 via-fuchsia-500 to-violet-500',
+    'from-slate-600 via-slate-500 to-slate-400',
+  ];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-sky-100 via-white to-violet-100">
@@ -52,14 +60,14 @@ const SuperAdminDashboard = () => {
 
       <main className="container mx-auto px-4 py-6 sm:py-8 max-w-6xl">
         <div className="mb-6 rounded-[28px] border border-white/60 bg-white/70 p-5 shadow-[0_25px_60px_rgba(14,116,144,0.12)] backdrop-blur-sm sm:p-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.26em] text-blue-600">Overview</p>
               <h1 className="mt-2 text-3xl font-bold text-slate-800 sm:text-4xl">Super Admin</h1>
             </div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 shadow-sm">
-              <span className="h-2.5 w-2.5 rounded-full bg-blue-500 animate-pulse" />
-              {totalUsers} total users
+            <div className="inline-flex items-center gap-2 rounded-full border border-violet-100 bg-violet-50 px-3 py-2 text-sm font-semibold text-violet-700 shadow-sm">
+              <span className="h-2.5 w-2.5 rounded-full bg-violet-500" />
+              Highest member count: {strongestDepartment.label}
             </div>
           </div>
         </div>
@@ -73,26 +81,6 @@ const SuperAdminDashboard = () => {
           </div>
         ) : (
           <>
-            <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              {[
-                { label: 'Total users', value: totalUsers, tint: 'from-blue-500 to-cyan-500', text: 'text-blue-700' },
-                { label: 'Highest member count', value: strongestDepartment.label, tint: 'from-violet-500 to-purple-500', text: 'text-violet-700' },
-                { label: 'Departments', value: WORK_DEPARTMENTS.length, tint: 'from-amber-400 to-orange-500', text: 'text-amber-700' },
-              ].map((card) => (
-                <div
-                  key={card.label}
-                  className="group rounded-2xl border border-white/60 bg-white/75 p-4 shadow-[0_15px_30px_rgba(15,23,42,0.06)] backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_18px_38px_rgba(59,130,246,0.12)]"
-                >
-                  <div className={`mb-3 h-2 w-16 rounded-full bg-gradient-to-r ${card.tint}`} />
-                  <p className="text-sm text-slate-500">{card.label}</p>
-                  <div className="mt-3 flex items-center justify-between gap-3">
-                    <span className="text-2xl font-bold text-slate-800">{card.value}</span>
-                    <span className={`text-xs font-semibold ${card.text}`}>{card.label}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-
             <div className="rounded-[28px] border border-slate-200 bg-white/85 shadow-[0_20px_50px_rgba(15,23,42,0.08)] overflow-hidden backdrop-blur-sm">
               <div className="border-b border-slate-200 bg-gradient-to-r from-slate-50 to-blue-50 px-5 py-4 sm:px-6">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
@@ -108,33 +96,40 @@ const SuperAdminDashboard = () => {
               </div>
 
               <div className="p-4 sm:p-6">
-                <div className="space-y-4">
-                  {departmentBreakdown.map(({ dept, label, count }) => {
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  {departmentBreakdown.map(({ dept, label, count }, index) => {
                     const percentageOfTotal = totalUsers > 0 ? (count / totalUsers) * 100 : 0;
-                    const barWidth = Math.max(percentageOfTotal, count > 0 ? 8 : 0);
+                    const barWidth = Math.max(percentageOfTotal, count > 0 ? 10 : 0);
+                    const accent = departmentPalette[index % departmentPalette.length];
 
                     return (
                       <div
                         key={dept}
-                        className="group rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3 transition-all duration-300 hover:border-blue-200 hover:bg-blue-50/60 hover:shadow-md"
+                        className="group rounded-[24px] border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-blue-50 p-4 shadow-[0_16px_32px_rgba(15,23,42,0.06)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_22px_38px_rgba(59,130,246,0.12)]"
                       >
-                        <div className="mb-2 flex items-center justify-between gap-3">
+                        <div className="mb-4 flex items-center justify-between gap-3">
                           <div className="flex items-center gap-3">
-                            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-blue-100 to-cyan-100 text-xs font-bold text-blue-700 ring-1 ring-blue-100">
+                            <div className={`flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br ${accent} text-xs font-bold text-white shadow-sm`}>
                               {label.charAt(0)}
                             </div>
-                            <span className="text-sm font-medium text-slate-700">{label}</span>
+                            <div>
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Department</p>
+                              <h3 className="text-sm font-bold text-slate-800">{label}</h3>
+                            </div>
                           </div>
+                          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-700">
+                            {count}
+                          </span>
+                        </div>
 
-                          <div className="flex items-center gap-2">
-                            <span className="text-base font-bold text-slate-800">{count}</span>
-                            <span className="text-xs font-semibold text-slate-500">({percentageOfTotal.toFixed(1)}%)</span>
-                          </div>
+                        <div className="mb-2 flex items-end justify-between text-xs font-semibold">
+                          <span className="text-slate-500">Share of total</span>
+                          <span className="text-slate-700">{percentageOfTotal.toFixed(1)}%</span>
                         </div>
 
                         <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-200">
                           <div
-                            className="h-full rounded-full bg-gradient-to-r from-blue-500 via-cyan-500 to-teal-400 transition-all duration-500 group-hover:from-blue-600 group-hover:via-cyan-500 group-hover:to-teal-500"
+                            className={`h-full rounded-full bg-gradient-to-r ${accent} transition-all duration-500`}
                             style={{ width: `${barWidth}%` }}
                           />
                         </div>
