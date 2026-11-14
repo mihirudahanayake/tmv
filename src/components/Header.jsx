@@ -24,7 +24,9 @@ import { useUserProfile } from '../hooks/useUserProfile';
 import { auth } from '../firebase/config';
 
 const Header = ({ userType, isTO = false, isDarkMode, toggleDarkMode, isGlobalLayout = false }) => {
-  if (!isGlobalLayout) return null;
+  if (!isGlobalLayout) {
+    return null;
+  }
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -35,10 +37,20 @@ const Header = ({ userType, isTO = false, isDarkMode, toggleDarkMode, isGlobalLa
 
   const darkModeOn = typeof isDarkMode === 'boolean' ? isDarkMode : contextDarkMode;
   const toggleTheme = toggleDarkMode || contextToggleDarkMode;
+  const profileRole = profile?.role || profile?.userType || userType;
 
-  const effectiveUserType = userType === 'member' || userType === 'supervisor' || userType === 'supervisorTO'
-    ? 'user'
-    : userType;
+  const effectiveUserType =
+    profileRole === 'member' || profileRole === 'supervisor' || profileRole === 'supervisorTO'
+      ? 'user'
+      : profileRole === 'departmentHead' || profileRole === 'admin'
+        ? 'admin'
+        : profileRole === 'superAdmin'
+          ? 'superAdmin'
+          : profileRole === 'siteAdmin'
+            ? 'siteAdmin'
+            : userType === 'member' || userType === 'supervisor' || userType === 'supervisorTO'
+              ? 'user'
+              : userType;
   const isMemberShell = effectiveUserType === 'user';
   const showTOInventory = isTO && isMemberShell;
   const userDisplayName = profile?.name || profile?.displayName || profile?.email || 'Profile';
@@ -81,6 +93,16 @@ const Header = ({ userType, isTO = false, isDarkMode, toggleDarkMode, isGlobalLa
       : [{ path: '/profile', label: 'Profile', icon: <FaUser /> }]),
   ];
 
+  if (effectiveUserType === 'superAdmin') {
+    navItems.push(
+      { path: '/manage-users', label: 'Users', icon: <FaUserPlus /> },
+      { path: '/work-list', label: 'Work List', icon: <FaList /> },
+      { path: '/inventory', label: 'Inventory', icon: <FaBox /> },
+      { path: '/access-records', label: 'Access Records', icon: <FaIdCard /> },
+      { path: '/notifications', label: 'Notification History', icon: <FaBell /> }
+    );
+  }
+
   if (effectiveUserType === 'admin') {
     const profileIndex = navItems.findIndex((item) => item.path === '/profile');
     if (profileIndex !== -1) navItems.splice(profileIndex, 1);
@@ -91,16 +113,6 @@ const Header = ({ userType, isTO = false, isDarkMode, toggleDarkMode, isGlobalLa
       // ...(isDepartmentHead ? [] : [{ path: '/inventory', label: 'Inventory', icon: <FaBox /> }]),
       // { path: '/access-records', label: 'Access Records', icon: <FaIdCard /> },
       { path: '/profile', label: 'Profile', icon: <FaUser /> },
-      { path: '/notifications', label: 'Notification History', icon: <FaBell /> }
-    );
-  }
-
-  if (effectiveUserType === 'superAdmin') {
-    navItems.push(
-      { path: '/manage-users', label: 'Users', icon: <FaUserPlus /> },
-      { path: '/work-list', label: 'Work List', icon: <FaList /> },
-      { path: '/inventory', label: 'Inventory', icon: <FaBox /> },
-      { path: '/access-records', label: 'Access Records', icon: <FaIdCard /> },
       { path: '/notifications', label: 'Notification History', icon: <FaBell /> }
     );
   }

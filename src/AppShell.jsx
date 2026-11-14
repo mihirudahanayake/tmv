@@ -40,6 +40,7 @@ import SiteAdminDashboard from './pages/SiteAdminDashboard.jsx';
 const AppShell = () => {
   useIdleLogout(); // idle timer active for all routes
   const location = useLocation();
+  const hideGlobalLayout = ['/', '/login', '/forgot-password', '/signup'].includes(location.pathname);
 
   const getHeaderUserType = () => {
     const superAdminRoutes = [
@@ -91,7 +92,7 @@ const AppShell = () => {
 
   return (
     <>
-      <Header userType={getHeaderUserType()} isGlobalLayout />
+      {!hideGlobalLayout && <Header userType={getHeaderUserType()} isGlobalLayout />}
       <Routes>
         {/* auth / common */}
         <Route path="/" element={<Welcome />} />
