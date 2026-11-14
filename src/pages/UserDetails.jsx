@@ -422,83 +422,80 @@ const UserDetails = () => {
 
         {!loading && user && (
           <>
-            {/* Header with avatar */}
-            <div className="flex items-center gap-4 mb-4">
-              {user.photoURL ? (
-                <img
-                  src={user.photoURL}
-                  alt={user.name || 'User'}
-                  className="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover border border-gray-200 bg-gray-100"
-                />
-              ) : (
-                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gray-300 flex items-center justify-center text-2xl font-semibold text-white">
-                  {(user.name || 'U').charAt(0).toUpperCase()}
-                </div>
-              )}
-              <div className="flex-1">
-                <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">
-                  {user.name || 'User details'}
-                </h1>
-                <p className="text-sm sm:text-base text-gray-600">
-                  {user.email}
-                </p>
-              </div>
+            <div className="mb-6 rounded-[28px] border border-white/60 bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 p-5 text-white shadow-[0_20px_40px_rgba(79,70,229,0.25)] sm:p-6">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-4">
+                  {user.photoURL ? (
+                    <img
+                      src={user.photoURL}
+                      alt={user.name || 'User'}
+                      className="h-16 w-16 rounded-full border-2 border-white/80 object-cover bg-white/10 sm:h-20 sm:w-20"
+                    />
+                  ) : (
+                    <div className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-white/80 bg-white/10 text-2xl font-bold text-white sm:h-20 sm:w-20">
+                      {(user.name || 'U').charAt(0).toUpperCase()}
+                    </div>
+                  )}
 
-              <div className="flex items-center gap-2">
-                {canAssignTO ? (
-                  <button
-                    type="button"
-                    onClick={handleToggleTO}
-                    className={`shrink-0 inline-flex items-center justify-center gap-2 rounded font-semibold focus:outline-none focus:ring-2 focus:ring-offset-2 h-9 w-auto px-3 py-2 text-xs ${user.isTO ? 'bg-red-600 hover:bg-red-700 text-white focus:ring-red-400' : 'bg-blue-600 hover:bg-blue-700 text-white focus:ring-blue-400'}`}
-                  >
-                    {user.isTO ? 'Remove TO' : 'Make TO'}
-                  </button>
-                ) : null}
-                {canEditUser && !isEditing ? (
-                  <button
-                    type="button"
-                    onClick={handleStartEdit}
-                    className="shrink-0 inline-flex items-center justify-center gap-2 rounded bg-amber-500 hover:bg-amber-600 text-white font-semibold focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2 h-9 w-auto px-3 py-2 text-xs"
-                  >
-                    Edit
-                  </button>
-                ) : null}
-                {canEditUser && isEditing ? (
-                  <button
-                    type="button"
-                    onClick={handleCancelEdit}
-                    className="shrink-0 inline-flex items-center justify-center gap-2 rounded bg-gray-500 hover:bg-gray-600 text-white font-semibold focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 h-9 w-auto px-3 py-2 text-xs"
-                  >
-                    Cancel
-                  </button>
-                ) : null}
-                {user.isTO ? (
-                  <button
-                    type="button"
-                    onClick={handleOfferIdClick}
-                    disabled={offerLoading || loadingProfile}
-                    aria-label="Offer ID"
-                    title="Offer ID"
-                    className="shrink-0 inline-flex items-center justify-center gap-2 rounded bg-blue-600 hover:bg-blue-700 text-white font-semibold disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 h-9 w-auto px-3 py-2 text-xs"
-                  >
-                    {offerLoading ? 'Waiting...' : 'Offer ID'}
-                  </button>
-                ) : null}
-                {canDeleteUsers ? (
-                  <button
-                    type="button"
-                    onClick={handleDeleteUser}
-                    disabled={deleting || loadingProfile}
-                    aria-label={deleting ? 'Deleting user' : 'Delete user'}
-                    title="Delete user"
-                    className="shrink-0 inline-flex items-center justify-center gap-2 rounded bg-red-600 hover:bg-red-700 text-white font-semibold disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 h-9 w-9 sm:h-auto sm:w-auto sm:px-3 sm:py-2 text-xs"
-                  >
-                    <FaTrash />
-                    <span className="hidden sm:inline">
-                      {deleting ? 'Deleting...' : 'Delete'}
-                    </span>
-                  </button>
-                ) : null}
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-blue-100">Member profile</p>
+                    <h1 className="mt-2 text-2xl font-bold sm:text-3xl">
+                      {user.name || 'User details'}
+                    </h1>
+                    <p className="mt-1 text-sm text-blue-100">{user.email}</p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  {canAssignTO ? (
+                    <button
+                      type="button"
+                      onClick={handleToggleTO}
+                      className={`inline-flex items-center justify-center rounded-xl px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:-translate-y-0.5 ${user.isTO ? 'bg-red-500 hover:bg-red-600' : 'bg-white/15 hover:bg-white/25'}`}
+                    >
+                      {user.isTO ? 'Remove TO' : 'Make TO'}
+                    </button>
+                  ) : null}
+                  {canEditUser && !isEditing ? (
+                    <button
+                      type="button"
+                      onClick={handleStartEdit}
+                      className="inline-flex items-center justify-center rounded-xl bg-amber-400 px-3 py-2 text-xs font-semibold text-slate-900 shadow-sm transition hover:-translate-y-0.5 hover:bg-amber-300"
+                    >
+                      Edit
+                    </button>
+                  ) : null}
+                  {canEditUser && isEditing ? (
+                    <button
+                      type="button"
+                      onClick={handleCancelEdit}
+                      className="inline-flex items-center justify-center rounded-xl bg-slate-200 px-3 py-2 text-xs font-semibold text-slate-800 shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-100"
+                    >
+                      Cancel
+                    </button>
+                  ) : null}
+                  {user.isTO ? (
+                    <button
+                      type="button"
+                      onClick={handleOfferIdClick}
+                      disabled={offerLoading || loadingProfile}
+                      className="inline-flex items-center justify-center rounded-xl bg-cyan-400 px-3 py-2 text-xs font-semibold text-slate-900 shadow-sm transition hover:-translate-y-0.5 hover:bg-cyan-300 disabled:opacity-50"
+                    >
+                      {offerLoading ? 'Waiting...' : 'Offer ID'}
+                    </button>
+                  ) : null}
+                  {canDeleteUsers ? (
+                    <button
+                      type="button"
+                      onClick={handleDeleteUser}
+                      disabled={deleting || loadingProfile}
+                      className="inline-flex items-center justify-center gap-1 rounded-xl bg-red-500 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-red-600 disabled:opacity-50"
+                    >
+                      <FaTrash />
+                      <span>{deleting ? 'Deleting...' : 'Delete'}</span>
+                    </button>
+                  ) : null}
+                </div>
               </div>
             </div>
 
@@ -629,62 +626,47 @@ const UserDetails = () => {
                 </div>
               </div>
             ) : (
-              <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-6 text-sm sm:text-base space-y-2">
-                <p>
-                  <span className="font-semibold">Phone:</span>{' '}
-                  {user.phoneNo || '-'}
-                </p>
-                <p>
-                  <span className="font-semibold">Batch:</span>{' '}
-                  {user.batch || '-'}
-                </p>
-                <p>
-                  <span className="font-semibold">Study department:</span>{' '}
-                  {user.studyDepartment || '-'}
-                </p>
-                <p>
-                  <span className="font-semibold">Gender:</span>{' '}
-                  {user.gender || '-'}
-                </p>
-                <p>
-                  <span className="font-semibold">Registration no:</span>{' '}
-                  {user.registrationNumber || '-'}
-                </p>
-                {/*
-                <p>
-                  <span className="font-semibold">Card:</span>{' '}
-                  {user.cardNumber || '-'}
-                </p>
-                */}
-                <p>
-                  <span className="font-semibold">NFC Card ID:</span>{' '}
-                  {user.NFC_card_id || '-'}
-                </p>
-                <p>
-                  <span className="font-semibold">TO status:</span>{' '}
-                  {user.isTO ? 'Yes' : 'No'}
-                </p>
-                <p>
-                  <span className="font-semibold">Work departments:</span>{' '}
-                  {Array.isArray(user.departments)
-                    ? user.departments.join(', ')
-                    : user.department || '-'}
-                </p>
-                <p>
-                  <span className="font-semibold">User type:</span>{' '}
-                  {user.userType || 'user'}
-                </p>
+              <div className="mb-6 rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_16px_32px_rgba(15,23,42,0.06)] sm:p-6">
+                <div className="mb-4 flex items-center justify-between">
+                  <h2 className="text-lg font-bold text-slate-800">Profile overview</h2>
+                  <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-blue-700">
+                    {user.userType || 'user'}
+                  </span>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {[
+                    ['Phone', user.phoneNo || '-'],
+                    ['Batch', user.batch || '-'],
+                    ['Study department', user.studyDepartment || '-'],
+                    ['Gender', user.gender || '-'],
+                    ['Registration no', user.registrationNumber || '-'],
+                    ['NFC Card ID', user.NFC_card_id || '-'],
+                    ['TO status', user.isTO ? 'Yes' : 'No'],
+                    ['Work departments', Array.isArray(user.departments) ? user.departments.join(', ') : user.department || '-'],
+                  ].map(([label, value]) => (
+                    <div key={label} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">{label}</p>
+                      <p className="mt-2 text-sm font-semibold text-slate-700">{value}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
-            <h2 className="text-xl sm:text-2xl font-semibold text-gray-800 mb-3">
-              Task history
-            </h2>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h2 className="text-xl font-bold text-slate-800 sm:text-2xl">
+                Task history
+              </h2>
+              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
+                {works.length} tasks
+              </span>
+            </div>
 
             {works.length === 0 ? (
-              <p className="text-gray-600 text-sm sm:text-base">
+              <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-600 shadow-sm">
                 No tasks for this user.
-              </p>
+              </div>
             ) : (
               <div className="space-y-3">
                 {works.map((w) => {
@@ -692,31 +674,30 @@ const UserDetails = () => {
                   const status = w.status || 'incomplete';
 
                   return (
-<div
-  key={w.id}
-  onClick={() => navigate(`/tasks/${w.id}`)}
-  className="bg-white rounded-lg shadow p-3 sm:p-4 text-sm sm:text-base cursor-pointer hover:shadow-md hover:bg-gray-50 transition"
->
-
-                      <div className="flex justify-between items-start mb-2">
-                        <div className="flex-1">
-                          <h3 className="font-semibold text-gray-800">
+                    <div
+                      key={w.id}
+                      onClick={() => navigate(`/tasks/${w.id}`)}
+                      className="cursor-pointer rounded-[22px] border border-slate-200 bg-white p-4 shadow-[0_12px_26px_rgba(15,23,42,0.04)] transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_20px_36px_rgba(59,130,246,0.1)]"
+                    >
+                      <div className="mb-3 flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <h3 className="text-base font-bold text-slate-800 sm:text-lg">
                             {w.title || 'Untitled task'}
                           </h3>
                           {w.date && (
-                            <span className="flex items-center gap-1 text-xs text-gray-500 mt-1">
-                              <FaCalendarAlt />{' '}
+                            <span className="mt-1 flex items-center gap-1 text-xs text-slate-500">
+                              <FaCalendarAlt className="text-[11px]" />
                               {new Date(w.date).toLocaleDateString()}
                             </span>
                           )}
                         </div>
                         <span
-                          className={`px-2 py-1 rounded text-xs font-semibold capitalize ${
+                          className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] ${
                             status === 'complete'
-                              ? 'bg-green-100 text-green-800'
+                              ? 'bg-emerald-100 text-emerald-700'
                               : status === 'done'
-                              ? 'bg-yellow-100 text-yellow-800'
-                              : 'bg-gray-100 text-gray-800'
+                              ? 'bg-amber-100 text-amber-700'
+                              : 'bg-slate-100 text-slate-700'
                           }`}
                         >
                           {status}
@@ -724,31 +705,27 @@ const UserDetails = () => {
                       </div>
 
                       {w.description && (
-                        <p className="text-gray-700 text-sm mb-2">
-                          {w.description}
-                        </p>
+                        <p className="mb-3 text-sm text-slate-600">{w.description}</p>
                       )}
 
                       {roles.length > 0 && (
-                        <div className="mt-2">
-                          <p className="text-xs font-semibold text-gray-700 mb-1">
-                            Assigned work types:
+                        <div>
+                          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+                            Assigned work types
                           </p>
-                          <div className="flex flex-wrap gap-1">
+                          <div className="flex flex-wrap gap-2">
                             {roles.map((role) => {
                               const done = isRoleDone(w, role);
                               return (
                                 <span
                                   key={role}
-                                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs ${
+                                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
                                     done
-                                      ? 'bg-green-100 text-green-800'
-                                      : 'bg-gray-100 text-gray-700'
+                                      ? 'bg-emerald-100 text-emerald-700'
+                                      : 'bg-slate-100 text-slate-700'
                                   }`}
                                 >
-                                  {done && (
-                                    <FaCheck className="text-xs" />
-                                  )}
+                                  {done && <FaCheck className="text-[10px]" />}
                                   {formatWorkRoleLabel(role)}
                                 </span>
                               );

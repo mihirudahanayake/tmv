@@ -95,6 +95,16 @@ const ManageUsers = () => {
 
   const canDeleteUsers = canEdit(profile);
 
+  const departmentCounts = Object.entries(
+    users.reduce((acc, user) => {
+      const dept = user.studyDepartment || 'Unassigned';
+      acc[dept] = (acc[dept] || 0) + 1;
+      return acc;
+    }, {})
+  )
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([department, count]) => ({ department, count }));
+
   const handleDeleteUser = async (userId, userName) => {
     if (!canDeleteUsers) return;
     setActionError('');
@@ -125,89 +135,121 @@ const ManageUsers = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-white to-blue-50">
       <Header userType="admin" />
 
-      <main className="container mx-auto px-4 py-6 sm:py-8 max-w-4xl">
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-4">
-          Manage users
-        </h1>
+      <main className="container mx-auto max-w-5xl px-4 py-6 sm:py-8">
+        <div className="mb-5 rounded-[28px] border border-white/60 bg-white/70 p-5 shadow-[0_20px_40px_rgba(15,23,42,0.08)] backdrop-blur-sm sm:p-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-blue-600">Users</p>
+              <h1 className="mt-2 text-2xl font-bold text-slate-800 sm:text-3xl">Manage users</h1>
+            </div>
 
-        {/* Export to Excel button */}
-        <div className="mb-4 flex justify-end">
-          <button
-            onClick={handleExportExcel}
-            className="bg-green-600 hover:bg-green-700 text-white font-semibold px-4 py-2 rounded shadow"
-          >
-            Export to Excel
-          </button>
+            <div className="inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-3.5 py-2 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(15,23,42,0.18)]">
+              <span className="text-slate-300">User count</span>
+              <span className="text-lg font-bold text-white">{users.length}</span>
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {departmentCounts.map(({ department, count }, index) => {
+              const palette = [
+                'from-blue-500 to-cyan-500',
+                'from-violet-500 to-purple-500',
+                'from-emerald-500 to-teal-500',
+                'from-amber-500 to-orange-500',
+              ];
+
+              return (
+                <div
+                  key={department}
+                  className={`rounded-2xl border border-white/60 bg-gradient-to-br ${palette[index % palette.length]} p-3 text-white shadow-[0_10px_24px_rgba(15,23,42,0.12)]`}
+                >
+                  <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-white/80">
+                    {department}
+                  </p>
+                  <p className="mt-2 text-2xl font-bold">{count}</p>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="mt-4 flex justify-end">
+            <button
+              type="button"
+              onClick={handleExportExcel}
+              className="inline-flex items-center justify-center rounded-xl bg-green-600 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(34,197,94,0.25)] transition hover:-translate-y-0.5 hover:bg-green-700"
+            >
+              Export to Excel
+            </button>
+          </div>
         </div>
 
         {actionError ? (
-          <div className="mb-3 p-2 rounded bg-red-100 text-red-700 text-sm">
+          <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700">
             {actionError}
           </div>
         ) : null}
         {actionSuccess ? (
-          <div className="mb-3 p-2 rounded bg-green-100 text-green-700 text-sm">
+          <div className="mb-4 rounded-xl border border-green-200 bg-green-50 p-3 text-sm font-medium text-green-700">
             {actionSuccess}
           </div>
         ) : null}
 
-        {/* Search + filters */}
-        <div className="mb-4 flex flex-col sm:flex-row gap-3 sm:items-center">
-          <div className="flex-1 relative">
-            <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm" />
-            <input
-              type="text"
-              placeholder="Search by name or card..."
-              value={searchText}
-              onChange={(e) => setSearchText(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
+        <div className="mb-5 rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_16px_32px_rgba(15,23,42,0.06)]">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+            <div className="relative flex-1">
+              <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search by name or card..."
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-sm text-slate-700 shadow-inner outline-none transition focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100"
+              />
+            </div>
 
-          <div className="w-full sm:w-40">
-            <select
-              value={batchFilter}
-              onChange={(e) => setBatchFilter(e.target.value)}
-              className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="all">All batches</option>
-              <option value="20/21">20/21</option>
-              <option value="21/22">21/22</option>
-              <option value="22/23">22/23</option>
-              <option value="23/24">23/24</option>
-            </select>
-          </div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:w-auto lg:min-w-[320px]">
+              <select
+                value={batchFilter}
+                onChange={(e) => setBatchFilter(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 shadow-inner outline-none transition focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100"
+              >
+                <option value="all">All batches</option>
+                <option value="20/21">20/21</option>
+                <option value="21/22">21/22</option>
+                <option value="22/23">22/23</option>
+                <option value="23/24">23/24</option>
+              </select>
 
-          <div className="w-full sm:w-40">
-            <select
-              value={departmentFilter}
-              onChange={(e) => setDepartmentFilter(e.target.value)}
-              className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="all">All departments</option>
-              <option value="ITT">ITT</option>
-              <option value="EET">EET</option>
-              <option value="MTT">MTT</option>
-              <option value="BPT">BPT</option>
-              <option value="Food">Food</option>
-            </select>
+              <select
+                value={departmentFilter}
+                onChange={(e) => setDepartmentFilter(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 shadow-inner outline-none transition focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100"
+              >
+                <option value="all">All departments</option>
+                <option value="ITT">ITT</option>
+                <option value="EET">EET</option>
+                <option value="MTT">MTT</option>
+                <option value="BPT">BPT</option>
+                <option value="Food">Food</option>
+              </select>
+            </div>
           </div>
         </div>
 
         {loading ? (
-          <div className="flex items-center gap-2 text-gray-600">
-            <FaSpinner className="animate-spin" />
+          <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-5 text-slate-600 shadow-sm">
+            <FaSpinner className="animate-spin text-blue-600" />
             <span>Loading users...</span>
           </div>
         ) : filteredUsers.length === 0 ? (
-          <p className="text-gray-600 text-sm sm:text-base">
+          <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-600 shadow-sm">
             No users match your search.
-          </p>
+          </div>
         ) : (
-          <div className="bg-white rounded-lg shadow-md divide-y">
+          <div className="space-y-3">
             {filteredUsers.map((u) => (
               <div
                 key={u.id}
@@ -217,59 +259,77 @@ const ManageUsers = () => {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') navigate(`/users/${u.id}`);
                 }}
-                className="w-full text-left px-4 py-3 flex items-center justify-between hover:bg-gray-50 cursor-pointer"
+                className="group w-full rounded-[22px] border border-slate-200 bg-white p-4 text-left shadow-[0_12px_26px_rgba(15,23,42,0.04)] transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_18px_38px_rgba(59,130,246,0.12)] cursor-pointer"
               >
-                <div className="flex items-center gap-3">
-                  {/* Avatar: show photoURL if exists, otherwise icon */}
-                  {u.photoURL ? (
-                    <img
-                      src={u.photoURL}
-                      alt={u.name || 'User'}
-                      className="w-10 h-10 rounded-full object-cover border border-gray-200 bg-gray-100"
-                    />
-                  ) : (
-                    <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
-                      <FaUser />
-                    </div>
-                  )}
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex min-w-0 items-center gap-3">
+                    {u.photoURL ? (
+                      <img
+                        src={u.photoURL}
+                        alt={u.name || 'User'}
+                        className="h-12 w-12 rounded-full border border-slate-200 object-cover bg-slate-100"
+                      />
+                    ) : (
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-blue-100 to-cyan-100 text-lg font-bold text-blue-700">
+                        <FaUser />
+                      </div>
+                    )}
 
-                  <div>
-                    <p className="font-semibold text-gray-800 text-sm sm:text-base">
-                      {u.name || 'No name'}
-                    </p>
-                    <p className="flex items-center gap-1 text-xs sm:text-sm text-gray-600">
-                      <FaEnvelope /> {u.email}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      Card: {u.cardNumber || '-'} • Batch: {u.batch || '-'} • Dept: {u.studyDepartment || '-'}
-                    </p>
+                    <div className="min-w-0">
+                      <p className="truncate text-base font-bold text-slate-800 sm:text-lg">
+                        {u.name || 'No name'}
+                      </p>
+                      <p className="mt-1 flex items-center gap-1 text-xs text-slate-500 sm:text-sm">
+                        <FaEnvelope className="text-[11px]" />
+                        <span className="truncate">{u.email}</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 self-start sm:self-auto">
+                    <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-600">
+                      {u.userType || 'user'}
+                    </span>
+
+                    {canDeleteUsers && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteUser(u.id, u.name || u.email || '');
+                        }}
+                        disabled={deletingUserId === u.id}
+                        aria-label={
+                          deletingUserId === u.id
+                            ? 'Deleting user'
+                            : `Delete user ${u.name || u.email || ''}`.trim()
+                        }
+                        className="inline-flex items-center justify-center gap-1 rounded-lg bg-red-600 px-3 py-2 text-[11px] font-semibold text-white shadow-sm transition hover:bg-red-700 disabled:opacity-50"
+                        title="Delete user"
+                      >
+                        <FaTrash />
+                        <span className="hidden sm:inline">
+                          {deletingUserId === u.id ? 'Deleting...' : 'Delete'}
+                        </span>
+                      </button>
+                    )}
                   </div>
                 </div>
-                <span className="text-xs sm:text-sm text-gray-500">
-                  {u.userType || 'user'}
-                </span>
-                {canDeleteUsers && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteUser(u.id, u.name || u.email || '');
-                    }}
-                    disabled={deletingUserId === u.id}
-                    aria-label={
-                      deletingUserId === u.id
-                        ? 'Deleting user'
-                        : `Delete user ${u.name || u.email || ''}`.trim()
-                    }
-                    className="ml-3 shrink-0 inline-flex items-center justify-center gap-1 rounded bg-red-600 hover:bg-red-700 text-white font-semibold disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 h-9 w-9 sm:h-auto sm:w-auto sm:px-3 sm:py-2 text-xs"
-                    title="Delete user"
-                  >
-                    <FaTrash />
-                    <span className="hidden sm:inline">
-                      {deletingUserId === u.id ? 'Deleting...' : 'Delete'}
-                    </span>
-                  </button>
-                )}
+
+                <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                  <div className="rounded-xl bg-slate-50 px-2.5 py-2 text-xs text-slate-600">
+                    <span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Card</span>
+                    <span className="mt-1 block font-semibold text-slate-700">{u.cardNumber || '-'}</span>
+                  </div>
+                  <div className="rounded-xl bg-slate-50 px-2.5 py-2 text-xs text-slate-600">
+                    <span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Batch</span>
+                    <span className="mt-1 block font-semibold text-slate-700">{u.batch || '-'}</span>
+                  </div>
+                  <div className="rounded-xl bg-slate-50 px-2.5 py-2 text-xs text-slate-600">
+                    <span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Department</span>
+                    <span className="mt-1 block font-semibold text-slate-700">{u.studyDepartment || '-'}</span>
+                  </div>
+                </div>
               </div>
             ))}
           </div>
