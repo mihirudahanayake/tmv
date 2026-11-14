@@ -55,10 +55,10 @@ const SuperAdminDashboard = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-sky-100 via-white to-violet-100">
+    <div className="-mx-3 -mt-4 -mb-8 min-h-[calc(100dvh-4rem)] bg-gradient-to-br from-sky-100 via-white to-violet-100 sm:-mx-5 lg:-mx-6 2xl:-mx-10">
       <Header userType="superAdmin" />
 
-      <main className="container mx-auto px-4 py-6 sm:py-8 max-w-6xl">
+      <main className="mx-auto w-full px-4 py-6 sm:py-8 xl:px-8 2xl:px-10">
         <div className="mb-6 rounded-[28px] border border-white/60 bg-white/70 p-5 shadow-[0_25px_60px_rgba(14,116,144,0.12)] backdrop-blur-sm sm:p-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
@@ -96,7 +96,7 @@ const SuperAdminDashboard = () => {
               </div>
 
               <div className="p-4 sm:p-6">
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                   {departmentBreakdown.map(({ dept, label, count }, index) => {
                     const percentageOfTotal = totalUsers > 0 ? (count / totalUsers) * 100 : 0;
                     const barWidth = Math.max(percentageOfTotal, count > 0 ? 10 : 0);
