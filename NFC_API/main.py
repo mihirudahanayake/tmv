@@ -1,4 +1,4 @@
-from fastapi import FastAPI, WebSocket
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from nfc_reader import nfc
 import asyncio
@@ -14,9 +14,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-clients = []
 
 
 @app.get("/")
@@ -68,33 +65,17 @@ def write_card(id: str = Query(...)):
 
 @app.websocket("/nfc/events")
 async def websocket_endpoint(websocket: WebSocket):
-
     await websocket.accept()
-
-    clients.append(websocket)
-
+    last_uid = None
     try:
-
         while True:
-
-            uid = nfc.read_uid()
-
-            if uid:
-
-                data = {
-                    "event":"card_detected",
-                    "uid":uid
-                }
-
-
-                await websocket.send_json(data)
-
-                await asyncio.sleep(2)
-
-
-            await asyncio.sleep(0.5)
-
-
-    except Exception:
-
-        clients.remove(websocket)
+            uid = await asyncio.to_thread(nfc.read_uid)
+            if uid != last_uid:
+                await websocket.send_json({
+                    "event": "card_detected" if uid else "card_removed",
+                    "uid": uid,
+                })
+                last_uid = uid
+            await asyncio.sleep(0.1)
+    except WebSocketDisconnect:
+        pass

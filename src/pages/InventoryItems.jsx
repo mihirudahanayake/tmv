@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -32,12 +32,21 @@ const InventoryItems = () => {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
   const [editingItem, setEditingItem] = useState(null);
+  const [rfidScanning, setRfidScanning] = useState(false);
+  const [rfidMessage, setRfidMessage] = useState('');
+  const scanControllerRef = useRef(null);
+  const nfcApiUrl = (
+    import.meta.env.VITE_NFC_URL ||
+    import.meta.env.NFC_URL ||
+    'http://localhost:8000'
+  ).trim().replace(/\/+$/, '');
   const [editFormData, setEditFormData] = useState({
     itemNo: '',
     itemName: '',
     category: '',
     description: '',
     imageUrl: '',
+    rfidCardId: '',
   });
   const [editImageFile, setEditImageFile] = useState(null);
   const [editImagePreview, setEditImagePreview] = useState('');
@@ -159,12 +168,14 @@ const InventoryItems = () => {
       category: item.category || '',
       description: item.description || '',
       imageUrl: item.imageUrl || '',
+      rfidCardId: item.rfidCardId || '',
     });
     setEditImageFile(null);
     setEditImagePreview(item.imageUrl || '');
     setEditImageError('');
     setShowEditModal(true);
     setMessage({ type: '', text: '' });
+    setRfidMessage('');
   };
 
   const handleEditModalChange = (e) => {
@@ -183,7 +194,73 @@ const InventoryItems = () => {
     setEditImagePreview(URL.createObjectURL(file));
   };
 
+  const handleScanRfid = async () => {
+    if (rfidScanning) {
+      scanControllerRef.current?.abort();
+      setRfidMessage('RFID scan cancelled.');
+      return;
+    }
+
+    if (!nfcApiUrl) {
+      setRfidMessage('NFC_URL is not configured. Set VITE_NFC_URL to your NFC API address.');
+      return;
+    }
+
+    const controller = new AbortController();
+    scanControllerRef.current = controller;
+    setRfidScanning(true);
+    setRfidMessage('Waiting for RFID card...');
+
+    try {
+      const scanDeadline = Date.now() + 30000;
+      while (Date.now() < scanDeadline) {
+        const response = await fetch(`${nfcApiUrl}/nfc/read`, {
+          cache: 'no-store',
+          signal: controller.signal,
+        });
+        if (!response.ok) {
+          throw new Error(`NFC reader returned ${response.status}`);
+        }
+
+        const data = await response.json();
+        const uid = String(data?.uid ?? '').trim();
+        if (uid) {
+          const usedSnapshot = await getDocs(
+            query(collection(db, 'inventory'), where('rfidCardId', '==', uid))
+          );
+          const existingItem = usedSnapshot.docs.find((entry) => entry.id !== editingItem?.id);
+
+          if (existingItem) {
+            setRfidMessage(`This RFID card is already assigned to ${existingItem.data().itemName || 'another item'}.`);
+          } else {
+            setEditFormData((previous) => ({ ...previous, rfidCardId: uid }));
+            setRfidMessage(`RFID card detected: ${uid}. Save the item to keep this assignment.`);
+          }
+          return;
+        }
+
+        await new Promise((resolve) => window.setTimeout(resolve, 1500));
+      }
+
+      setRfidMessage('No RFID card detected. Try again.');
+    } catch (error) {
+      if (error.name !== 'AbortError') {
+        console.error('Error reading RFID card:', error);
+        setRfidMessage('Could not read an RFID card. Check that the NFC reader service is running.');
+      }
+    } finally {
+      if (scanControllerRef.current === controller) {
+        scanControllerRef.current = null;
+        setRfidScanning(false);
+      }
+    }
+  };
+
   const handleCloseEditModal = () => {
+    scanControllerRef.current?.abort();
+    scanControllerRef.current = null;
+    setRfidScanning(false);
+    setRfidMessage('');
     setShowEditModal(false);
     setEditingItem(null);
     setEditFormData({
@@ -192,6 +269,7 @@ const InventoryItems = () => {
       category: '',
       description: '',
       imageUrl: '',
+      rfidCardId: '',
     });
     setEditImageFile(null);
     setEditImagePreview('');
@@ -208,6 +286,18 @@ const InventoryItems = () => {
     setEditImageError('');
 
     try {
+      const rfidCardId = editFormData.rfidCardId.trim();
+      if (rfidCardId) {
+        const usedSnapshot = await getDocs(
+          query(collection(db, 'inventory'), where('rfidCardId', '==', rfidCardId))
+        );
+        const existingItem = usedSnapshot.docs.find((entry) => entry.id !== editingItem.id);
+        if (existingItem) {
+          setRfidMessage(`This RFID card is already assigned to ${existingItem.data().itemName || 'another item'}.`);
+          return;
+        }
+      }
+
       let nextImageUrl = editFormData.imageUrl || '';
 
       if (editImageFile) {
@@ -220,6 +310,7 @@ const InventoryItems = () => {
 
       await updateDoc(doc(db, 'inventory', editingItem.id), {
         ...editFormData,
+        rfidCardId,
         imageUrl: nextImageUrl,
         updatedAt: serverTimestamp(),
       });
@@ -726,20 +817,40 @@ const InventoryItems = () => {
                   />
                 </div>
 
+                <div>
+                  <label htmlFor="edit-rfid-card-id" className="block text-sm font-semibold text-gray-700 mb-1">RFID Card ID</label>
+                  <div className="flex gap-2">
+                    <input
+                      id="edit-rfid-card-id"
+                      type="text"
+                      name="rfidCardId"
+                      value={editFormData.rfidCardId}
+                      onChange={handleEditModalChange}
+                      placeholder="Scan a card or enter its ID"
+                      className="min-w-0 flex-1 px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleScanRfid}
+                      className="inline-flex items-center justify-center rounded border border-blue-600 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100 transition disabled:opacity-50"
+                    >
+                      {rfidScanning ? 'Cancel scan' : 'Add RFID'}
+                    </button>
+                  </div>
+                  {rfidMessage && (
+                    <p className={`mt-1 text-sm ${rfidMessage.startsWith('Could not') || rfidMessage.startsWith('No RFID') || rfidMessage.startsWith('This RFID') || rfidMessage.startsWith('NFC_URL') ? 'text-red-600' : 'text-blue-700'}`}>
+                      {rfidMessage}
+                    </p>
+                  )}
+                </div>
+
                 <div className="flex gap-2">
                   <button
                     type="submit"
-                    disabled={saving || editImageUploading}
+                    disabled={saving || editImageUploading || rfidScanning}
                     className="flex-1 bg-green-600 text-white py-2 px-4 rounded font-semibold hover:bg-green-700 transition disabled:opacity-50 text-sm"
                   >
                     {saving || editImageUploading ? 'Saving...' : 'Update Item'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {}}
-                    className="inline-flex items-center justify-center rounded border border-blue-600 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100 transition"
-                  >
-                    Add RFID
                   </button>
                   <button
                     type="button"

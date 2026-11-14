@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -27,12 +27,15 @@ const Inventory = () => {
   const navigate = useNavigate();
   const { profile } = useUserProfile();
   const [items, setItems] = useState([]);
+  const itemsRef = useRef(items);
   const [allMembers, setAllMembers] = useState([]);
   const [issueHistory, setIssueHistory] = useState([]);
   const [issueHistoryLoading, setIssueHistoryLoading] = useState(false);
   const [issueHistoryTab, setIssueHistoryTab] = useState('active');
   const [expandedIssueIds, setExpandedIssueIds] = useState([]);
   const [selectedReturnItems, setSelectedReturnItems] = useState({});
+  const selectedReturnItemsRef = useRef(selectedReturnItems);
+  const issueHistoryWithStatusRef = useRef([]);
   const [selectedItems, setSelectedItems] = useState([]);
   const [selectedMembers, setSelectedMembers] = useState([]);
   const [itemSearchText, setItemSearchText] = useState('');
@@ -40,6 +43,17 @@ const Inventory = () => {
   const [issueReason, setIssueReason] = useState('');
   const [issueDescription, setIssueDescription] = useState('');
   const [showManualCheckout, setShowManualCheckout] = useState(false);
+  const [rfidScanning, setRfidScanning] = useState(false);
+  const [rfidScanMessage, setRfidScanMessage] = useState('');
+  const [rfidReturnScanRecordId, setRfidReturnScanRecordId] = useState(null);
+  const [rfidReturnScanMessageRecordId, setRfidReturnScanMessageRecordId] = useState(null);
+  const [rfidReturnScanMessage, setRfidReturnScanMessage] = useState('');
+  const rfidSocketRef = useRef(null);
+  const nfcApiUrl = (
+    import.meta.env.VITE_NFC_URL ||
+    import.meta.env.NFC_URL ||
+    'http://localhost:8000'
+  ).trim().replace(/\/+$/, '');
   const [showIssueCloseConfirm, setShowIssueCloseConfirm] = useState(false);
   const [checkingOut, setCheckingOut] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -69,6 +83,8 @@ const Inventory = () => {
   const [commentEditingIndex, setCommentEditingIndex] = useState(null);
   const [commentSaving, setCommentSaving] = useState(false);
 
+  selectedReturnItemsRef.current = selectedReturnItems;
+
   useEffect(() => {
     if (!message.text) return undefined;
     const timeoutId = setTimeout(() => setMessage({ type: '', text: '' }), 5000);
@@ -79,6 +95,7 @@ const Inventory = () => {
     const inventoryUnsubscribe = onSnapshot(collection(db, 'inventory'), (snapshot) => {
       const data = snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() }));
       data.sort((a, b) => String(a.itemName || '').localeCompare(String(b.itemName || '')));
+      itemsRef.current = data;
       setItems(data);
     }, (error) => {
       console.error('Error listening to inventory:', error);
@@ -115,6 +132,140 @@ const Inventory = () => {
       issueHistoryUnsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    if (!showManualCheckout && !rfidReturnScanRecordId) return undefined;
+
+    let disposed = false;
+    let reconnectTimeout;
+    let socket;
+    let lastDetectedUid = '';
+    const websocketUrl = `${nfcApiUrl.replace(/^https:/i, 'wss:').replace(/^http:/i, 'ws:')}/nfc/events`;
+
+    const connect = () => {
+      if (disposed) return;
+
+      setRfidScanning(true);
+      if (showManualCheckout) setRfidScanMessage('Connecting to RFID reader...');
+      else setRfidReturnScanMessage('Connecting to RFID reader...');
+
+      try {
+        socket = new WebSocket(websocketUrl);
+        rfidSocketRef.current = socket;
+      } catch (error) {
+        console.error('Error connecting to RFID reader:', error);
+        setRfidScanning(false);
+        if (showManualCheckout) setRfidScanMessage('Could not connect to the RFID reader service.');
+        else setRfidReturnScanMessage('Could not connect to the RFID reader service.');
+        reconnectTimeout = window.setTimeout(connect, 1500);
+        return;
+      }
+
+      socket.onopen = () => {
+        if (!disposed) {
+          if (showManualCheckout) setRfidScanMessage('Waiting for an item RFID card...');
+          else setRfidReturnScanMessage('Waiting for an item RFID card...');
+        }
+      };
+
+      socket.onmessage = (event) => {
+        if (disposed) return;
+
+        try {
+          const data = JSON.parse(event.data);
+          if (data.event === 'card_removed') {
+            lastDetectedUid = '';
+            if (showManualCheckout) setRfidScanMessage('Waiting for an item RFID card...');
+            else setRfidReturnScanMessage('Waiting for an item RFID card...');
+            return;
+          }
+
+          const uid = String(data.uid || '').trim();
+          if (data.event !== 'card_detected' || !uid || uid.toUpperCase() === lastDetectedUid) return;
+          lastDetectedUid = uid.toUpperCase();
+
+          const item = itemsRef.current.find(
+            (entry) => String(entry.rfidCardId || '').trim().toUpperCase() === lastDetectedUid
+          );
+
+          if (showManualCheckout) {
+            if (!item) {
+              setRfidScanMessage(`No inventory item is assigned to RFID card ${uid}.`);
+            } else if (['checkedOut', 'overdue'].includes(item.status || 'available')) {
+              setRfidScanMessage(`${item.itemName || 'This item'} is not available to issue.`);
+            } else {
+              setSelectedItems((previous) => (
+                previous.includes(item.id) ? previous : [...previous, item.id]
+              ));
+              setRfidScanMessage(`${item.itemName || 'Item'}${item.itemNo ? ` (#${item.itemNo})` : ''} is selected. Waiting for another card...`);
+            }
+          } else {
+            const issueRecord = issueHistoryWithStatusRef.current.find((record) => (
+              record.id === rfidReturnScanRecordId
+            ));
+            const itemInRecord = issueRecord?.itemList.some((issuedItem, index) => (
+              issuedItem.itemId === item?.id &&
+              issueRecord.itemsWithStatus[index]?.returnStatus !== 'returned'
+            ));
+
+            if (!item) {
+              setRfidReturnScanMessage(`No inventory item is assigned to RFID card ${uid}.`);
+            } else if (!['checkedOut', 'overdue'].includes(item.status || 'available')) {
+              setRfidReturnScanMessage(`${item.itemName || 'This item'} is not currently checked out.`);
+            } else if (!itemInRecord) {
+              setRfidReturnScanMessage(`${item.itemName || 'This item'} is not outstanding in this issue entry.`);
+            } else if ((selectedReturnItemsRef.current[issueRecord.id] || []).includes(item.id)) {
+              setRfidReturnScanMessage(`${item.itemName || 'This item'} is already selected for return.`);
+            } else {
+              setSelectedReturnItems((previous) => ({
+                ...previous,
+                [issueRecord.id]: Array.from(new Set([...(previous[issueRecord.id] || []), item.id])),
+              }));
+              setExpandedIssueIds((previous) => (
+                previous.includes(issueRecord.id) ? previous : [...previous, issueRecord.id]
+              ));
+              setRfidReturnScanMessage(`${item.itemName || 'Item'}${item.itemNo ? ` (#${item.itemNo})` : ''} selected for return. Click "Return Selected Items" to complete.`);
+              setRfidScanning(false);
+              setRfidReturnScanRecordId(null);
+            }
+          }
+        } catch (error) {
+          console.error('Error processing RFID reader event:', error);
+          if (showManualCheckout) setRfidScanMessage('Received an invalid RFID reader event.');
+          else setRfidReturnScanMessage('Received an invalid RFID reader event.');
+        }
+      };
+
+      socket.onerror = () => {
+        if (!disposed) {
+          if (showManualCheckout) setRfidScanMessage('RFID reader connection interrupted. Reconnecting...');
+          else setRfidReturnScanMessage('RFID reader connection interrupted. Reconnecting...');
+        }
+      };
+
+      socket.onclose = () => {
+        if (rfidSocketRef.current === socket) rfidSocketRef.current = null;
+        if (!disposed) {
+          setRfidScanning(false);
+          if (showManualCheckout) setRfidScanMessage('RFID reader disconnected. Reconnecting...');
+          else setRfidReturnScanMessage('RFID reader disconnected. Reconnecting...');
+          reconnectTimeout = window.setTimeout(connect, 1500);
+        }
+      };
+    };
+
+    connect();
+
+    return () => {
+      disposed = true;
+      window.clearTimeout(reconnectTimeout);
+      if (rfidSocketRef.current === socket) rfidSocketRef.current = null;
+      if (socket) {
+        socket.onclose = null;
+        socket.close();
+      }
+    };
+  }, [showManualCheckout, rfidReturnScanRecordId, nfcApiUrl]);
 
   const fetchIssueHistory = async () => {
     setIssueHistoryLoading(true);
@@ -439,6 +590,7 @@ const Inventory = () => {
 
   const activeIssueHistory = issueHistoryWithStatus.filter((record) => !record.isCompleted);
   const completedIssueHistory = issueHistoryWithStatus.filter((record) => record.isCompleted);
+  issueHistoryWithStatusRef.current = activeIssueHistory;
 
   const hasIssueDraft =
     Boolean(issueReason.trim()) ||
@@ -458,11 +610,17 @@ const Inventory = () => {
   };
 
   const openIssueModal = () => {
+    setRfidReturnScanRecordId(null);
     setShowIssueCloseConfirm(false);
+    setRfidScanMessage('');
     setShowManualCheckout(true);
   };
 
   const closeIssueModal = ({ preserveDraft = true } = {}) => {
+    rfidSocketRef.current?.close();
+    setRfidReturnScanRecordId(null);
+    setRfidScanning(false);
+    setRfidScanMessage('');
     setShowIssueCloseConfirm(false);
     setShowManualCheckout(false);
     if (!preserveDraft) resetIssueDraft();
@@ -956,7 +1114,9 @@ const Inventory = () => {
         {canManageInventory && (
           <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
-              <h2 className="text-lg sm:text-xl font-semibold text-gray-800">Issued History</h2>
+              <div>
+                <h2 className="text-lg sm:text-xl font-semibold text-gray-800">Issued History</h2>
+              </div>
               <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                 <button type="button" onClick={() => setIssueHistoryTab('active')} className={`px-3 py-2 rounded border text-sm font-semibold ${issueHistoryTab === 'active' ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-300 text-gray-700 hover:bg-gray-50'}`}>Active Issues</button>
                 <button type="button" onClick={() => setIssueHistoryTab('completed')} className={`px-3 py-2 rounded border text-sm font-semibold ${issueHistoryTab === 'completed' ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-300 text-gray-700 hover:bg-gray-50'}`}>Completed Issues</button>
@@ -992,6 +1152,11 @@ const Inventory = () => {
                       <button
                         type="button"
                         onClick={() => {
+                          if (rfidReturnScanRecordId === record.id) {
+                            setRfidReturnScanRecordId(null);
+                            setRfidReturnScanMessage('RFID scan stopped because this issue entry was closed.');
+                            setRfidScanning(false);
+                          }
                           setExpandedIssueIds((prev) => (
                             prev.includes(record.id) ? prev.filter((id) => id !== record.id) : [...prev, record.id]
                           ));
@@ -1013,6 +1178,34 @@ const Inventory = () => {
 
                       {isOpen && (
                         <div className="p-4 bg-white">
+                          {issueHistoryTab === 'active' && (
+                            <div className="mb-3 flex flex-wrap items-center gap-3">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (rfidReturnScanRecordId === record.id) {
+                                    setRfidReturnScanRecordId(null);
+                                    setRfidReturnScanMessage('RFID scan cancelled.');
+                                    setRfidScanning(false);
+                                  } else {
+                                    setRfidReturnScanMessage('Connecting to RFID reader...');
+                                    setRfidReturnScanMessageRecordId(record.id);
+                                    setRfidReturnScanRecordId(record.id);
+                                  }
+                                }}
+                                className="inline-flex items-center gap-2 rounded border border-blue-600 bg-blue-50 px-3 py-1.5 text-sm font-semibold text-blue-700 hover:bg-blue-100"
+                              >
+                                {rfidReturnScanRecordId === record.id && rfidScanning && <FaSpinner className="animate-spin" />}
+                                {rfidReturnScanRecordId === record.id ? 'Cancel RFID scan' : 'Scan RFID'}
+                              </button>
+                              {rfidReturnScanRecordId === record.id && (
+                                <span className="text-sm text-blue-700">Tap an item card from this issue entry.</span>
+                              )}
+                              {rfidReturnScanMessage && rfidReturnScanMessageRecordId === record.id && (
+                                <span className="text-sm text-blue-700">{rfidReturnScanMessage}</span>
+                              )}
+                            </div>
+                          )}
                           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                             <div>
                               <p className="text-sm font-semibold text-gray-800 mb-2">Items</p>
@@ -1242,7 +1435,28 @@ const Inventory = () => {
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Select Items</label>
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <label className="block text-sm font-semibold text-gray-700">Select Items</label>
+                      {rfidScanning && (
+                        <span className="inline-flex items-center gap-2 text-sm text-blue-700">
+                          <FaSpinner className="animate-spin" />
+                          RFID reader active
+                        </span>
+                      )}
+                    </div>
+                    {rfidScanMessage && (
+                      <p className={`mb-2 text-sm ${
+                        rfidScanMessage.startsWith('No inventory') ||
+                        rfidScanMessage.includes('not available') ||
+                        rfidScanMessage.startsWith('Could not') ||
+                        rfidScanMessage.startsWith('No RFID') ||
+                        rfidScanMessage.startsWith('NFC_URL')
+                          ? 'text-red-600'
+                          : 'text-blue-700'
+                      }`}>
+                        {rfidScanMessage}
+                      </p>
+                    )}
                     <input type="text" value={itemSearchText} onChange={(e) => setItemSearchText(e.target.value)} placeholder="Search by item no or name" className="w-full mb-2 px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
                     <div className="border rounded bg-gray-50 p-3 max-h-60 overflow-y-auto">
                       {availableItems.length === 0 ? (
