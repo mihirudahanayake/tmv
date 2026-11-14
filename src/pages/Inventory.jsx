@@ -400,10 +400,14 @@ const Inventory = () => {
 
   const getIssueItemStatus = (item) => {
     if (!item) return 'not returned';
-    if (item.returnStatus === 'returned' || item.returnedAt) return 'returned';
-    if (item.status === 'returned') return 'returned';
 
-    const dueAtValue = item.dueAt;
+    const inventoryMatch = items.find((entry) => entry.id === item.itemId || entry.id === item.id);
+    const liveStatus = inventoryMatch?.status || item.status || item.returnStatus;
+
+    if (item.returnStatus === 'returned' || item.returnedAt || liveStatus === 'returned') return 'returned';
+    if (item.returnStatus === 'overdue' || item.status === 'overdue' || liveStatus === 'overdue' || item.overdueAt || inventoryMatch?.overdueAt) return 'overdue';
+
+    const dueAtValue = item.dueAt || inventoryMatch?.dueAt;
     const dueAtDate = dueAtValue && typeof dueAtValue.toDate === 'function'
       ? dueAtValue.toDate()
       : dueAtValue ? new Date(dueAtValue) : null;
@@ -974,6 +978,7 @@ const Inventory = () => {
                   const itemList = record.itemList || [];
                   const userList = record.userList || [];
                   const selectedIds = selectedReturnItems[record.id] || [];
+                  const recordHasOverdue = (record.itemsWithStatus || []).some((item) => item.returnStatus === 'overdue');
                   const selectableIds = itemList
                     .filter((item, index) => (record.itemsWithStatus || [])[index]?.returnStatus !== 'returned')
                     .map((item) => item.itemId)
@@ -994,7 +999,10 @@ const Inventory = () => {
                         className="w-full flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-3 px-4 py-3 bg-gray-50 hover:bg-gray-100 text-left"
                       >
                         <div className="min-w-0">
-                          <p className="font-semibold text-gray-800">{formatDateTime(record.createdAt)}</p>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className={`font-semibold ${recordHasOverdue ? 'text-red-600' : 'text-gray-800'}`}>{formatDateTime(record.createdAt)}</p>
+                            {recordHasOverdue && <span className="text-xs px-2 py-1 rounded bg-red-100 text-red-700 font-semibold">Overdue</span>}
+                          </div>
                           {record.reason && <p className="text-sm text-gray-600">Reason: {record.reason}</p>}
                           <p className="text-sm text-gray-600">{itemList.length} item(s) issued to {userList.length} user(s)</p>
                           {record.isCompleted && userList.length > 0 && <p className="text-sm text-gray-600">Issued to: {userList.map((user) => user.name || user.email || 'User').join(', ')}</p>}
@@ -1195,6 +1203,13 @@ const Inventory = () => {
                 <div className="flex gap-2">
                   <button type="submit" disabled={saving || addImageUploading} className="flex-1 bg-green-600 text-white py-2 px-4 rounded font-semibold hover:bg-green-700 transition disabled:opacity-50 text-sm">
                     {saving || addImageUploading ? 'Saving...' : 'Add Item'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {}}
+                    className="inline-flex items-center justify-center rounded border border-blue-600 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100 transition"
+                  >
+                    Add RFID
                   </button>
                   <button type="button" onClick={handleCloseAddModal} className="px-4 py-2 border border-gray-300 rounded text-gray-700 font-semibold hover:bg-gray-100 transition text-sm">
                     Cancel
