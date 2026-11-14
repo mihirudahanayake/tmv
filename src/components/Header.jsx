@@ -23,7 +23,9 @@ import { useDarkMode } from '../context/DarkModeContext';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { auth } from '../firebase/config';
 
-const Header = ({ userType, isTO = false, isDarkMode, toggleDarkMode }) => {
+const Header = ({ userType, isTO = false, isDarkMode, toggleDarkMode, isGlobalLayout = false }) => {
+  if (!isGlobalLayout) return null;
+
   const location = useLocation();
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);

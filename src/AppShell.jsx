@@ -1,7 +1,7 @@
 // src/AppShell.jsx
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, useLocation } from 'react-router-dom';
 import { useIdleLogout } from './hooks/useIdleLogout';
-// your existing imports hh
+import Header from './components/Header.jsx';
 import DeptHeadRoute from './components/DeptHeadRoute.jsx';
 import SuperAdminRoute from './components/SuperAdminRoute.jsx';
 import SiteAdminRoute from './components/SiteAdminRoute.jsx';
@@ -39,15 +39,43 @@ import SiteAdminDashboard from './pages/SiteAdminDashboard.jsx';
 
 const AppShell = () => {
   useIdleLogout(); // idle timer active for all routes
+  const location = useLocation();
+
+  const getHeaderUserType = () => {
+    if (location.pathname.startsWith('/super-admin')) return 'superAdmin';
+    if (location.pathname.startsWith('/site-admin')) return 'siteAdmin';
+    if (
+      location.pathname.startsWith('/admin-home') ||
+      location.pathname.startsWith('/create-user') ||
+      location.pathname.startsWith('/assign-work') ||
+      location.pathname.startsWith('/work-list') ||
+      location.pathname.startsWith('/manage-users') ||
+      location.pathname.startsWith('/users/') ||
+      location.pathname.startsWith('/tasks/') ||
+      location.pathname.startsWith('/inventory') ||
+      location.pathname.startsWith('/access-records') ||
+      location.pathname.startsWith('/notifications') ||
+      location.pathname.startsWith('/admin/') ||
+      location.pathname.startsWith('/posting-dates') ||
+      location.pathname.startsWith('/add-old-work') ||
+      location.pathname.startsWith('/edit-old-work')
+    ) {
+      return 'admin';
+    }
+
+    return 'user';
+  };
 
   return (
-    <Routes>
-      {/* auth / common */}
-      <Route path="/" element={<Welcome />} />
-      <Route path="/login" element={<Login />} />
-      <Route path="/forgot-password" element={<ForgotPassword />} />
-      <Route path="/signup" element={<Signup />} />
-      <Route path="/home" element={<Home />} />
+    <>
+      <Header userType={getHeaderUserType()} isGlobalLayout />
+      <Routes>
+        {/* auth / common */}
+        <Route path="/" element={<Welcome />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/signup" element={<Signup />} />
+        <Route path="/home" element={<Home />} />
 
       {/* admin core */}
       <Route
@@ -231,7 +259,8 @@ const AppShell = () => {
         }
       />
 
-    </Routes>
+      </Routes>
+    </>
   );
 };
 
