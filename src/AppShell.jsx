@@ -42,8 +42,31 @@ const AppShell = () => {
   const location = useLocation();
 
   const getHeaderUserType = () => {
-    if (location.pathname.startsWith('/super-admin')) return 'superAdmin';
+    const superAdminRoutes = [
+      '/super-admin',
+      '/manage-users',
+      '/work-list',
+      '/inventory',
+      '/access-records',
+      '/notifications',
+      '/admin/',
+      '/posting-dates',
+      '/add-old-work',
+      '/edit-old-work',
+      '/create-user',
+      '/assign-work',
+      '/admin-home',
+      '/profile'
+    ];
+
+    const isSuperAdminArea = superAdminRoutes.some((route) =>
+      location.pathname === route || location.pathname.startsWith(route)
+    );
+
+    if (isSuperAdminArea) return 'superAdmin';
+
     if (location.pathname.startsWith('/site-admin')) return 'siteAdmin';
+
     if (
       location.pathname.startsWith('/admin-home') ||
       location.pathname.startsWith('/create-user') ||
