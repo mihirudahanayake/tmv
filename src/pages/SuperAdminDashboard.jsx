@@ -67,7 +67,7 @@ const SuperAdminDashboard = () => {
             </div>
             <div className="inline-flex items-center gap-2 rounded-full border border-violet-100 bg-violet-50 px-3 py-2 text-sm font-semibold text-violet-700 shadow-sm">
               <span className="h-2.5 w-2.5 rounded-full bg-violet-500" />
-              Highest member count: {strongestDepartment.label}
+              Total Members: {totalUsers}
             </div>
           </div>
         </div>
