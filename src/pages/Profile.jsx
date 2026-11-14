@@ -563,7 +563,7 @@ const Profile = () => {
   };
 
   return (
-    <div className={`min-h-screen transition-colors duration-300 ${isDarkMode ? 'bg-gray-900 text-gray-100' : 'bg-gray-50 text-gray-900'}`}>
+    <div className={`-mx-3 -mt-4 -mb-8 min-h-screen transition-colors duration-300 sm:-mx-5 lg:-mx-6 2xl:-mx-10 ${isDarkMode ? 'bg-gray-900 text-gray-100' : 'bg-gray-50 text-gray-900'}`}>
       <Header userType={userType} isTO={isTO} />
 
       <main className="container mx-auto px-4 py-6 sm:py-8 max-w-5xl">
