@@ -568,6 +568,7 @@ const UserDetails = () => {
                       className="border rounded px-3 py-2"
                     />
                   </label>
+                  {/*
                   <label className="flex flex-col gap-1">
                     <span className="font-semibold text-gray-700">Card</span>
                     <input
@@ -577,6 +578,7 @@ const UserDetails = () => {
                       className="border rounded px-3 py-2"
                     />
                   </label>
+                  */}
                   <label className="flex flex-col gap-1">
                     <span className="font-semibold text-gray-700">User type</span>
                     <input
@@ -648,10 +650,12 @@ const UserDetails = () => {
                   <span className="font-semibold">Registration no:</span>{' '}
                   {user.registrationNumber || '-'}
                 </p>
+                {/*
                 <p>
                   <span className="font-semibold">Card:</span>{' '}
                   {user.cardNumber || '-'}
                 </p>
+                */}
                 <p>
                   <span className="font-semibold">NFC Card ID:</span>{' '}
                   {user.NFC_card_id || '-'}

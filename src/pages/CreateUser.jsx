@@ -200,6 +200,7 @@ const CreateUser = () => {
                 placeholder="Ex: ITT/2021/123"
               />
             </div>
+            {/*
             <div>
               <label className="block text-gray-700 font-semibold mb-2 text-sm sm:text-base">Card Number</label>
               <input
@@ -211,6 +212,7 @@ const CreateUser = () => {
                 placeholder="If you have one"
               />
             </div>
+            */}
             <div>
               <label className="block text-gray-700 font-semibold mb-2 text-sm sm:text-base">NFC Card ID</label>
               <input

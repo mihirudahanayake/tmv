@@ -634,6 +634,7 @@ const Profile = () => {
                   />
                 </div>
 
+                {/*
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">
                     Card
@@ -647,6 +648,7 @@ const Profile = () => {
                     disabled={!isEditingProfile}
                   />
                 </div>
+                */}
 
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">
