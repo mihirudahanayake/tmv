@@ -7,7 +7,8 @@ import Header from '../components/Header';
 import { FaUser, FaEnvelope, FaSpinner, FaSearch, FaTrash } from 'react-icons/fa';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { httpsCallable } from 'firebase/functions';
-import { canEdit } from '../utils/authz';
+import { canEdit, normalizeRole, Roles } from '../utils/authz';
+import { WORK_DEPARTMENTS, formatWorkDepartmentLabel } from '../constants/workDepartments';
 
 const ManageUsers = () => {
   const { profile, loading: loadingProfile } = useUserProfile();
@@ -15,7 +16,8 @@ const ManageUsers = () => {
   const [loading, setLoading] = useState(true);
   const [searchText, setSearchText] = useState('');
   const [batchFilter, setBatchFilter] = useState('all');
-  const [departmentFilter, setDepartmentFilter] = useState('all');
+  const [workDepartmentFilter, setWorkDepartmentFilter] = useState('all');
+  const [studyDepartmentFilter, setStudyDepartmentFilter] = useState('all');
   const [deletingUserId, setDeletingUserId] = useState('');
   const [actionError, setActionError] = useState('');
   const [actionSuccess, setActionSuccess] = useState('');
@@ -25,14 +27,20 @@ const ManageUsers = () => {
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        if (loadingProfile) return;
+        if (loadingProfile || !profile) return;
 
-        const managed = Array.isArray(profile?.managedDepartments) ? profile.managedDepartments : [];
-        const dept = managed[0] || 'videography';
+        const role = normalizeRole(profile);
+        const isSuperAdminView = role === Roles.SUPER_ADMIN || role === Roles.SITE_ADMIN;
 
-        const snap = await getDocs(
-          query(collection(db, 'users'), where('departments', 'array-contains', dept))
-        );
+        let usersQuery = collection(db, 'users');
+
+        if (!isSuperAdminView) {
+          const managed = Array.isArray(profile?.managedDepartments) ? profile.managedDepartments : [];
+          const dept = managed[0] || 'videography';
+          usersQuery = query(usersQuery, where('departments', 'array-contains', dept));
+        }
+
+        const snap = await getDocs(usersQuery);
         const data = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
         setUsers(data);
       } catch (err) {
@@ -48,13 +56,15 @@ const ManageUsers = () => {
   const normalizedSearch = searchText.trim().toLowerCase();
 
   const filteredUsers = users.filter((u) => {
-    // batch filter
     if (batchFilter !== 'all' && (u.batch || '') !== batchFilter) return false;
 
-    // department filter
-    if (departmentFilter !== 'all' && (u.studyDepartment || '') !== departmentFilter) return false;
+    if (workDepartmentFilter !== 'all') {
+      const departments = Array.isArray(u.departments) ? u.departments : [];
+      if (!departments.includes(workDepartmentFilter)) return false;
+    }
 
-    // search by name or card
+    if (studyDepartmentFilter !== 'all' && (u.studyDepartment || '') !== studyDepartmentFilter) return false;
+
     if (!normalizedSearch) return true;
     const name = (u.name || '').toLowerCase();
     const card = (u.cardNumber || '').toLowerCase();
@@ -210,7 +220,7 @@ const ManageUsers = () => {
               />
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2 lg:w-auto lg:min-w-[320px]">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 lg:w-auto lg:min-w-[420px]">
               <select
                 value={batchFilter}
                 onChange={(e) => setBatchFilter(e.target.value)}
@@ -224,11 +234,24 @@ const ManageUsers = () => {
               </select>
 
               <select
-                value={departmentFilter}
-                onChange={(e) => setDepartmentFilter(e.target.value)}
+                value={workDepartmentFilter}
+                onChange={(e) => setWorkDepartmentFilter(e.target.value)}
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 shadow-inner outline-none transition focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100"
               >
-                <option value="all">All departments</option>
+                <option value="all">All work departments</option>
+                {WORK_DEPARTMENTS.map((dept) => (
+                  <option key={dept} value={dept}>
+                    {formatWorkDepartmentLabel(dept)}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={studyDepartmentFilter}
+                onChange={(e) => setStudyDepartmentFilter(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 shadow-inner outline-none transition focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100"
+              >
+                <option value="all">All study departments</option>
                 <option value="ITT">ITT</option>
                 <option value="EET">EET</option>
                 <option value="MTT">MTT</option>
