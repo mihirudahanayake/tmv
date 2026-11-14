@@ -322,6 +322,7 @@ const Signup = () => {
           </div>
 
           {/* Card number (optional) */}
+          {/*
           <div>
             <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-1">
               Card or Name (How others know you)
@@ -335,6 +336,7 @@ const Signup = () => {
               className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white text-gray-900 dark:bg-slate-800 dark:text-gray-100 dark:border-slate-700"
             />
           </div>
+          */}
 
           {/* Birthday */}
           <div>
