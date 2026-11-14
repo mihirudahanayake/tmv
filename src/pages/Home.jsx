@@ -671,8 +671,7 @@ const renderTeamMembers = (task) => {
         </div>
       )}
 
-      <main className="container mx-auto px-4 py-8 max-w-5xl">
-        {/* ...removed My Meetings/Workshops Button... */}
+      <main className="container mx-auto px-4 py-8 max-w-6xl">
         {/* Admin: Add event creation button */}
         {userType === 'admin' && (
           <div className="mb-6 flex justify-end">
@@ -681,15 +680,44 @@ const renderTeamMembers = (task) => {
             </Link>
           </div>
         )}
-        <div className="mb-8">
-          <h1 className="text-3xl sm:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600 dark:from-yellow-300 dark:to-pink-400 mb-2">
-            Welcome Back
-          </h1>
-          <p className="text-gray-600 dark:text-gray-300 text-sm sm:text-base">
-            Manage your tasks efficiently. Accept new assignments and track your
-            progress.
-          </p>
+        <div className="mb-8 rounded-[28px] border border-white/40 bg-white/55 dark:bg-slate-900/60 p-5 sm:p-6 shadow-[0_20px_50px_rgba(59,130,246,0.12)] backdrop-blur-sm">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-600 dark:text-blue-300 mb-2">Overview</p>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h1 className="text-3xl sm:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-sky-600 to-purple-600 dark:from-yellow-300 dark:via-orange-300 dark:to-pink-400 mb-2">
+                Welcome Back
+              </h1>
+              <p className="text-gray-600 dark:text-gray-300 text-sm sm:text-base">
+                Manage your tasks efficiently. Accept new assignments and track your
+                progress.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-50 to-purple-50 dark:from-slate-800 dark:to-slate-900 border border-blue-100 dark:border-slate-700 px-3 py-2 shadow-sm">
+              <div className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-200">{visibleTasks.length} active items</span>
+            </div>
+          </div>
         </div>
+
+        {!loadingUser && !loadingTasks && visibleTasks.length > 0 && (
+          <div className="mb-8 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+            {[
+              { label: 'Pending', value: pendingTasks.length, tone: 'from-yellow-400 to-orange-500', text: 'text-yellow-700' },
+              { label: 'Active', value: acceptedTasks.length, tone: 'from-blue-500 to-cyan-500', text: 'text-blue-700' },
+              { label: 'Completed', value: completedTasks.length, tone: 'from-emerald-500 to-green-500', text: 'text-emerald-700' },
+              { label: 'Rejected', value: rejectedTasks.length, tone: 'from-rose-500 to-red-500', text: 'text-rose-700' },
+            ].map((card) => (
+              <div key={card.label} className="group rounded-2xl border border-white/60 bg-white/60 p-4 shadow-md backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl dark:border-slate-700 dark:bg-slate-900/70">
+                <div className={`mb-3 h-2 w-16 rounded-full bg-gradient-to-r ${card.tone}`} />
+                <p className="text-sm text-gray-500 dark:text-gray-400">{card.label}</p>
+                <div className="mt-2 flex items-end justify-between">
+                  <span className="text-3xl font-bold text-gray-800 dark:text-gray-100">{card.value}</span>
+                  <span className={`text-xs font-semibold ${card.text}`}>{card.label}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         {loadingUser || loadingTasks ? (
           <div className="flex flex-col items-center justify-center py-20">
@@ -726,7 +754,7 @@ const renderTeamMembers = (task) => {
                   {pendingTasks.map((task) => (
                     <div
                       key={task.id}
-                      className="bg-white dark:bg-slate-900 rounded-2xl shadow-md hover:shadow-xl transition-all p-5 sm:p-6 border border-yellow-100 dark:border-blue-800"
+                      className="group bg-white dark:bg-slate-900 rounded-2xl shadow-md hover:shadow-xl hover:-translate-y-1 transition-all duration-300 p-5 sm:p-6 border border-yellow-100 dark:border-blue-800"
                     >
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex-1">
@@ -820,7 +848,7 @@ const renderTeamMembers = (task) => {
                       return (
                         <div
                           key={task.id}
-                          className="bg-white rounded-2xl shadow-md p-5 sm:p-6 border border-orange-100"
+                          className="group bg-white rounded-2xl shadow-md hover:shadow-xl hover:-translate-y-1 transition-all duration-300 p-5 sm:p-6 border border-orange-100"
                         >
                           <div className="flex items-start justify-between mb-3">
                             <div>
@@ -893,7 +921,7 @@ const renderTeamMembers = (task) => {
                     return (
                       <div
                         key={task.id}
-                        className="bg-white dark:bg-slate-900 rounded-2xl shadow-md hover:shadow-xl transition-all p-5 sm:p-6 border border-blue-100 dark:border-slate-700"
+                        className="group bg-white dark:bg-slate-900 rounded-2xl shadow-md hover:shadow-xl hover:-translate-y-1 transition-all duration-300 p-5 sm:p-6 border border-blue-100 dark:border-slate-700"
                       >
                         <h3 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-gray-100 mb-1">
                           {task.title || 'Task'}
@@ -987,7 +1015,7 @@ const renderTeamMembers = (task) => {
                     return (
                       <div
                         key={task.id}
-                        className="bg-white dark:bg-slate-900 rounded-2xl shadow-md p-5 sm:p-6 border border-green-100 dark:border-slate-700"
+                        className="group bg-white dark:bg-slate-900 rounded-2xl shadow-md hover:shadow-xl hover:-translate-y-1 transition-all duration-300 p-5 sm:p-6 border border-green-100 dark:border-slate-700"
                       >
                         <div className="flex items-start justify-between mb-3">
                           <div>

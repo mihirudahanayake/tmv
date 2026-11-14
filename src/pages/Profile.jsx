@@ -385,11 +385,14 @@ const Profile = () => {
     <div className="min-h-screen bg-gray-100">
       <Header userType={userType} isTO={isTO} />
 
-      <main className="container mx-auto px-4 py-6 sm:py-8 max-w-2xl">
+      <main className="container mx-auto px-4 py-6 sm:py-8 max-w-5xl">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">
-            Profile
-          </h1>
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-blue-600">Account</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">
+              Profile
+            </h1>
+          </div>
         </div>
 
         {status === 'loading' && (
@@ -413,98 +416,97 @@ const Profile = () => {
         {status === 'ready' && userData && (
           <>
             {/* Profile picture + basic info */}
-            <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-6">
-              <div className="flex-shrink-0">
-                {userData.photoURL ? (
-                  <img
-                    src={userData.photoURL}
-                    alt={userData.name || 'Profile'}
-                    style={{
-                      width: 80,
-                      height: 80,
-                      borderRadius: '50%',
-                      objectFit: 'cover',
-                      border: '2px solid #e5e7eb',
-                      display: 'block',
-                      backgroundColor: '#f3f4f6',
-                    }}
-                  />
-                ) : (
-                  <div className="w-20 h-20 rounded-full bg-gray-300 flex items-center justify-center text-xl font-semibold text-white">
-                    {(userData.name || 'U').charAt(0).toUpperCase()}
-                  </div>
-                )}
-              </div>
-              <div className="flex-1 w-full">
-                <p className="text-lg font-semibold text-gray-800">
-                  {userData.name || 'Unnamed user'}
-                </p>
-                <p className="text-sm text-gray-600">{userData.email}</p>
-                <p className="text-xs text-gray-500 mt-1 capitalize">
-                  {userData.userType || 'user'}
-                </p>
-
-                {/* Upload button (only visible while editing) */}
-                {isEditingProfile && (
-                  <div className="mt-3">
-                    <label className="block text-xs font-semibold text-gray-700 mb-1">
-                      Change profile picture
-                    </label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleProfileImageChange}
-                      className="text-xs text-stone-500
-                        file:mr-3 file:py-1 file:px-3 file:border file:border-gray-300
-                        file:text-xs file:font-medium
-                        file:bg-stone-50 file:text-stone-700
-                        hover:file:cursor-pointer hover:file:bg-blue-50 hover:file:text-blue-700"
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl shadow-md p-4 sm:p-6 mb-6 text-white">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                <div className="flex-shrink-0">
+                  {userData.photoURL ? (
+                    <img
+                      src={userData.photoURL}
+                      alt={userData.name || 'Profile'}
+                      style={{
+                        width: 86,
+                        height: 86,
+                        borderRadius: '50%',
+                        objectFit: 'cover',
+                        border: '3px solid rgba(255,255,255,0.7)',
+                        display: 'block',
+                        backgroundColor: '#f3f4f6',
+                      }}
                     />
-                    {uploadingImage && (
-                      <p className="text-xs text-gray-500 mt-1">
-                        Uploading image...
-                      </p>
-                    )}
-                    {uploadError && (
-                      <p className="text-xs text-red-600 mt-1">
-                        {uploadError}
-                      </p>
-                    )}
+                  ) : (
+                    <div className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center text-2xl font-semibold text-white border-2 border-white/60">
+                      {(userData.name || 'U').charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1 w-full">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div>
+                      <p className="text-lg sm:text-2xl font-bold">{userData.name || 'Unnamed user'}</p>
+                      <p className="text-sm text-blue-100">{userData.email}</p>
+                    </div>
+                    <span className="inline-flex items-center rounded-full border border-white/30 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide">
+                      {userData.userType || 'user'}
+                    </span>
                   </div>
-                )}
+
+                  {isEditingProfile && (
+                    <div className="mt-4 max-w-md">
+                      <label className="block text-xs font-semibold uppercase tracking-wide text-blue-100 mb-1">
+                        Change profile picture
+                      </label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleProfileImageChange}
+                        className="w-full text-xs text-white
+                          file:mr-3 file:py-1.5 file:px-3 file:border file:border-white/40
+                          file:text-xs file:font-medium file:rounded file:bg-white/10 file:text-white
+                          hover:file:bg-white/20 hover:file:cursor-pointer"
+                      />
+                      {uploadingImage && (
+                        <p className="text-xs text-blue-100 mt-1">Uploading image...</p>
+                      )}
+                      {uploadError && (
+                        <p className="text-xs text-red-200 mt-1">{uploadError}</p>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
             {/* Profile details + Edit toggle */}
             <form
               onSubmit={handleSaveProfile}
-              className="bg-white rounded-lg shadow-md p-4 sm:p-6 space-y-3 mb-6"
+              className="bg-white rounded-xl shadow-md p-4 sm:p-6 space-y-4 mb-6"
             >
-              <div className="flex justify-between items-center mb-2">
-                <h2 className="text-lg font-semibold text-gray-800">
-                  Profile details
-                </h2>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-2">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-800">Profile details</h2>
+                  <p className="text-sm text-gray-500">Update your personal and work information.</p>
+                </div>
                 {!isEditingProfile ? (
                   <button
                     type="button"
                     onClick={startEditProfile}
-                    className="text-sm px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-700"
+                    className="inline-flex items-center justify-center rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition"
                   >
-                    Edit
+                    Edit profile
                   </button>
                 ) : (
                   <div className="flex gap-2">
                     <button
                       type="submit"
                       disabled={saving}
-                      className="text-sm px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                      className="inline-flex items-center justify-center rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition disabled:opacity-50"
                     >
-                      {saving ? 'Saving...' : 'Save'}
+                      {saving ? 'Saving...' : 'Save changes'}
                     </button>
                     <button
                       type="button"
                       onClick={cancelEditProfile}
-                      className="text-sm px-3 py-1 rounded bg-gray-300 text-gray-800 hover:bg-gray-400"
+                      className="inline-flex items-center justify-center rounded bg-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-300 transition"
                     >
                       Cancel
                     </button>
@@ -513,214 +515,187 @@ const Profile = () => {
               </div>
 
               {error && (
-                <div className="p-2 rounded bg-red-100 text-red-700 text-sm">
+                <div className="p-3 rounded bg-red-100 text-red-700 text-sm">
                   {error}
                 </div>
               )}
               {successMsg && (
-                <div className="p-2 rounded bg-green-100 text-green-700 text-sm">
+                <div className="p-3 rounded bg-green-100 text-green-700 text-sm">
                   {successMsg}
                 </div>
               )}
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {/* existing fields unchanged */}
+              <div className="space-y-5">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
-                    Name
-                  </label>
-                  <input
-                    type="text"
-                    name="name"
-                    value={userData.name || ''}
-                    onChange={handleFieldChange}
-                    className={inputClass}
-                    disabled={!isEditingProfile}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    name="email"
-                    value={userData.email || ''}
-                    onChange={handleFieldChange}
-                    className={inputClass}
-                    disabled
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
-                    Phone
-                  </label>
-                  <input
-                    type="tel"
-                    name="phoneNo"
-                    value={userData.phoneNo || ''}
-                    onChange={handleFieldChange}
-                    className={inputClass}
-                    disabled={!isEditingProfile}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
-                    Batch
-                  </label>
-                  <select
-                    name="batch"
-                    value={userData.batch || '20/21'}
-                    onChange={handleFieldChange}
-                    className={inputClass}
-                    disabled={!isEditingProfile}
-                  >
-                    <option value="20/21">20/21</option>
-                    <option value="21/22">21/22</option>
-                    <option value="22/23">22/23</option>
-                    <option value="23/24">23/24</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
-                    Study department
-                  </label>
-                  <select
-                    name="studyDepartment"
-                    value={userData.studyDepartment || 'ITT'}
-                    onChange={handleFieldChange}
-                    className={inputClass}
-                    disabled={!isEditingProfile}
-                  >
-                    <option value="ITT">ITT</option>
-                    <option value="EET">EET</option>
-                    <option value="MTT">MTT</option>
-                    <option value="BPT">BPT</option>
-                    <option value="Food">Food</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
-                    Gender
-                  </label>
-                  <select
-                    name="gender"
-                    value={userData.gender || 'male'}
-                    onChange={handleFieldChange}
-                    className={inputClass}
-                    disabled={!isEditingProfile}
-                  >
-                    <option value="male">Male</option>
-                    <option value="female">Female</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
-                    Registration number
-                  </label>
-                  <input
-                    type="text"
-                    name="registrationNumber"
-                    value={userData.registrationNumber || ''}
-                    onChange={handleFieldChange}
-                    className={inputClass}
-                    disabled={!isEditingProfile}
-                  />
-                </div>
-
-                {/*
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
-                    Card
-                  </label>
-                  <input
-                    type="text"
-                    name="cardNumber"
-                    value={userData.cardNumber || ''}
-                    onChange={handleFieldChange}
-                    className={inputClass}
-                    disabled={!isEditingProfile}
-                  />
-                </div>
-                */}
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
-                    Birthday
-                  </label>
-                  <input
-                    type="date"
-                    name="birthday"
-                    value={userData.birthday || ''}
-                    onChange={handleFieldChange}
-                    className={inputClass}
-                    disabled={!isEditingProfile}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
-                    Work department(s)
-                  </label>
-                  {isEditingProfile ? (
-                    <div className="w-full px-3 py-2 border rounded text-sm">
-                      <div className="flex flex-wrap gap-3">
-                        {WORK_DEPARTMENTS.map((d) => {
-                          const selected = getSelectedDepartments(userData).includes(d);
-                          return (
-                            <label key={d} className="flex items-center gap-2 text-sm text-gray-700">
-                              <input
-                                type="checkbox"
-                                checked={selected}
-                                onChange={() => handleWorkDepartmentToggle(d)}
-                              />
-                              <span>{formatWorkDepartmentLabel(d)}</span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                      <p className="text-xs text-gray-500 mt-2">Select one or more departments.</p>
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">Personal info</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">Name</label>
+                      <input
+                        type="text"
+                        name="name"
+                        value={userData.name || ''}
+                        onChange={handleFieldChange}
+                        className={inputClass}
+                        disabled={!isEditingProfile}
+                      />
                     </div>
-                  ) : (
-                    <div className={`${inputClass} bg-gray-100`}>
-                      {getSelectedDepartments(userData).length
-                        ? getSelectedDepartments(userData).map(formatWorkDepartmentLabel).join(', ')
-                        : '—'}
+
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">Email</label>
+                      <input
+                        type="email"
+                        name="email"
+                        value={userData.email || ''}
+                        onChange={handleFieldChange}
+                        className={`${inputClass} bg-gray-100 cursor-not-allowed`}
+                        disabled
+                      />
                     </div>
-                  )}
+
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">Phone</label>
+                      <input
+                        type="tel"
+                        name="phoneNo"
+                        value={userData.phoneNo || ''}
+                        onChange={handleFieldChange}
+                        className={inputClass}
+                        disabled={!isEditingProfile}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">Birthday</label>
+                      <input
+                        type="date"
+                        name="birthday"
+                        value={userData.birthday || ''}
+                        onChange={handleFieldChange}
+                        className={inputClass}
+                        disabled={!isEditingProfile}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">Gender</label>
+                      <select
+                        name="gender"
+                        value={userData.gender || 'male'}
+                        onChange={handleFieldChange}
+                        className={inputClass}
+                        disabled={!isEditingProfile}
+                      >
+                        <option value="male">Male</option>
+                        <option value="female">Female</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">Registration number</label>
+                      <input
+                        type="text"
+                        name="registrationNumber"
+                        value={userData.registrationNumber || ''}
+                        onChange={handleFieldChange}
+                        className={inputClass}
+                        disabled={!isEditingProfile}
+                      />
+                    </div>
+                  </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
-                    First priority department
-                  </label>
-                  <select
-                    name="firstPriority"
-                    value={
-                      userData.firstPriority ||
-                      getSelectedDepartments(userData)[0] ||
-                      userData.department ||
-                      'videography'
-                    }
-                    onChange={handleFieldChange}
-                    className={inputClass}
-                    disabled={!isEditingProfile}
-                  >
-                    {(getSelectedDepartments(userData).length
-                      ? getSelectedDepartments(userData)
-                      : WORK_DEPARTMENTS
-                    ).map((d) => (
-                      <option key={d} value={d}>
-                        {formatWorkDepartmentLabel(d)}
-                      </option>
-                    ))}
-                  </select>
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">Academic & work info</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">Batch</label>
+                      <select
+                        name="batch"
+                        value={userData.batch || '20/21'}
+                        onChange={handleFieldChange}
+                        className={inputClass}
+                        disabled={!isEditingProfile}
+                      >
+                        <option value="20/21">20/21</option>
+                        <option value="21/22">21/22</option>
+                        <option value="22/23">22/23</option>
+                        <option value="23/24">23/24</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">Study department</label>
+                      <select
+                        name="studyDepartment"
+                        value={userData.studyDepartment || 'ITT'}
+                        onChange={handleFieldChange}
+                        className={inputClass}
+                        disabled={!isEditingProfile}
+                      >
+                        <option value="ITT">ITT</option>
+                        <option value="EET">EET</option>
+                        <option value="MTT">MTT</option>
+                        <option value="BPT">BPT</option>
+                        <option value="Food">Food</option>
+                      </select>
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">Work department(s)</label>
+                      {isEditingProfile ? (
+                        <div className="w-full px-3 py-3 border rounded-lg text-sm bg-gray-50">
+                          <div className="flex flex-wrap gap-3">
+                            {WORK_DEPARTMENTS.map((d) => {
+                              const selected = getSelectedDepartments(userData).includes(d);
+                              return (
+                                <label key={d} className="flex items-center gap-2 text-sm text-gray-700 bg-white border rounded-full px-2 py-1">
+                                  <input
+                                    type="checkbox"
+                                    checked={selected}
+                                    onChange={() => handleWorkDepartmentToggle(d)}
+                                  />
+                                  <span>{formatWorkDepartmentLabel(d)}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                          <p className="text-xs text-gray-500 mt-2">Select one or more departments.</p>
+                        </div>
+                      ) : (
+                        <div className={`${inputClass} bg-gray-100`}>
+                          {getSelectedDepartments(userData).length
+                            ? getSelectedDepartments(userData).map(formatWorkDepartmentLabel).join(', ')
+                            : '—'}
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">First priority department</label>
+                      <select
+                        name="firstPriority"
+                        value={
+                          userData.firstPriority ||
+                          getSelectedDepartments(userData)[0] ||
+                          userData.department ||
+                          'videography'
+                        }
+                        onChange={handleFieldChange}
+                        className={inputClass}
+                        disabled={!isEditingProfile}
+                      >
+                        {(getSelectedDepartments(userData).length
+                          ? getSelectedDepartments(userData)
+                          : WORK_DEPARTMENTS
+                        ).map((d) => (
+                          <option key={d} value={d}>
+                            {formatWorkDepartmentLabel(d)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
                 </div>
               </div>
             </form>
