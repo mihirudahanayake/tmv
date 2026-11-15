@@ -159,9 +159,19 @@ service cloud.firestore {
         || isSuperAdmin()
         || targetUserId == request.auth.uid
         || (
-          isDeptHead()
-            ? myManagedDepartments().hasAny(departmentsFromUserData(targetData))
-            : myDepartments().hasAny(departmentsFromUserData(targetData))
+          isDeptHead() && (
+            (targetData.get('departments', null) is list
+              && targetData.get('departments', []).hasAny(myManagedDepartments()))
+            || (
+              !(targetData.get('departments', null) is list)
+              && targetData.get('department', null) != null
+              && myManagedDepartments().hasAny([targetData.get('department', null)])
+            )
+          )
+        )
+        || (
+          !isDeptHead()
+          && myDepartments().hasAny(departmentsFromUserData(targetData))
         )
       );
     }

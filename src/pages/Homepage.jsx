@@ -18,11 +18,11 @@ import {
   FaUserPlus,
   FaUsers,
 } from 'react-icons/fa';
+import { httpsCallable } from 'firebase/functions';
 import Header from '../components/Header';
-import { db } from '../firebase/config';
+import { db, functions } from '../firebase/config';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { WORK_DEPARTMENTS, formatWorkDepartmentLabel } from '../constants/workDepartments';
-import { normalizeRole, Roles } from '../utils/authz';
 
 const getWorkDate = (work) => {
   const value = work.date || work.deadline || work.createdAt;
@@ -36,7 +36,7 @@ const Homepage = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const { profile, loading: loadingProfile } = useUserProfile();
   const [department, setDepartment] = useState('');
-  const [departmentUsers, setDepartmentUsers] = useState([]);
+  const [departmentUserCount, setDepartmentUserCount] = useState(0);
   const [departmentWorks, setDepartmentWorks] = useState([]);
   const [dashboardLoading, setDashboardLoading] = useState(true);
   const [dashboardError, setDashboardError] = useState('');
@@ -61,7 +61,7 @@ const Homepage = () => {
   useEffect(() => {
     if (loadingProfile) return;
     if (!activeDepartment) {
-      setDepartmentUsers([]);
+      setDepartmentUserCount(0);
       setDepartmentWorks([]);
       setDashboardError('No department is assigned to this department head. Contact a site administrator.');
       setDashboardLoading(false);
@@ -72,35 +72,37 @@ const Homepage = () => {
     setDashboardError('');
     let usersLoaded = false;
     let worksLoaded = false;
+    let isActive = true;
     const finishLoading = () => {
-      if (usersLoaded && worksLoaded) setDashboardLoading(false);
+      if (isActive && usersLoaded && worksLoaded) setDashboardLoading(false);
     };
 
-    const usersQuery = query(
-      collection(db, 'users'),
-      where('departments', 'array-contains', activeDepartment)
-    );
-    const worksQuery = query(
-      collection(db, 'works'),
-      where('department', '==', activeDepartment)
-    );
-    const unsubUsers = onSnapshot(
-      usersQuery,
-      (snap) => {
-        setDepartmentUsers(
-          snap.docs
-            .map((userDoc) => ({ id: userDoc.id, ...userDoc.data() }))
-            .filter((user) => normalizeRole(user) === Roles.MEMBER)
-        );
-        usersLoaded = true;
-        finishLoading();
-      },
-      (error) => {
-        console.error('Department user listener error:', error);
-        setDashboardError('Could not load department users.');
+    const fetchDepartmentUserCount = async () => {
+      try {
+        const getDepartmentUserCount = httpsCallable(functions, 'getDepartmentUserCount');
+        const result = await getDepartmentUserCount({ department: activeDepartment });
+        const count = result.data?.count;
+        if (!Number.isInteger(count) || count < 0) {
+          throw new Error('Invalid department user count returned by the server.');
+        }
+        if (isActive) setDepartmentUserCount(count);
+      } catch (error) {
+        console.error('Department user count error:', error);
+        if (isActive) {
+          setDashboardError(
+            `Could not load department users: ${error.code || error.message || 'unknown error'}`
+          );
+        }
+      } finally {
         usersLoaded = true;
         finishLoading();
       }
+    };
+
+    fetchDepartmentUserCount();
+    const worksQuery = query(
+      collection(db, 'works'),
+      where('department', '==', activeDepartment)
     );
     const unsubWorks = onSnapshot(
       worksQuery,
@@ -118,7 +120,7 @@ const Homepage = () => {
     );
 
     return () => {
-      unsubUsers();
+      isActive = false;
       unsubWorks();
     };
   }, [activeDepartment, loadingProfile]);
@@ -254,7 +256,7 @@ const Homepage = () => {
 
           <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {[
-              { label: 'Department users', value: departmentUsers.length, icon: FaUsers, path: '/manage-users', accent: 'text-blue-600' },
+              { label: 'Department users', value: departmentUserCount, icon: FaUsers, path: '/manage-users', accent: 'text-blue-600' },
               { label: 'Active work', value: activeWorkCount, icon: FaTasks, path: '/work-list', accent: 'text-amber-500' },
               { label: 'Completed work', value: completedWorkCount, icon: FaCheckCircle, path: '/work-list', accent: 'text-emerald-500' },
               { label: 'Unread activity', value: unreadCount, icon: FaBell, path: '/admin/notifications', accent: 'text-violet-500' },

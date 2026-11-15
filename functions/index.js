@@ -74,6 +74,73 @@ function getUserDepartments(userDoc) {
   return [];
 }
 
+const ALLOWED_WORK_DEPARTMENTS = new Set([
+  'videography',
+  'photography',
+  'graphic_design',
+  'announcing',
+  'content_writing',
+  'editing',
+]);
+
+exports.getDepartmentUserCount = onCall(
+  {
+    cors: [
+      'http://localhost:5173',
+      'http://127.0.0.1:5173',
+      'https://tmv.fotmv.online',
+    ],
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'You must be signed in.');
+    }
+
+    const department = String(request.data?.department || '').trim();
+    if (!ALLOWED_WORK_DEPARTMENTS.has(department)) {
+      throw new HttpsError('invalid-argument', 'Invalid department.');
+    }
+
+    const callerEmail = String(request.auth.token?.email || '');
+    const callerSnap = await db.collection('users').doc(request.auth.uid).get();
+    const callerDoc = callerSnap.exists ? callerSnap.data() : {};
+    const caller = { ...callerDoc, email: callerDoc?.email || callerEmail };
+    const callerRole = normalizeRole(caller);
+
+    if (
+      callerRole !== Roles.DEPARTMENT_HEAD &&
+      callerRole !== Roles.SUPER_ADMIN &&
+      callerRole !== Roles.SITE_ADMIN
+    ) {
+      throw new HttpsError('permission-denied', 'Not allowed.');
+    }
+
+    if (
+      callerRole === Roles.DEPARTMENT_HEAD &&
+      !getManagedDepartments(caller).includes(department)
+    ) {
+      throw new HttpsError('permission-denied', 'You cannot view users in this department.');
+    }
+
+    const [departmentsSnap, departmentSnap] = await Promise.all([
+      db.collection('users').where('departments', 'array-contains', department).get(),
+      db.collection('users').where('department', '==', department).get(),
+    ]);
+    const usersById = new Map();
+    for (const userDoc of [...departmentsSnap.docs, ...departmentSnap.docs]) {
+      usersById.set(userDoc.id, userDoc.data());
+    }
+
+    const count = [...usersById.values()].filter(
+      (user) =>
+        normalizeRole(user) === Roles.MEMBER &&
+        getUserDepartments(user).includes(department)
+    ).length;
+
+    return { count };
+  }
+);
+
 /* ================== ADMIN: DELETE USER ACCOUNT ================== */
 
 exports.deleteUserAccount = onCall(
