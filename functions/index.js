@@ -83,20 +83,6 @@ const ALLOWED_WORK_DEPARTMENTS = new Set([
   'editing',
 ]);
 
-const DEPARTMENT_USER_LIST_FIELDS = [
-  'name',
-  'email',
-  'role',
-  'userType',
-  'photoURL',
-  'cardNumber',
-  'batch',
-  'studyDepartment',
-  'registrationNumber',
-  'departments',
-  'department',
-];
-
 exports.getDepartmentUsers = onCall(
   {
     cors: [
@@ -127,19 +113,21 @@ exports.getDepartmentUsers = onCall(
       throw new HttpsError('failed-precondition', 'No managed department is assigned.');
     }
 
-    const [departmentsSnap, departmentSnap] = await Promise.all([
-      db.collection('users')
-        .select(...DEPARTMENT_USER_LIST_FIELDS)
-        .where('departments', 'array-contains-any', managedDepartments)
-        .get(),
-      db.collection('users')
-        .select(...DEPARTMENT_USER_LIST_FIELDS)
-        .where('department', 'in', managedDepartments)
-        .get(),
-    ]);
+    const userSnaps = await Promise.all(
+      managedDepartments.flatMap((department) => [
+        db.collection('users')
+          .where('departments', 'array-contains', department)
+          .get(),
+        db.collection('users')
+          .where('department', '==', department)
+          .get(),
+      ])
+    );
     const usersById = new Map();
-    for (const userDoc of [...departmentsSnap.docs, ...departmentSnap.docs]) {
-      usersById.set(userDoc.id, userDoc.data());
+    for (const userSnap of userSnaps) {
+      for (const userDoc of userSnap.docs) {
+        usersById.set(userDoc.id, userDoc.data());
+      }
     }
 
     const users = [...usersById.entries()]

@@ -235,7 +235,7 @@ const ManageUsers = () => {
               <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
-                placeholder="Search by name or card..."
+                placeholder="Search by Name"
                 value={searchText}
                 onChange={(e) => setSearchText(e.target.value)}
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-sm text-slate-700 shadow-inner outline-none transition focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100"
@@ -362,10 +362,10 @@ const ManageUsers = () => {
                 </div>
 
                 <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                  <div className="rounded-xl bg-slate-50 px-2.5 py-2 text-xs text-slate-600">
+                  {/* <div className="rounded-xl bg-slate-50 px-2.5 py-2 text-xs text-slate-600">
                     <span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Card</span>
                     <span className="mt-1 block font-semibold text-slate-700">{u.cardNumber || '-'}</span>
-                  </div>
+                  </div> */}
                   <div className="rounded-xl bg-slate-50 px-2.5 py-2 text-xs text-slate-600">
                     <span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Batch</span>
                     <span className="mt-1 block font-semibold text-slate-700">{u.batch || '-'}</span>
