@@ -57,15 +57,17 @@ const ForgotPassword = () => {
       }`}
     >
       <button
+        type="button"
         onClick={toggleDarkMode}
-        className={`absolute top-8 right-8 z-20 p-3 rounded-full transition-all duration-300 ${
+        className={`absolute top-8 right-8 z-20 flex h-10 w-10 items-center justify-center rounded-xl border transition-all duration-300 ${
           isDarkMode
-            ? 'bg-gray-700 hover:bg-gray-600 text-yellow-300'
-            : 'bg-blue-200 hover:bg-blue-300 text-blue-600'
+            ? 'border-slate-600 bg-gray-700/80 hover:bg-gray-600 text-yellow-300'
+            : 'border-blue-300 bg-blue-200/80 hover:bg-blue-300 text-blue-600'
         }`}
-        aria-label="Toggle dark mode"
+        aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+        title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
       >
-        {isDarkMode ? <FaSun size={20} /> : <FaMoon size={20} />}
+        {isDarkMode ? <FaSun /> : <FaMoon />}
       </button>
 
       <div
