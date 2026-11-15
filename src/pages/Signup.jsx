@@ -1236,9 +1236,9 @@ const Signup = () => {
                         Verified
                       </span>
                     ) : verificationEmailSentTo === normalizeEmail(form.email) ? (
-                      'Resend email'
+                      'Send verification link'
                     ) : (
-                      'Send email'
+                      'Send verification link'
                     )}
                   </button>
                 </div>
