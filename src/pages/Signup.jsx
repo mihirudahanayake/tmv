@@ -1255,7 +1255,7 @@ const Signup = () => {
                   {isEmailVerified
                     ? 'Email verified.'
                     : verificationEmailSentTo === normalizeEmail(form.email)
-                      ? 'Open the verification link in your inbox, then return here to complete signup.'
+                      ? 'Open the verification link in your inbox or spam folder, then return here to complete signup.'
                       : 'Verify this email address before creating your account.'}
                 </p>
               </div>
