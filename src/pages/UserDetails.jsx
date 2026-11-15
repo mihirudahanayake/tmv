@@ -31,6 +31,7 @@ const UserDetails = () => {
   const [savingDetails, setSavingDetails] = useState(false);
   const [savingDepartmentHead, setSavingDepartmentHead] = useState(false);
   const [departmentHeadDepartments, setDepartmentHeadDepartments] = useState([]);
+  const [pendingDepartmentHeadUpdate, setPendingDepartmentHeadUpdate] = useState(null);
   const [actionError, setActionError] = useState('');
   const [actionSuccess, setActionSuccess] = useState('');
   const nfcUrl = (import.meta.env.NFC_URL || import.meta.env.VITE_NFC_URL || '').trim();
@@ -215,7 +216,7 @@ const UserDetails = () => {
     && targetRole !== Roles.SITE_ADMIN
     && [Roles.MEMBER, Roles.DEPARTMENT_HEAD].includes(targetRole);
 
-  const handleToggleDepartmentHeadDepartment = async (department, checked) => {
+  const handleToggleDepartmentHeadDepartment = (department, checked) => {
     if (!userId || !user || !canManageDepartmentHead) return;
     const managedDepartments = new Set(departmentHeadDepartments);
     if (checked) managedDepartments.add(department);
@@ -226,27 +227,32 @@ const UserDetails = () => {
       targetRole === Roles.DEPARTMENT_HEAD && nextDepartments.length === 0;
     const departmentLabel = formatWorkDepartmentLabel(department);
     const userLabel = user.name || user.email || 'this user';
-    const confirmationMessage = checked
-      ? targetRole === Roles.DEPARTMENT_HEAD
-        ? `Add ${departmentLabel} to ${userLabel}'s managed departments?`
-        : `Make ${userLabel} a department head for ${departmentLabel}?`
-      : removingLastDepartment
-        ? `Remove ${departmentLabel} and department-head access from ${userLabel}?`
-        : `Remove ${departmentLabel} from ${userLabel}'s managed departments?`;
-
     setActionError('');
     setActionSuccess('');
-    if (!window.confirm(confirmationMessage)) {
-      return;
-    }
+    setPendingDepartmentHeadUpdate({
+      department,
+      departmentLabel,
+      userLabel,
+      checked,
+      nextDepartments,
+      removingLastDepartment,
+      isDepartmentHead: targetRole === Roles.DEPARTMENT_HEAD,
+    });
+  };
 
+  const handleConfirmDepartmentHeadUpdate = async () => {
+    if (!pendingDepartmentHeadUpdate || !userId || !user || !canManageDepartmentHead) return;
+
+    const { nextDepartments } = pendingDepartmentHeadUpdate;
     setSavingDepartmentHead(true);
+    setActionError('');
+    setActionSuccess('');
     const patch = nextDepartments.length
       ? {
           role: Roles.DEPARTMENT_HEAD,
           userType: 'admin',
           managedDepartments: nextDepartments,
-          ...(targetRole === Roles.DEPARTMENT_HEAD ? {} : { isTO: false }),
+          ...(pendingDepartmentHeadUpdate.isDepartmentHead ? {} : { isTO: false }),
         }
       : {
           role: Roles.MEMBER,
@@ -259,6 +265,7 @@ const UserDetails = () => {
       await updateDoc(doc(db, 'users', userId), patch);
       setUser((previous) => (previous ? { ...previous, ...patch } : previous));
       setDepartmentHeadDepartments(nextDepartments);
+      setPendingDepartmentHeadUpdate(null);
       setActionSuccess(
         nextDepartments.length
           ? 'Department head assignment updated.'
@@ -267,6 +274,7 @@ const UserDetails = () => {
     } catch (err) {
       console.error('Failed to update department head assignment', err);
       setActionError('Failed to update department head assignment. Please try again.');
+      setPendingDepartmentHeadUpdate(null);
     } finally {
       setSavingDepartmentHead(false);
     }
@@ -612,26 +620,49 @@ const UserDetails = () => {
               <section className="mb-6 rounded-[24px] border border-indigo-200 bg-white p-4 shadow-sm sm:p-6">
                 <h2 className="text-lg font-bold text-slate-800">Department head access</h2>
                 <p className="mt-1 text-sm text-slate-600">
-                  Check or uncheck a department to update this user’s access immediately. Each change requires confirmation.
+                  Select a department to assign it immediately after confirmation. Assigned departments are marked below.
+                </p>
+                <p className="mt-2 text-xs font-medium text-slate-500">
+                  {departmentHeadDepartments.length} of {WORK_DEPARTMENTS.length} departments assigned
                 </p>
 
                 <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                  {WORK_DEPARTMENTS.map((department) => (
-                    <label
-                      key={department}
-                      className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={departmentHeadDepartments.includes(department)}
-                        onChange={(event) =>
-                          handleToggleDepartmentHeadDepartment(department, event.target.checked)
-                        }
-                        disabled={savingDepartmentHead}
-                      />
-                      {formatWorkDepartmentLabel(department)}
-                    </label>
-                  ))}
+                  {WORK_DEPARTMENTS.map((department) => {
+                    const isManaged = departmentHeadDepartments.includes(department);
+                    return (
+                      <label
+                        key={department}
+                        className={`flex cursor-pointer items-center justify-between gap-3 rounded-xl border px-3 py-2 text-sm transition ${
+                          isManaged
+                            ? 'border-indigo-300 bg-indigo-50 text-indigo-900 shadow-sm'
+                            : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-indigo-200 hover:bg-indigo-50/50'
+                        }`}
+                      >
+                        <span className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            aria-label={`${formatWorkDepartmentLabel(department)} department access`}
+                            checked={isManaged}
+                            onChange={(event) =>
+                              handleToggleDepartmentHeadDepartment(department, event.target.checked)
+                            }
+                            disabled={savingDepartmentHead || Boolean(pendingDepartmentHeadUpdate)}
+                            className="h-4 w-4 accent-indigo-600"
+                          />
+                          <span className="font-medium">{formatWorkDepartmentLabel(department)}</span>
+                        </span>
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-semibold ${
+                            isManaged
+                              ? 'bg-indigo-100 text-indigo-700'
+                              : 'bg-white text-slate-500'
+                          }`}
+                        >
+                          {isManaged ? <><FaCheck /> Assigned</> : 'Not assigned'}
+                        </span>
+                      </label>
+                    );
+                  })}
                 </div>
 
                 {savingDepartmentHead ? (
@@ -640,6 +671,73 @@ const UserDetails = () => {
                   </p>
                 ) : null}
               </section>
+            ) : null}
+
+            {pendingDepartmentHeadUpdate ? (
+              <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
+                <div
+                  role="alertdialog"
+                  aria-modal="true"
+                  aria-labelledby="department-head-confirm-title"
+                  className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl"
+                >
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-100 text-indigo-700">
+                    <FaCheck className="text-xl" />
+                  </div>
+                  <h2
+                    id="department-head-confirm-title"
+                    className="mt-4 text-xl font-bold text-slate-900"
+                  >
+                    {pendingDepartmentHeadUpdate.checked
+                      ? pendingDepartmentHeadUpdate.isDepartmentHead
+                        ? 'Add department access?'
+                        : 'Make department head?'
+                      : pendingDepartmentHeadUpdate.removingLastDepartment
+                        ? 'Remove department-head access?'
+                        : 'Remove this department?'}
+                  </h2>
+                  <p className="mt-2 text-sm leading-6 text-slate-600">
+                    {pendingDepartmentHeadUpdate.checked
+                      ? pendingDepartmentHeadUpdate.isDepartmentHead
+                        ? `${pendingDepartmentHeadUpdate.userLabel} will be able to manage users in ${pendingDepartmentHeadUpdate.departmentLabel}. This change saves immediately.`
+                        : `${pendingDepartmentHeadUpdate.userLabel} will become a department head for ${pendingDepartmentHeadUpdate.departmentLabel} and will be able to manage users there.`
+                      : pendingDepartmentHeadUpdate.removingLastDepartment
+                        ? `${pendingDepartmentHeadUpdate.userLabel} will lose department-head access when ${pendingDepartmentHeadUpdate.departmentLabel} is removed.`
+                        : `${pendingDepartmentHeadUpdate.userLabel} will no longer manage users in ${pendingDepartmentHeadUpdate.departmentLabel}. Other department assignments will remain.`}
+                  </p>
+                  <div className="mt-6 flex justify-end gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setPendingDepartmentHeadUpdate(null)}
+                      disabled={savingDepartmentHead}
+                      className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleConfirmDepartmentHeadUpdate}
+                      disabled={savingDepartmentHead}
+                      className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50 ${
+                        pendingDepartmentHeadUpdate.checked
+                          ? 'bg-indigo-600 hover:bg-indigo-700'
+                          : 'bg-red-600 hover:bg-red-700'
+                      }`}
+                    >
+                      {savingDepartmentHead ? (
+                        <>
+                          <FaSpinner className="animate-spin" />
+                          Saving...
+                        </>
+                      ) : pendingDepartmentHeadUpdate.checked
+                        ? pendingDepartmentHeadUpdate.isDepartmentHead
+                          ? 'Confirm & assign'
+                          : 'Confirm & make head'
+                        : 'Confirm removal'}
+                    </button>
+                  </div>
+                </div>
+              </div>
             ) : null}
 
             {isEditing && editForm ? (
