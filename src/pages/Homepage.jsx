@@ -20,6 +20,7 @@ import {
 } from 'react-icons/fa';
 import { httpsCallable } from 'firebase/functions';
 import Header from '../components/Header';
+import AssignWork from './AssignWork';
 import { db, functions } from '../firebase/config';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { WORK_DEPARTMENTS, formatWorkDepartmentLabel } from '../constants/workDepartments';
@@ -33,6 +34,7 @@ const getWorkDate = (work) => {
 const Homepage = () => {
   const navigate = useNavigate();
   const [popup, setPopup] = useState(null); // { id, type, workId, userName, createdAt }
+  const [isAssignWorkOpen, setIsAssignWorkOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const { profile, loading: loadingProfile } = useUserProfile();
   const [department, setDepartment] = useState('');
@@ -284,13 +286,13 @@ const Homepage = () => {
             <div className="grid gap-3 sm:grid-cols-3">
               {[
                 { label: 'Create a user', description: 'Add a member to your department.', icon: FaUserPlus, path: '/create-user', color: 'text-emerald-600' },
-                { label: 'Assign work', description: 'Create and assign a department task.', icon: FaClipboardList, path: '/assign-work', color: 'text-blue-600' },
+                { label: 'Assign work', description: 'Create and assign a department task.', icon: FaClipboardList, onClick: () => setIsAssignWorkOpen(true), color: 'text-blue-600' },
                 { label: 'Make an announcement', description: 'Share an update with your team.', icon: FaPaperPlane, path: '/admin/notifications', color: 'text-orange-500' },
-              ].map(({ label, description, icon: Icon, path, color }) => (
+              ].map(({ label, description, icon: Icon, path, onClick, color }) => (
                 <button
                   key={label}
                   type="button"
-                  onClick={() => navigate(path)}
+                  onClick={onClick || (() => navigate(path))}
                   className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-white p-4 text-left shadow-sm transition hover:border-blue-300 hover:shadow-md"
                 >
                   <Icon className={`shrink-0 text-2xl ${color}`} />
@@ -354,6 +356,10 @@ const Homepage = () => {
           </section>
         </div>
       </main>
+
+      {isAssignWorkOpen && (
+        <AssignWork isModal onClose={() => setIsAssignWorkOpen(false)} />
+      )}
     </div>
   );
 };

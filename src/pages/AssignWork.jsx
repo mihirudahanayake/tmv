@@ -19,7 +19,9 @@ import {
   FaCalendarAlt,
   FaUsers,
   FaSearch,
-  FaBox
+  FaBox,
+  FaTimes,
+  FaSpinner
 } from 'react-icons/fa';
 import Header from '../components/Header';
 import TimePickerAmPm from '../components/TimePickerAmPm';
@@ -34,10 +36,12 @@ import {
   formatWorkRoleLabel,
 } from '../constants/workRoles';
 
-const AssignWork = () => {
+const AssignWork = ({ isModal = false, onClose }) => {
   const { profile, loading: loadingProfile } = useUserProfile();
   const [users, setUsers] = useState([]);
   const [items, setItems] = useState([]);
+  const [usersLoading, setUsersLoading] = useState(true);
+  const [itemsLoading, setItemsLoading] = useState(false);
   const [department, setDepartment] = useState('videography');
   const [lastCreatedTask, setLastCreatedTask] = useState(null);
   const [formData, setFormData] = useState({
@@ -54,6 +58,8 @@ const AssignWork = () => {
   const [message, setMessage] = useState({ type: '', text: '' });
   const [userSearch, setUserSearch] = useState('');
   const [itemSearch, setItemSearch] = useState('');
+  const [showDiscardPrompt, setShowDiscardPrompt] = useState(false);
+  const [expandedUserId, setExpandedUserId] = useState('');
 
   const navigate = useNavigate();
 
@@ -65,6 +71,46 @@ const AssignWork = () => {
   const allowedDepartments = isDepartmentHead ? managedDepartments : WORK_DEPARTMENTS;
   const workRoles = getWorkRolesForDepartment(department);
   const hasMultipleRoles = workRoles.length > 1;
+  const hasDraft = Boolean(
+    formData.title.trim() ||
+    formData.description.trim() ||
+    formData.date ||
+    formData.deadline ||
+    formData.time ||
+    formData.assignedUsers.length ||
+    formData.assignedItems.length
+  );
+
+  const requestClose = () => {
+    if (loading) return;
+    if (hasDraft) {
+      setShowDiscardPrompt(true);
+      return;
+    }
+    onClose?.();
+  };
+
+  useEffect(() => {
+    if (!isModal) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const handleKeyDown = (event) => {
+      if (event.key !== 'Escape' || loading) return;
+      event.preventDefault();
+      if (showDiscardPrompt) {
+        setShowDiscardPrompt(false);
+      } else {
+        requestClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isModal, loading, showDiscardPrompt, hasDraft]);
 
   useEffect(() => {
     if (!loadingProfile) {
@@ -78,6 +124,7 @@ const AssignWork = () => {
     if (loadingProfile) return;
     if (!allowedDepartments.includes(department)) {
       setUsers([]);
+      setUsersLoading(false);
       setFormData((prev) => ({ ...prev, assignedUsers: [] }));
       return;
     }
@@ -86,6 +133,9 @@ const AssignWork = () => {
   }, [loadingProfile, department, allowedDepartments]);
 
   const fetchUsers = async () => {
+    setUsersLoading(true);
+    setUsers([]);
+    setMessage({ type: '', text: '' });
     try {
       if (!allowedDepartments.includes(department)) {
         setUsers([]);
@@ -135,10 +185,13 @@ const AssignWork = () => {
         type: 'error',
         text: `Failed to load users in this department: ${error?.code || error?.message || 'Check your department access and try again.'}`,
       });
+    } finally {
+      setUsersLoading(false);
     }
   };
 
   const fetchItems = async () => {
+    setItemsLoading(true);
     try {
       const snapshot = await getDocs(collection(db, 'inventory'));
       const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
@@ -153,6 +206,13 @@ const AssignWork = () => {
       setItems(data);
     } catch (error) {
       console.error('Error fetching inventory:', error);
+      setItems([]);
+      setMessage({
+        type: 'error',
+        text: `Failed to load equipment: ${error?.code || error?.message || 'Please try again.'}`,
+      });
+    } finally {
+      setItemsLoading(false);
     }
   };
 
@@ -747,14 +807,72 @@ if (phones.length > 0) {
   });
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <Header userType="admin" />
+    <div
+      className={isModal
+        ? 'fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/60 p-2 backdrop-blur-sm sm:p-4'
+        : 'min-h-screen bg-gray-100'}
+      onMouseDown={(event) => {
+        if (isModal && event.target === event.currentTarget) requestClose();
+      }}
+    >
+      {!isModal && <Header userType="admin" />}
 
-      <main className="container mx-auto px-4 py-6 sm:py-8">
-        <div className="max-w-3xl mx-auto bg-white rounded-lg shadow-md p-4 sm:p-8">
-          <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-4 sm:mb-6">
-            Create and Assign Work
-          </h2>
+      <main className={isModal ? 'w-full max-w-3xl' : 'container mx-auto px-4 py-6 sm:py-8'}>
+        <div
+          role={isModal ? 'dialog' : undefined}
+          aria-modal={isModal ? 'true' : undefined}
+          aria-labelledby={isModal ? 'assign-work-title' : undefined}
+          className={isModal
+            ? 'relative max-h-[92vh] w-full overflow-y-auto rounded-3xl bg-white p-4 shadow-2xl sm:p-8'
+            : 'mx-auto max-w-3xl rounded-lg bg-white p-4 shadow-md sm:p-8'}
+        >
+          {isModal ? (
+            <div className="sticky z-10 -mt-4 mb-5 border-b border-slate-100 bg-white/95 px-4 py-4 backdrop-blur sm:-mt-8 sm:px-5 sm:py-5">
+              <div className="flex items-start gap-3 sm:gap-4">
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-600">New assignment</p>
+                  <h2 id="assign-work-title" className="mt-1 text-xl font-bold leading-tight text-slate-900 sm:text-2xl">
+                    Create and assign work
+                  </h2>
+                  <div className="mt-4 flex flex-wrap items-center gap-2">
+                    <span className="mr-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                      Jump to
+                    </span>
+                    {[
+                      { id: 'work-details', label: 'Details', number: '1' },
+                      { id: 'team-members', label: 'Team', number: '2' },
+                      { id: 'equipment-items', label: 'Equipment', number: '3' },
+                    ].map(({ id, label, number }) => (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+                      >
+                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 text-[10px]">
+                          {number}
+                        </span>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={requestClose}
+                  disabled={loading}
+                  aria-label="Close assign work"
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition hover:bg-slate-200 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <FaTimes />
+                </button>
+              </div>
+            </div>
+          ) : (
+            <h2 className="mb-4 text-xl font-bold text-gray-800 sm:mb-6 sm:text-2xl">
+              Create and Assign Work
+            </h2>
+          )}
 
           {message.text && (
             <div
@@ -799,210 +917,259 @@ if (phones.length > 0) {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-gray-700 font-semibold mb-2 text-sm sm:text-base">
-                Department
-              </label>
-              <select
-                value={department}
-                onChange={(e) => {
-                  setDepartment(e.target.value);
-                  setFormData((prev) => ({ ...prev, assignedUsers: [] }));
-                }}
-                className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 text-sm sm:text-base"
-              >
-                {allowedDepartments.length ? allowedDepartments.map((dept) => (
-                  <option key={dept} value={dept}>
-                    {formatWorkDepartmentLabel(dept)}
-                  </option>
-                )) : <option value="">No managed department assigned</option>}
-              </select>
-            </div>
-
-            <div>
-              <label className="flex items-center gap-2 text-gray-700 font-semibold mb-2 text-sm sm:text-base">
-                <FaFileAlt />
-                <span>Work Title</span>
-              </label>
-              <input
-                type="text"
-                name="title"
-                value={formData.title}
-                onChange={handleChange}
-                required
-                className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 text-sm sm:text-base"
-              />
-            </div>
-
-            <div>
-              <label className="flex items-center gap-2 text-gray-700 font-semibold mb-2 text-sm sm:text-base">
-                <FaAlignLeft />
-                <span>Description</span>
-              </label>
-              <textarea
-                name="description"
-                value={formData.description}
-                onChange={handleChange}
-                required
-                rows="4"
-                className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 text-sm sm:text-base"
-              />
-            </div>
-
-            {/* Date / Deadline selector */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="flex items-center gap-2 text-gray-700 font-semibold mb-2 text-sm sm:text-base">
-                  <FaCalendarAlt />
-                  <span>Date / Deadline</span>
-                </label>
-
-                <div className="flex items-center gap-3 mb-2 text-xs sm:text-sm">
-                  <label className="flex items-center gap-1">
-                    <input
-                      type="radio"
-                      name="dateType"
-                      value="date"
-                      checked={dateType === 'date'}
-                      onChange={(e) => setDateType(e.target.value)}
-                      className="w-4 h-4"
-                    />
-                    <span>Date</span>
-                  </label>
-                  <label className="flex items-center gap-1">
-                    <input
-                      type="radio"
-                      name="dateType"
-                      value="deadline"
-                      checked={dateType === 'deadline'}
-                      onChange={(e) => setDateType(e.target.value)}
-                      className="w-4 h-4"
-                    />
-                    <span>Deadline</span>
-                  </label>
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <section id="work-details" className="scroll-mt-24 rounded-2xl border border-slate-200 bg-slate-50/60 p-4 sm:p-5">
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="font-bold text-slate-800">Task details</h3>
+                  <p className="mt-1 text-xs text-slate-500">Add a clear title and a date or deadline.</p>
                 </div>
-
-                {dateType === 'date' && (
-                  <input
-                    type="date"
-                    name="date"
-                    value={formData.date}
-                    onChange={handleChange}
-                    className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 text-sm sm:text-base"
-                  />
-                )}
-
-                {dateType === 'deadline' && (
-                  <input
-                    type="date"
-                    name="deadline"
-                    value={formData.deadline}
-                    onChange={handleChange}
-                    className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 text-sm sm:text-base"
-                  />
-                )}
-
-                <p className="mt-1 text-[11px] text-gray-500">
-                  At least one of date or deadline is required, but both are optional individually.
-                </p>
+                <span className="rounded-full bg-blue-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-blue-700">
+                  Required
+                </span>
               </div>
 
-              <TimePickerAmPm
-                value={formData.time}
-                onChange={(next) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    time: next,
-                  }))
-                }
-              />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-700" htmlFor="assign-department">
+                    Department
+                  </label>
+                  <select
+                    id="assign-department"
+                    value={department}
+                    onChange={(e) => {
+                      setDepartment(e.target.value);
+                      setFormData((prev) => ({ ...prev, assignedUsers: [] }));
+                    }}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm text-slate-800 shadow-sm outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
+                  >
+                    {allowedDepartments.length ? allowedDepartments.map((dept) => (
+                      <option key={dept} value={dept}>
+                        {formatWorkDepartmentLabel(dept)}
+                      </option>
+                    )) : <option value="">No managed department assigned</option>}
+                  </select>
+                </div>
 
-            </div>
+                <div>
+                  <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700" htmlFor="assign-title">
+                    <FaFileAlt className="text-blue-600" />
+                    Work title
+                  </label>
+                  <input
+                    id="assign-title"
+                    type="text"
+                    name="title"
+                    value={formData.title}
+                    onChange={handleChange}
+                    placeholder="e.g. Photograph the new campaign"
+                    required
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm text-slate-800 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
+                  />
+                </div>
+              </div>
 
-            {/* Assign users */}
-            <div>
-              <label className="flex items-center gap-2 text-gray-700 font-semibold mb-2 text-sm sm:text-base">
-                <FaUsers />
-                <span>Assign Team Members</span>
-              </label>
-
-              <div className="relative mb-2">
-                <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs" />
-                <input
-                  type="text"
-                  placeholder="Search by name or card..."
-                  value={userSearch}
-                  onChange={(e) => setUserSearch(e.target.value)}
-                  className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+              <div className="mt-4">
+                <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700" htmlFor="assign-description">
+                  <FaAlignLeft className="text-blue-600" />
+                  Description
+                </label>
+                <textarea
+                  id="assign-description"
+                  name="description"
+                  value={formData.description}
+                  onChange={handleChange}
+                  placeholder="Add instructions, location, or other helpful details..."
+                  required
+                  rows="3"
+                  className="w-full resize-y rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm text-slate-800 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
                 />
               </div>
 
-              <div className="border border-gray-300 rounded p-3 sm:p-4 max-h-60 overflow-y-auto">
-                {filteredUsers.length === 0 ? (
-                  <p className="text-gray-500 text-sm sm:text-base">
-                    No users found
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
+                    <FaCalendarAlt className="text-blue-600" />
+                    Date or deadline
+                  </label>
+                  <div className="mb-3 grid grid-cols-2 gap-2">
+                    {[
+                      { value: 'date', label: 'Work date' },
+                      { value: 'deadline', label: 'Deadline' },
+                    ].map(({ value, label }) => (
+                      <label
+                        key={value}
+                        className={`flex cursor-pointer items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-sm font-semibold transition ${
+                          dateType === value
+                            ? 'border-blue-300 bg-blue-50 text-blue-700 ring-2 ring-blue-100'
+                            : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="dateType"
+                          value={value}
+                          checked={dateType === value}
+                          onChange={(e) => setDateType(e.target.value)}
+                          className="accent-blue-600"
+                        />
+                        {label}
+                      </label>
+                    ))}
+                  </div>
+                  <input
+                    type="date"
+                    name={dateType}
+                    value={formData[dateType]}
+                    onChange={handleChange}
+                    aria-label={dateType === 'date' ? 'Work date' : 'Deadline'}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm text-slate-800 shadow-sm outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
+                  />
+                  <p className="mt-2 text-xs text-slate-500">
+                    Set at least one date or deadline before assigning.
                   </p>
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm">
+                  <TimePickerAmPm
+                    value={formData.time}
+                    onChange={(next) => setFormData((prev) => ({ ...prev, time: next }))}
+                  />
+                </div>
+              </div>
+            </section>
+
+            <section id="team-members" className="scroll-mt-24 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+              <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h3 className="flex items-center gap-2 font-bold text-slate-800">
+                    <FaUsers className="text-blue-600" />
+                    Team members
+                  </h3>
+                  <p className="mt-1 text-xs text-slate-500">Choose who will be responsible for this work.</p>
+                </div>
+                <span aria-live="polite" className="rounded-full bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700">
+                  {formData.assignedUsers.length} selected
+                </span>
+              </div>
+
+              <div className="relative mb-3">
+                <FaSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search by name or card number..."
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                  aria-label="Search team members"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                />
+              </div>
+
+              <div className="max-h-64 space-y-2 overflow-y-auto rounded-xl bg-slate-50 p-2">
+                {usersLoading ? (
+                  <div aria-live="polite" className="flex items-center justify-center gap-2 rounded-lg bg-white px-4 py-8 text-sm font-medium text-slate-500">
+                    <FaSpinner className="animate-spin text-blue-600" />
+                    Loading team members...
+                  </div>
+                ) : filteredUsers.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-slate-300 bg-white px-4 py-8 text-center">
+                    <FaUsers className="mx-auto mb-2 text-xl text-slate-300" />
+                    <p className="text-sm font-semibold text-slate-600">
+                      {userSearch ? 'No matching team members' : 'No members found in this department'}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-400">
+                      {userSearch ? 'Try another name or card number.' : 'Members assigned to this department will appear here.'}
+                    </p>
+                    {userSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setUserSearch('')}
+                        className="mt-3 text-xs font-semibold text-blue-600 hover:text-blue-700"
+                      >
+                        Clear search
+                      </button>
+                    )}
+                  </div>
                 ) : (
                   filteredUsers.map((user) => {
                     const selected = isUserSelected(user.id);
                     const roles = getUserRoles(user.id);
+                    const expanded = expandedUserId === user.id;
 
                     return (
                       <div
                         key={user.id}
-                        className="mb-2 p-2 rounded hover:bg-gray-50"
+                        className={`rounded-xl border p-3 transition ${
+                          selected
+                            ? 'border-blue-300 bg-blue-50/80 shadow-sm'
+                            : 'border-slate-200 bg-white hover:border-slate-300'
+                        }`}
                       >
-                        <label className="flex items-center cursor-pointer">
+                        <div className="flex items-center gap-3">
                           <input
+                            id={`assign-user-${user.id}`}
                             type="checkbox"
                             checked={selected}
                             onChange={() => handleUserSelection(user.id)}
-                            className="mr-3 w-4 h-4"
+                            className="h-4 w-4 shrink-0 rounded accent-blue-600"
                           />
-                          <div className="flex-1">
-                            <p className="text-gray-700 text-sm sm:text-base">
-                              {user.name}{' '}
-                              <span className="text-xs text-gray-500">
-                                ({user.cardNumber || '-'})
-                              </span>
-                            </p>
-                          </div>
+                          <label htmlFor={`assign-user-${user.id}`} className="min-w-0 flex-1 cursor-pointer">
+                            <span className="block truncate text-sm font-semibold text-slate-800">
+                              {user.name || 'Unnamed member'}
+                            </span>
+                            <span className="mt-0.5 block truncate text-xs text-slate-500">
+                              Card: {user.cardNumber || '—'}
+                            </span>
+                          </label>
                           <button
                             type="button"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              navigate(`/users/${user.id}`);
+                            aria-expanded={expanded}
+                            onClick={() => {
+                              if (isModal) {
+                                setExpandedUserId(expanded ? '' : user.id);
+                              } else {
+                                navigate(`/users/${user.id}`);
+                              }
                             }}
-                            className="ml-2 px-2 py-1 text-xs text-gray-500 hover:text-gray-700 transition-colors"
-                            title="View user details"
+                            className="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-100"
                           >
-                            View
+                            {isModal && expanded ? 'Hide details' : isModal ? 'Details' : 'View'}
                           </button>
-                        </label>
+                        </div>
 
                         {selected && (
-                          <div className="mt-1 ml-7 flex flex-wrap gap-2 text-xs sm:text-sm">
+                          <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-blue-100 pt-3">
+                            <span className="mr-1 text-[11px] font-semibold text-slate-500">Work roles</span>
                             {hasMultipleRoles ? (
-                              workRoles.map((role) => (
+                              workRoles.map((workRole) => (
                                 <button
-                                  key={role}
+                                  key={workRole}
                                   type="button"
-                                  onClick={() => handleUserRoleToggle(user.id, role)}
-                                  className={`px-2 py-1 rounded border ${
-                                    roles.includes(role)
-                                      ? 'bg-green-600 text-white border-green-600'
-                                      : 'bg-white text-gray-700 border-gray-300'
+                                  aria-pressed={roles.includes(workRole)}
+                                  onClick={() => handleUserRoleToggle(user.id, workRole)}
+                                  className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                                    roles.includes(workRole)
+                                      ? 'border-blue-600 bg-blue-600 text-white shadow-sm'
+                                      : 'border-slate-200 bg-white text-slate-600 hover:border-blue-300 hover:text-blue-700'
                                   }`}
                                 >
-                                  {formatWorkRoleLabel(role)}
+                                  {formatWorkRoleLabel(workRole)}
                                 </button>
                               ))
                             ) : (
-                              <span className="px-2 py-1 rounded border bg-gray-50 text-gray-700 border-gray-200">
+                              <span className="rounded-full border border-blue-100 bg-white px-3 py-1.5 text-xs font-semibold text-blue-700">
                                 {formatWorkRoleLabel(workRoles[0] || 'done')}
                               </span>
                             )}
+                          </div>
+                        )}
+
+                        {isModal && expanded && (
+                          <div className="mt-3 grid gap-2 border-t border-slate-100 pt-3 text-xs text-slate-600 sm:grid-cols-2">
+                            <p className="truncate"><span className="font-semibold text-slate-500">Email:</span> {user.email || '—'}</p>
+                            <p><span className="font-semibold text-slate-500">Batch:</span> {user.batch || '—'}</p>
+                            <p><span className="font-semibold text-slate-500">Study department:</span> {user.studyDepartment || '—'}</p>
+                            <p><span className="font-semibold text-slate-500">Registration:</span> {user.registrationNumber || '—'}</p>
                           </div>
                         )}
                       </div>
@@ -1010,80 +1177,189 @@ if (phones.length > 0) {
                   })
                 )}
               </div>
+            </section>
 
-              <p className="text-xs sm:text-sm text-gray-500 mt-2">
-                Selected: {formData.assignedUsers.length} member(s)
-              </p>
-            </div>
+            <section id="equipment-items" className="scroll-mt-24 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+              <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h3 className="flex items-center gap-2 font-bold text-slate-800">
+                    <FaBox className="text-blue-600" />
+                    Equipment
+                    <span className="text-xs font-medium text-slate-400">(optional)</span>
+                  </h3>
+                  <p className="mt-1 text-xs text-slate-500">Reserve any inventory items needed for the task.</p>
+                </div>
+                <span aria-live="polite" className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-600">
+                  {formData.assignedItems.length} selected
+                </span>
+              </div>
 
-            {/* Inventory items selector */}
-            <div>
-              <label className="flex items-center gap-2 text-gray-700 font-semibold mb-2 text-sm sm:text-base">
-                <FaBox />
-                <span>Assign Inventory Items (Optional)</span>
-              </label>
-
-              <div className="relative mb-2">
-                <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs" />
+              <div className="relative mb-3">
+                <FaSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
                   placeholder="Search by item name or number..."
                   value={itemSearch}
                   onChange={(e) => setItemSearch(e.target.value)}
-                  className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  aria-label="Search equipment"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
                 />
               </div>
 
-              <div className="border border-gray-300 rounded p-3 sm:p-4 max-h-60 overflow-y-auto">
-                {filteredItems.length === 0 ? (
-                  <p className="text-gray-500 text-sm sm:text-base">
-                    No items found
-                  </p>
+              <div className="max-h-56 space-y-2 overflow-y-auto rounded-xl bg-slate-50 p-2">
+                {itemsLoading ? (
+                  <div aria-live="polite" className="flex items-center justify-center gap-2 rounded-lg bg-white px-4 py-8 text-sm font-medium text-slate-500">
+                    <FaSpinner className="animate-spin text-blue-600" />
+                    Loading equipment...
+                  </div>
+                ) : filteredItems.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-slate-300 bg-white px-4 py-8 text-center">
+                    <FaBox className="mx-auto mb-2 text-xl text-slate-300" />
+                    <p className="text-sm font-semibold text-slate-600">
+                      {itemSearch ? 'No matching equipment' : 'No equipment available'}
+                    </p>
+                    {itemSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setItemSearch('')}
+                        className="mt-3 text-xs font-semibold text-blue-600 hover:text-blue-700"
+                      >
+                        Clear search
+                      </button>
+                    )}
+                  </div>
                 ) : (
-                  filteredItems.map((item) => (
-                    <label
-                      key={item.id}
-                      className="flex items-center mb-2 cursor-pointer hover:bg-gray-50 p-2 rounded"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={formData.assignedItems.includes(item.id)}
-                        onChange={() => handleItemSelection(item.id)}
-                        className="mr-3 w-4 h-4"
-                      />
-                      <div className="flex-1">
-                        <p className="text-gray-700 text-sm sm:text-base">
-                          {item.itemName}{' '}
-                          <span className="text-xs text-gray-500">
-                            ({item.itemNo})
+                  filteredItems.map((item) => {
+                    const selected = formData.assignedItems.includes(item.id);
+                    return (
+                      <label
+                        key={item.id}
+                        className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition ${
+                          selected
+                            ? 'border-blue-300 bg-blue-50/80 shadow-sm'
+                            : 'border-slate-200 bg-white hover:border-slate-300'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selected}
+                          onChange={() => handleItemSelection(item.id)}
+                          className="mt-0.5 h-4 w-4 shrink-0 rounded accent-blue-600"
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-sm font-semibold text-slate-800">
+                            {item.itemName || 'Unnamed item'}
+                            {item.itemNo ? <span className="ml-1 font-normal text-slate-500">({item.itemNo})</span> : null}
                           </span>
-                        </p>
-                        {item.details && (
-                          <p className="text-xs text-gray-500 mt-0.5">
-                            {item.details}
-                          </p>
-                        )}
-                      </div>
-                    </label>
-                  ))
+                          {item.details && (
+                            <span className="mt-1 block text-xs text-slate-500">{item.details}</span>
+                          )}
+                        </span>
+                        <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${
+                          selected ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500'
+                        }`}>
+                          {selected ? 'Added' : 'Add'}
+                        </span>
+                      </label>
+                    );
+                  })
                 )}
               </div>
+            </section>
 
-              <p className="text-xs sm:text-sm text-gray-500 mt-2">
-                Selected: {formData.assignedItems.length} item(s)
-              </p>
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading || formData.assignedUsers.length === 0}
-              className="w-full bg-green-600 text-white py-2 sm:py-3 px-4 rounded font-semibold hover:bg-green-700 transition disabled:opacity-50 text-sm sm:text-base"
+            <div className={isModal
+              ? 'sticky z-10 -mb-4 mt-2 border-t border-slate-200 bg-white/95 px-4 py-4 shadow-[0_-8px_24px_rgba(15,23,42,0.06)] backdrop-blur sm:-mb-8 sm:px-5 sm:py-5'
+              : 'mt-2 border-t border-slate-200 pt-4'}
             >
-              {loading ? 'Creating Work...' : 'Create and Assign Work'}
-            </button>
+              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end sm:gap-5">
+                <div className="min-w-0" aria-live="polite">
+                  <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+                    <div className="flex min-w-0 items-center gap-2 rounded-xl border border-blue-100 bg-blue-50/70 px-3 py-2">
+                      <FaUsers className="shrink-0 text-sm text-blue-600" />
+                      <div className="min-w-0">
+                        <p className="text-base font-bold leading-4 text-slate-800">{formData.assignedUsers.length}</p>
+                        <p className="mt-1 truncate text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                          Team member{formData.assignedUsers.length === 1 ? '' : 's'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex min-w-0 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                      <FaBox className="shrink-0 text-sm text-slate-500" />
+                      <div className="min-w-0">
+                        <p className="text-base font-bold leading-4 text-slate-800">{formData.assignedItems.length}</p>
+                        <p className="mt-1 truncate text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                          Equipment item{formData.assignedItems.length === 1 ? '' : 's'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <p className="mt-2 text-xs leading-4 text-slate-500">
+                    {formData.assignedUsers.length
+                      ? 'Ready when you are. You can still adjust your selections.'
+                      : 'Select at least one team member to create this assignment.'}
+                  </p>
+                </div>
+                <div className={isModal ? 'grid grid-cols-2 gap-2 sm:flex sm:shrink-0' : 'flex'}>
+                  {isModal && (
+                    <button
+                      type="button"
+                      onClick={requestClose}
+                      disabled={loading}
+                      className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-50 sm:min-w-24 sm:px-4"
+                    >
+                      Cancel
+                    </button>
+                  )}
+                  <button
+                    type="submit"
+                    disabled={loading || formData.assignedUsers.length === 0}
+                    className={isModal
+                      ? 'inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-3 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-200 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none sm:w-auto sm:min-w-44 sm:px-5'
+                      : 'inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-200 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none'}
+                  >
+                    {loading ? <FaSpinner className="animate-spin" /> : null}
+                    {loading ? 'Creating assignment...' : 'Create assignment'}
+                  </button>
+                </div>
+              </div>
+            </div>
           </form>
         </div>
       </main>
+
+      {isModal && showDiscardPrompt && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/40 p-4">
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="discard-work-title"
+            className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl"
+          >
+            <h3 id="discard-work-title" className="text-lg font-bold text-slate-900">
+              Discard this draft?
+            </h3>
+            <p className="mt-2 text-sm text-slate-600">
+              Your task details and selections will be lost if you close now.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowDiscardPrompt(false)}
+                className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Keep editing
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700"
+              >
+                Discard draft
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
