@@ -293,7 +293,7 @@ const Signup = () => {
   ][passwordStrength];
 
   return (
-    <div className={`relative min-h-screen overflow-x-hidden px-3 pb-6 pt-20 transition-colors duration-300 sm:px-6 sm:pb-10 sm:pt-24 lg:py-10 ${
+    <div className={`relative min-h-screen overflow-x-clip px-3 pb-3 pt-20 transition-colors duration-300 sm:px-6 sm:pb-4 sm:pt-24 lg:pb-6 lg:pt-10 ${
       isDarkMode
         ? 'bg-slate-950 text-slate-100'
         : 'bg-gradient-to-br from-indigo-50 via-white to-cyan-50 text-slate-900'
@@ -334,13 +334,25 @@ const Signup = () => {
         }`}>
           Create your account
         </h1>
-        <span aria-hidden="true" className="h-10 w-10" />
+        <button
+          type="button"
+          onClick={toggleDarkMode}
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl shadow-sm transition hover:scale-105 ${
+            isDarkMode
+              ? 'bg-slate-800 text-amber-300 hover:bg-slate-700'
+              : 'bg-white text-indigo-600 hover:bg-indigo-50'
+          }`}
+          aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+          title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+        >
+          {isDarkMode ? <FaSun /> : <FaMoon />}
+        </button>
       </div>
 
       <button
         type="button"
         onClick={toggleDarkMode}
-        className={`fixed right-4 top-4 z-20 flex h-10 w-10 items-center justify-center rounded-xl shadow-lg transition hover:scale-105 sm:right-6 sm:top-6 ${
+        className={`fixed right-6 top-6 z-20 hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl shadow-lg transition hover:scale-105 lg:flex ${
           isDarkMode
             ? 'bg-slate-800 text-amber-300 hover:bg-slate-700'
             : 'bg-white text-indigo-600 hover:bg-indigo-50'
