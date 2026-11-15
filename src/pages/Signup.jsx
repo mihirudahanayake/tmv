@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { FaEye, FaEyeSlash } from 'react-icons/fa';
 import { useDarkMode } from '../context/DarkModeContext';
 import {
@@ -9,11 +9,13 @@ import {
   FaUserPlus,
   FaShieldAlt,
   FaSpinner,
+  FaCamera,
 } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 import { createUserWithEmailAndPassword, deleteUser, sendEmailVerification, signOut, updateProfile } from 'firebase/auth';
 import { doc, getDoc, runTransaction } from 'firebase/firestore';
-import { auth, db } from '../firebase/config';
+import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage';
+import { auth, db, storage } from '../firebase/config';
 import { WORK_DEPARTMENTS, formatWorkDepartmentLabel } from '../constants/workDepartments';
 
 // Configure emails that should get elevated roles.
@@ -55,8 +57,22 @@ const Signup = () => {
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState({});
   const [info, setInfo] = useState('');
+  const [profilePicture, setProfilePicture] = useState(null);
+  const [profilePicturePreview, setProfilePicturePreview] = useState('');
+  const [profilePictureError, setProfilePictureError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  useEffect(() => {
+    if (!profilePicture) {
+      setProfilePicturePreview('');
+      return undefined;
+    }
+
+    const previewUrl = URL.createObjectURL(profilePicture);
+    setProfilePicturePreview(previewUrl);
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [profilePicture]);
 
   const requiredValues = [
     form.name,
@@ -219,6 +235,7 @@ const Signup = () => {
     setLoading(true);
     let createdUser = null;
     let profileCreated = false;
+    let uploadedProfilePictureRef = null;
     try {
       const username = form.username.trim().replace(/\s+/g, ' ').toLowerCase();
       const usernameRef = doc(db, 'usernames', username);
@@ -240,7 +257,19 @@ const Signup = () => {
 
       const user = userCredential.user;
       createdUser = user;
-      await updateProfile(user, { displayName: username });
+
+      let photoURL = null;
+      if (profilePicture) {
+        const picturePath = `memberProfileImage/${user.uid}/signup-${Date.now()}-${profilePicture.name}`;
+        const uploadSnapshot = await uploadBytes(ref(storage, picturePath), profilePicture);
+        uploadedProfilePictureRef = uploadSnapshot.ref;
+        photoURL = await getDownloadURL(uploadSnapshot.ref);
+      }
+
+      await updateProfile(user, {
+        displayName: username,
+        ...(photoURL ? { photoURL } : {}),
+      });
 
       let role = 'member';
       let managedDepartments = [];
@@ -278,6 +307,7 @@ const Signup = () => {
           cardNumber: form.cardNumber || null,
           NFC_card_id: form.NFC_card_id || null,
           birthday: form.birthday || null,
+          photoURL,
           userType,
           createdAt: new Date().toISOString()
         });
@@ -295,11 +325,23 @@ const Signup = () => {
       });
     } catch (err) {
       if (createdUser && !profileCreated) {
+        let cleanupFailed = false;
+        if (uploadedProfilePictureRef) {
+          try {
+            await deleteObject(uploadedProfilePictureRef);
+          } catch (cleanupError) {
+            console.error('Failed to clean up an incomplete signup profile picture.', cleanupError);
+            cleanupFailed = true;
+          }
+        }
         try {
           await deleteUser(createdUser);
           await signOut(auth);
         } catch (cleanupError) {
           console.error('Failed to clean up an incomplete signup account.', cleanupError);
+          cleanupFailed = true;
+        }
+        if (cleanupFailed) {
           setError('Account setup could not be completed or rolled back. Please contact support before trying again.');
           return;
         }
@@ -578,6 +620,77 @@ const Signup = () => {
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
+                <div className="sm:col-span-2 flex items-center gap-4">
+                  {profilePicturePreview ? (
+                    <img
+                      src={profilePicturePreview}
+                      alt="Selected profile picture preview"
+                      className="h-16 w-16 rounded-full border border-slate-200 object-cover dark:border-slate-700"
+                    />
+                  ) : (
+                    <div className={`flex h-16 w-16 items-center justify-center rounded-full ${
+                      isDarkMode ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-500'
+                    }`}>
+                      <FaCamera aria-hidden="true" />
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <label
+                        htmlFor="signup-profile-picture"
+                        className={`cursor-pointer rounded-xl border px-3.5 py-2 text-sm font-semibold transition ${
+                          isDarkMode
+                            ? 'border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700'
+                            : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        {profilePicture ? 'Change picture' : 'Choose profile picture'}
+                      </label>
+                      {profilePicture ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setProfilePicture(null);
+                            setProfilePictureError('');
+                          }}
+                          className={`text-sm font-medium ${
+                            isDarkMode ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-700'
+                          }`}
+                        >
+                          Remove
+                        </button>
+                      ) : null}
+                    </div>
+                    <p className={`mt-1.5 text-xs ${isDarkMode ? 'text-slate-500' : 'text-slate-500'}`}>
+                      Profile picture (optional). Choose an image file.
+                    </p>
+                    {profilePictureError ? (
+                      <p id="signup-profile-picture-error" role="alert" className="mt-1.5 text-xs font-medium text-rose-600 dark:text-rose-400">
+                        {profilePictureError}
+                      </p>
+                    ) : null}
+                    <input
+                      id="signup-profile-picture"
+                      type="file"
+                      accept="image/*"
+                      className="sr-only"
+                      aria-invalid={Boolean(profilePictureError)}
+                      aria-describedby={profilePictureError ? 'signup-profile-picture-error' : undefined}
+                      onChange={(event) => {
+                        const selectedFile = event.target.files?.[0];
+                        event.target.value = '';
+                        if (!selectedFile) return;
+                        if (!selectedFile.type.startsWith('image/')) {
+                          setProfilePictureError('Choose a valid image file.');
+                          return;
+                        }
+                        setProfilePictureError('');
+                        setProfilePicture(selectedFile);
+                      }}
+                    />
+                  </div>
+                </div>
+
                 <label className="sm:col-span-2">
                   <span className={labelClass}>Name with initial <span className="text-rose-500">*</span></span>
                   <input
