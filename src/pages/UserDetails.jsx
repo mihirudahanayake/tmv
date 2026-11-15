@@ -215,70 +215,58 @@ const UserDetails = () => {
     && targetRole !== Roles.SITE_ADMIN
     && [Roles.MEMBER, Roles.DEPARTMENT_HEAD].includes(targetRole);
 
-  const toggleDepartmentHeadDepartment = (department) => {
-    setDepartmentHeadDepartments((current) =>
-      current.includes(department)
-        ? current.filter((value) => value !== department)
-        : [...current, department]
-    );
-  };
-
-  const handleSaveDepartmentHead = async () => {
+  const handleToggleDepartmentHeadDepartment = async (department, checked) => {
     if (!userId || !user || !canManageDepartmentHead) return;
-    const managedDepartments = [...new Set(departmentHeadDepartments)]
-      .filter((department) => WORK_DEPARTMENTS.includes(department));
-    if (!managedDepartments.length) {
-      setActionError('Select at least one department for this department head.');
-      setActionSuccess('');
+    const managedDepartments = new Set(departmentHeadDepartments);
+    if (checked) managedDepartments.add(department);
+    else managedDepartments.delete(department);
+
+    const nextDepartments = [...managedDepartments];
+    const removingLastDepartment =
+      targetRole === Roles.DEPARTMENT_HEAD && nextDepartments.length === 0;
+    const departmentLabel = formatWorkDepartmentLabel(department);
+    const userLabel = user.name || user.email || 'this user';
+    const confirmationMessage = checked
+      ? targetRole === Roles.DEPARTMENT_HEAD
+        ? `Add ${departmentLabel} to ${userLabel}'s managed departments?`
+        : `Make ${userLabel} a department head for ${departmentLabel}?`
+      : removingLastDepartment
+        ? `Remove ${departmentLabel} and department-head access from ${userLabel}?`
+        : `Remove ${departmentLabel} from ${userLabel}'s managed departments?`;
+
+    setActionError('');
+    setActionSuccess('');
+    if (!window.confirm(confirmationMessage)) {
       return;
     }
 
     setSavingDepartmentHead(true);
-    setActionError('');
-    setActionSuccess('');
-    const patch = {
-      role: Roles.DEPARTMENT_HEAD,
-      userType: 'admin',
-      managedDepartments,
-      isTO: false,
-    };
+    const patch = nextDepartments.length
+      ? {
+          role: Roles.DEPARTMENT_HEAD,
+          userType: 'admin',
+          managedDepartments: nextDepartments,
+          ...(targetRole === Roles.DEPARTMENT_HEAD ? {} : { isTO: false }),
+        }
+      : {
+          role: Roles.MEMBER,
+          userType: 'user',
+          managedDepartments: [],
+          isTO: false,
+        };
 
     try {
       await updateDoc(doc(db, 'users', userId), patch);
       setUser((previous) => (previous ? { ...previous, ...patch } : previous));
-      setActionSuccess('Department head access saved.');
+      setDepartmentHeadDepartments(nextDepartments);
+      setActionSuccess(
+        nextDepartments.length
+          ? 'Department head assignment updated.'
+          : 'Department head access removed.'
+      );
     } catch (err) {
-      console.error('Failed to update department head access', err);
-      setActionError('Failed to update department head access. Please try again.');
-    } finally {
-      setSavingDepartmentHead(false);
-    }
-  };
-
-  const handleRemoveDepartmentHead = async () => {
-    if (!userId || !user || !canManageDepartmentHead || targetRole !== Roles.DEPARTMENT_HEAD) return;
-    if (!window.confirm(`Remove department head access from ${user.name || user.email || 'this user'}?`)) {
-      return;
-    }
-
-    setSavingDepartmentHead(true);
-    setActionError('');
-    setActionSuccess('');
-    const patch = {
-      role: Roles.MEMBER,
-      userType: 'user',
-      managedDepartments: [],
-      isTO: false,
-    };
-
-    try {
-      await updateDoc(doc(db, 'users', userId), patch);
-      setUser((previous) => (previous ? { ...previous, ...patch } : previous));
-      setDepartmentHeadDepartments([]);
-      setActionSuccess('Department head access removed.');
-    } catch (err) {
-      console.error('Failed to remove department head access', err);
-      setActionError('Failed to remove department head access. Please try again.');
+      console.error('Failed to update department head assignment', err);
+      setActionError('Failed to update department head assignment. Please try again.');
     } finally {
       setSavingDepartmentHead(false);
     }
@@ -624,9 +612,7 @@ const UserDetails = () => {
               <section className="mb-6 rounded-[24px] border border-indigo-200 bg-white p-4 shadow-sm sm:p-6">
                 <h2 className="text-lg font-bold text-slate-800">Department head access</h2>
                 <p className="mt-1 text-sm text-slate-600">
-                  {targetRole === Roles.DEPARTMENT_HEAD
-                    ? 'Choose which departments this user can manage.'
-                    : 'Select the departments this user will manage.'}
+                  Check or uncheck a department to update this user’s access immediately. Each change requires confirmation.
                 </p>
 
                 <div className="mt-4 grid gap-2 sm:grid-cols-2">
@@ -638,7 +624,9 @@ const UserDetails = () => {
                       <input
                         type="checkbox"
                         checked={departmentHeadDepartments.includes(department)}
-                        onChange={() => toggleDepartmentHeadDepartment(department)}
+                        onChange={(event) =>
+                          handleToggleDepartmentHeadDepartment(department, event.target.checked)
+                        }
                         disabled={savingDepartmentHead}
                       />
                       {formatWorkDepartmentLabel(department)}
@@ -646,30 +634,11 @@ const UserDetails = () => {
                   ))}
                 </div>
 
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={handleSaveDepartmentHead}
-                    disabled={savingDepartmentHead}
-                    className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
-                  >
-                    {savingDepartmentHead
-                      ? 'Saving...'
-                      : targetRole === Roles.DEPARTMENT_HEAD
-                        ? 'Save departments'
-                        : 'Make department head'}
-                  </button>
-                  {targetRole === Roles.DEPARTMENT_HEAD ? (
-                    <button
-                      type="button"
-                      onClick={handleRemoveDepartmentHead}
-                      disabled={savingDepartmentHead}
-                      className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
-                    >
-                      Remove department head
-                    </button>
-                  ) : null}
-                </div>
+                {savingDepartmentHead ? (
+                  <p className="mt-4 text-sm font-medium text-slate-500">
+                    Saving department access...
+                  </p>
+                ) : null}
               </section>
             ) : null}
 
