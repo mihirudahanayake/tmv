@@ -12,8 +12,14 @@ import {
   FaCamera,
 } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
-import { createUserWithEmailAndPassword, deleteUser, sendEmailVerification, signOut, updateProfile } from 'firebase/auth';
-import { doc, setDoc, updateDoc } from 'firebase/firestore';
+import {
+  createUserWithEmailAndPassword,
+  reload,
+  sendEmailVerification,
+  signOut,
+  updateProfile,
+} from 'firebase/auth';
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { auth, db, storage } from '../firebase/config';
 import { WORK_DEPARTMENTS, formatWorkDepartmentLabel } from '../constants/workDepartments';
@@ -23,6 +29,7 @@ import { WORK_DEPARTMENTS, formatWorkDepartmentLabel } from '../constants/workDe
 // - superAdmin: read-only across all departments
 const DEPT_HEAD_EMAILS = ['mihirudahanayake@gmail.com'];
 const SUPER_ADMIN_EMAILS = [];
+const normalizeEmail = (email = '') => email.trim().toLowerCase();
 
 const FieldError = ({ id, message }) =>
   message ? (
@@ -62,6 +69,10 @@ const Signup = () => {
   const [profilePictureError, setProfilePictureError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [sendingVerificationEmail, setSendingVerificationEmail] = useState(false);
+  const [verifiedEmail, setVerifiedEmail] = useState('');
+  const [verificationEmailSentTo, setVerificationEmailSentTo] = useState('');
+  const [passwordAtVerification, setPasswordAtVerification] = useState('');
 
   useEffect(() => {
     if (!profilePicture) {
@@ -149,6 +160,9 @@ const Signup = () => {
     const { name } = e.target;
     const value = e.target.value;
     setForm((prev) => ({ ...prev, [name]: value }));
+    if (name === 'email' && normalizeEmail(value) !== normalizeEmail(form.email)) {
+      setVerifiedEmail('');
+    }
     setError('');
     setInfo('');
     setFieldErrors((previous) => {
@@ -178,6 +192,101 @@ const Signup = () => {
       ...previous,
       [name]: validateField(name, value),
     }));
+  };
+
+  const handleEmailVerification = async () => {
+    setError('');
+    setInfo('');
+
+    const email = form.email.trim();
+    const emailError = validateField('email', email);
+    if (emailError) {
+      setFieldErrors((previous) => ({ ...previous, email: emailError }));
+      document.querySelector('[name="email"]')?.focus();
+      return;
+    }
+
+    const passwordError = validateField('password', form.password);
+    if (passwordError) {
+      setFieldErrors((previous) => ({
+        ...previous,
+        email: '',
+        password: passwordError === 'Please create a password.'
+          ? 'Create a password before sending a verification email.'
+          : passwordError,
+      }));
+      document.querySelector('[name="password"]')?.focus();
+      return;
+    }
+
+    const normalizedEmail = normalizeEmail(email);
+    setFieldErrors((previous) => ({ ...previous, email: '', password: '' }));
+    setSendingVerificationEmail(true);
+    try {
+      let user = auth.currentUser;
+      if (user && normalizeEmail(user.email || '') !== normalizedEmail) {
+        await signOut(auth);
+        user = null;
+      }
+
+      if (user) {
+        await reload(user);
+        const existingProfile = await getDoc(doc(db, 'users', user.uid));
+        if (existingProfile.exists()) {
+          setFieldErrors((previous) => ({
+            ...previous,
+            email: 'An account with this email already exists. Log in instead.',
+          }));
+          document.querySelector('[name="email"]')?.focus();
+          return;
+        }
+
+        if (user.emailVerified) {
+          setVerifiedEmail(normalizedEmail);
+          setVerificationEmailSentTo(normalizedEmail);
+          setInfo('This email is already verified. Complete the rest of the form to create your account.');
+          return;
+        }
+      } else {
+        const userCredential = await createUserWithEmailAndPassword(auth, email, form.password);
+        user = userCredential.user;
+        setPasswordAtVerification(form.password);
+      }
+
+      await sendEmailVerification(user);
+      setVerificationEmailSentTo(normalizedEmail);
+      setVerifiedEmail('');
+      setInfo(`A verification email was sent to ${email}. Open the link, then return here to finish signup.`);
+    } catch (verificationError) {
+      console.error('Failed to send signup email verification.', verificationError);
+      if (verificationError.code === 'auth/email-already-in-use') {
+        setFieldErrors((previous) => ({
+          ...previous,
+          email: 'An account with this email already exists. Log in instead.',
+        }));
+        document.querySelector('[name="email"]')?.focus();
+      } else if (verificationError.code === 'auth/weak-password') {
+        setFieldErrors((previous) => ({
+          ...previous,
+          password: 'Choose a stronger password with at least 6 characters.',
+        }));
+        document.querySelector('[name="password"]')?.focus();
+      } else {
+        setError(
+          verificationError.code === 'auth/invalid-email'
+            ? 'That email address does not look valid. Check it and try again.'
+            : verificationError.code === 'auth/operation-not-allowed'
+              ? 'Email/password signup is not enabled for this app. Please contact an administrator.'
+              : verificationError.code === 'auth/too-many-requests'
+                ? 'Too many verification requests were made. Please wait a moment and try again.'
+                : verificationError.code === 'auth/network-request-failed'
+                  ? 'We could not connect. Check your internet connection and try again.'
+                  : 'We could not send a verification email right now. Please try again in a moment.'
+        );
+      }
+    } finally {
+      setSendingVerificationEmail(false);
+    }
   };
 
   const handleDepartmentToggle = (value) => {
@@ -232,21 +341,46 @@ const Signup = () => {
       return;
     }
 
+    if (passwordAtVerification && form.password !== passwordAtVerification) {
+      setFieldErrors((previous) => ({
+        ...previous,
+        password: 'Use the password you entered when sending the verification email.',
+      }));
+      document.querySelector('[name="password"]')?.focus();
+      return;
+    }
+
+    const normalizedEmail = normalizeEmail(form.email);
+    const user = auth.currentUser;
+    if (
+      !user
+      || normalizeEmail(user.email || '') !== normalizedEmail
+    ) {
+      setError('Send a verification email to this address before creating your account.');
+      document.querySelector('[name="email"]')?.focus();
+      return;
+    }
+
     setLoading(true);
-    let createdUser = null;
-    let profileCreated = false;
     let profilePictureWarning = '';
     try {
       const username = form.username.trim().replace(/\s+/g, ' ');
 
-      const userCredential = await createUserWithEmailAndPassword(
-        auth,
-        form.email,
-        form.password
-      );
+      await reload(user);
+      if (!user.emailVerified) {
+        setVerifiedEmail('');
+        setError('Your email is not verified yet. Open the verification link and try again.');
+        return;
+      }
+      setVerifiedEmail(normalizedEmail);
 
-      const user = userCredential.user;
-      createdUser = user;
+      const existingProfile = await getDoc(doc(db, 'users', user.uid));
+      if (existingProfile.exists()) {
+        await signOut(auth);
+        setVerifiedEmail('');
+        setError('An account with this email already exists. Log in instead.');
+        return;
+      }
 
       await updateProfile(user, { displayName: username });
 
@@ -265,7 +399,7 @@ const Signup = () => {
         username,
         name: username,
         fullName: form.name.trim(),
-        email: form.email,
+        email: user.email || form.email,
         phoneNo: form.phoneNo,
         departments: form.departments,
         firstPriority: form.departments[0] || 'videography',
@@ -283,7 +417,6 @@ const Signup = () => {
         userType,
         createdAt: new Date().toISOString()
       });
-      profileCreated = true;
 
       if (profilePicture) {
         let uploadedProfilePictureRef = null;
@@ -307,31 +440,13 @@ const Signup = () => {
         }
       }
 
-      await sendEmailVerification(user);
-
-      // Require verification before proceeding.
       await signOut(auth);
       navigate('/login', {
         state: {
-          info: `Account created. Please verify your email using the link we sent before logging in.${profilePictureWarning}`,
+          info: `Your email is verified and your account has been created. You can now log in.${profilePictureWarning}`,
         },
       });
     } catch (err) {
-      if (createdUser && !profileCreated) {
-        let cleanupFailed = false;
-        try {
-          await deleteUser(createdUser);
-          await signOut(auth);
-        } catch (cleanupError) {
-          console.error('Failed to clean up an incomplete signup account.', cleanupError);
-          cleanupFailed = true;
-        }
-        if (cleanupFailed) {
-          setError('Account setup could not be completed or rolled back. Please contact support before trying again.');
-          return;
-        }
-      }
-
       const friendlyErrors = {
         'auth/email-already-in-use': 'An account with this email already exists. Log in instead.',
         'auth/invalid-email': 'That email address does not look valid. Check it and try again.',
@@ -365,6 +480,7 @@ const Signup = () => {
   };
 
   const isDeptSelected = (value) => form.departments.includes(value);
+  const isEmailVerified = Boolean(verifiedEmail) && verifiedEmail === normalizeEmail(form.email);
   const labelClass = `mb-1.5 block text-sm font-semibold ${
     isDarkMode ? 'text-slate-200' : 'text-slate-700'
   }`;
@@ -487,7 +603,8 @@ const Signup = () => {
               {[
                 ['01', 'Add your details'],
                 ['02', 'Choose your work teams'],
-                ['03', 'Verify secure password'],
+                ['03', 'Secure your account'],
+                ['04', 'Verify your email'],
               ].map(([number, text]) => (
                 <div key={number} className="flex items-center gap-3">
                   <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/15 text-xs font-bold ring-1 ring-white/20">
@@ -711,24 +828,6 @@ const Signup = () => {
                       Choose a display username using 3–20 letters, numbers, underscores, or spaces. Uppercase and lowercase letters are supported.
                     </p>
                   ) : null}
-                </label>
-
-                <label>
-                  <span className={labelClass}>Email address <span className="text-rose-500">*</span></span>
-                  <input
-                    type="email"
-                    name="email"
-                    value={form.email}
-                    onChange={handleChange}
-                    onBlur={handleFieldBlur}
-                    autoComplete="email"
-                    required
-                    placeholder="you@example.com"
-                    aria-invalid={Boolean(fieldErrors.email)}
-                    aria-describedby={fieldErrors.email ? 'email-error' : undefined}
-                    className={inputClass}
-                  />
-                  <FieldError id="email-error" message={fieldErrors.email} />
                 </label>
 
                 <label>
@@ -1074,7 +1173,90 @@ const Signup = () => {
                 <p className={`mt-2 text-xs ${
                   isDarkMode ? 'text-slate-500' : 'text-slate-500'
                 }`}>
-                  Tip: use a mix of upper- and lowercase letters, plus a number or symbol.
+                  Tip: use a mix of upper- and lowercase letters, plus a number or symbol. Create your password before sending the verification email; you’ll use it to log in.
+                </p>
+              </div>
+
+            </section>
+
+            <section>
+              <div className="mb-4 flex items-center gap-3">
+                <span className={`flex h-9 w-9 items-center justify-center rounded-xl text-sm font-bold ${
+                  isDarkMode ? 'bg-cyan-400/10 text-cyan-300' : 'bg-cyan-50 text-cyan-700'
+                }`}>
+                  4
+                </span>
+                <div>
+                  <h3 className={`font-bold ${isDarkMode ? 'text-slate-100' : 'text-slate-800'}`}>
+                    Verify your email
+                  </h3>
+                  <p className={`text-xs ${isDarkMode ? 'text-slate-500' : 'text-slate-500'}`}>
+                    Confirm your email address before creating your account.
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="signup-email" className={labelClass}>
+                  Email address <span className="text-rose-500">*</span>
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="email"
+                    name="email"
+                    id="signup-email"
+                    value={form.email}
+                    onChange={handleChange}
+                    onBlur={handleFieldBlur}
+                    autoComplete="email"
+                    required
+                    placeholder="you@example.com"
+                    aria-invalid={Boolean(fieldErrors.email)}
+                    aria-describedby={fieldErrors.email ? 'email-error' : 'email-verification-status'}
+                    className={`${inputClass} min-w-0 flex-1`}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleEmailVerification}
+                    disabled={sendingVerificationEmail || loading || isEmailVerified}
+                    className={`shrink-0 rounded-xl px-3 py-3 text-xs font-bold transition focus:outline-none focus:ring-4 focus:ring-indigo-500/20 disabled:cursor-not-allowed disabled:opacity-60 ${
+                      isDarkMode
+                        ? 'bg-indigo-500 text-white hover:bg-indigo-400'
+                        : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                    }`}
+                  >
+                    {sendingVerificationEmail ? (
+                      <span className="flex items-center gap-1.5">
+                        <FaSpinner className="animate-spin" aria-hidden="true" />
+                        Sending
+                      </span>
+                    ) : isEmailVerified ? (
+                      <span className="flex items-center gap-1.5">
+                        <FaCheck aria-hidden="true" />
+                        Verified
+                      </span>
+                    ) : verificationEmailSentTo === normalizeEmail(form.email) ? (
+                      'Resend email'
+                    ) : (
+                      'Send email'
+                    )}
+                  </button>
+                </div>
+                <FieldError id="email-error" message={fieldErrors.email} />
+                <p
+                  id="email-verification-status"
+                  role={isEmailVerified ? 'status' : undefined}
+                  className={`mt-1.5 text-xs ${
+                    isEmailVerified
+                      ? 'font-medium text-emerald-600 dark:text-emerald-400'
+                      : 'font-medium text-rose-600 dark:text-rose-400'
+                  }`}
+                >
+                  {isEmailVerified
+                    ? 'Email verified.'
+                    : verificationEmailSentTo === normalizeEmail(form.email)
+                      ? 'Open the verification link in your inbox, then return here to complete signup.'
+                      : 'Verify this email address before creating your account.'}
                 </p>
               </div>
             </section>
@@ -1112,7 +1294,7 @@ const Signup = () => {
               <p className={`text-center text-xs ${
                 isDarkMode ? 'text-slate-500' : 'text-slate-400'
               }`}>
-                We’ll send you an email to verify your account.
+                Your email must be verified before your account can be created.
               </p>
             </div>
           </form>
