@@ -67,11 +67,7 @@ const Login = () => {
     setLoading(true);
 
     try {
-      const userCredential = await signInWithEmailAndPassword(
-        auth,
-        form.email.trim(),
-        form.password
-      );
+      const userCredential = await signInWithEmailAndPassword(auth, form.email.trim(), form.password);
 
       const user = userCredential.user;
       if (!user.emailVerified) {
@@ -126,11 +122,7 @@ const Login = () => {
     let verificationUser = null;
 
     try {
-      const userCredential = await signInWithEmailAndPassword(
-        auth,
-        form.email.trim(),
-        form.password
-      );
+      const userCredential = await signInWithEmailAndPassword(auth, form.email.trim(), form.password);
       verificationUser = userCredential.user;
 
       if (verificationUser.emailVerified) {
@@ -293,7 +285,6 @@ const Login = () => {
                 value={form.email}
                 onChange={handleChange}
                 autoComplete="email"
-                inputMode="email"
                 placeholder="you@example.com"
                 required
                 className={`w-full rounded-xl border px-3.5 py-3 text-sm outline-none transition focus:ring-4 ${

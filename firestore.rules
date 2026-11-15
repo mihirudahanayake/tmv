@@ -96,12 +96,18 @@ service cloud.firestore {
       return username is string
         && username.size() >= 3
         && username.size() <= 20
-        && username.matches('^[a-z0-9_]+( [a-z0-9_]+)*$');
+        && username.matches('^[A-Za-z0-9_]+( [A-Za-z0-9_]+)*$');
     }
 
     function preservesUsername() {
       return request.resource.data.username == resource.data.username
         && (resource.data.username == null || request.resource.data.name == resource.data.name);
+    }
+
+    function hasValidUsernameAfterChange() {
+      return request.resource.data.username is string
+        && isValidUsername(request.resource.data.username)
+        && request.resource.data.name == request.resource.data.username;
     }
 
     function canManageDept(dept) {
@@ -133,7 +139,7 @@ service cloud.firestore {
         && request.resource.data.role != 'siteAdmin'
         && preservesUsername();
 
-      // Members can create only their own basic profile with its reserved username.
+      // Members can create only their own basic profile.
       allow create: if signedIn()
         && userId == request.auth.uid
         && request.resource.data.role == 'member'
@@ -143,9 +149,7 @@ service cloud.firestore {
         && request.resource.data.birthday is string
         && request.resource.data.birthday.size() > 0
         && request.resource.data.gender in ['male', 'female']
-        && isValidWorkDeptList(request.resource.data.departments)
-        && getAfter(/databases/$(database)/documents/usernames/$(request.resource.data.username)).data.username
-          == request.resource.data.username;
+        && isValidWorkDeptList(request.resource.data.departments);
 
       // Department heads can create member profiles within their managed department.
       allow create: if isDeptHead()
@@ -166,7 +170,7 @@ service cloud.firestore {
 
       // Users can update their own profile but cannot change role or departments.
       allow update: if signedIn() && userId == request.auth.uid
-        && preservesUsername()
+        && (preservesUsername() || hasValidUsernameAfterChange())
         && request.resource.data.role == resource.data.role
         && request.resource.data.userType == resource.data.userType
         && request.resource.data.managedDepartments == resource.data.managedDepartments
@@ -263,18 +267,6 @@ service cloud.firestore {
             get(/databases/$(database)/documents/users/$(userId)).data
           );
       }
-    }
-
-    match /usernames/{username} {
-      allow get: if true;
-      allow list: if false;
-      allow create: if signedIn()
-        && request.resource.data.keys().hasOnly(['username'])
-        && request.resource.data.username == username
-        && isValidUsername(username)
-        && getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.username
-          == username;
-      allow update, delete: if false;
     }
 
     match /works/{workId} {

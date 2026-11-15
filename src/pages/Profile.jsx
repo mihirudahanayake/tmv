@@ -3,6 +3,7 @@ import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import {
   onAuthStateChanged,
   updatePassword,
+  updateProfile,
   signOut,
   updateEmail,
   reauthenticateWithCredential,
@@ -14,6 +15,7 @@ import { auth, db } from '../firebase/config';
 import Header from '../components/Header';
 import { WORK_DEPARTMENTS, formatWorkDepartmentLabel } from '../constants/workDepartments';
 import { useDarkMode } from '../context/DarkModeContext';
+import { normalizeRole, Roles } from '../utils/authz';
 import {
   FaUser,
   FaEnvelope,
@@ -283,6 +285,13 @@ const Profile = () => {
     setError('');
     setSuccessMsg('');
 
+    const previousUsername = typeof originalData?.username === 'string'
+      ? originalData.username.trim().replace(/\s+/g, ' ')
+      : '';
+    const username = typeof userData.username === 'string'
+      ? userData.username.trim().replace(/\s+/g, ' ')
+      : '';
+
     const selectedDepartments = getSelectedDepartments(userData);
     if (selectedDepartments.length === 0) {
       setError('Please select at least one work department.');
@@ -290,31 +299,103 @@ const Profile = () => {
       return;
     }
 
+    if (previousUsername && !username) {
+      setError('Your username cannot be empty.');
+      setSaving(false);
+      return;
+    }
+
+    if (username && (
+      username.length < 3
+      || username.length > 20
+      || !/^[A-Za-z0-9_]+( [A-Za-z0-9_]+)*$/.test(username)
+    )) {
+      setError('Use a username with 3–20 letters, numbers, underscores, or spaces.');
+      setSaving(false);
+      return;
+    }
+
     try {
       const userRef = doc(db, 'users', userData.id);
-      const { id, userType, createdAt, email, ...editable } = userData;
-
+      const fullName = typeof userData.fullName === 'string'
+        ? userData.fullName.trim()
+        : (userData.name || '').trim();
+      const originalFullName = typeof originalData?.fullName === 'string'
+        ? originalData.fullName.trim()
+        : (!previousUsername ? (originalData?.name || '').trim() : '');
+      const originalDepartments = getSelectedDepartments(originalData);
+      const originalPrimaryDepartment =
+        originalData?.firstPriority
+        || originalData?.department
+        || originalDepartments[0]
+        || 'videography';
       const primaryDepartment =
-        (editable.firstPriority && selectedDepartments.includes(editable.firstPriority)
-          ? editable.firstPriority
+        (userData.firstPriority && selectedDepartments.includes(userData.firstPriority)
+          ? userData.firstPriority
           : selectedDepartments[0]) || 'videography';
+      const departmentsChanged =
+        JSON.stringify(selectedDepartments) !== JSON.stringify(originalDepartments)
+        || primaryDepartment !== originalPrimaryDepartment;
 
-      const normalizedEditable = {
-        ...editable,
-        ...(userData.username ? {} : { name: editable.fullName?.trim() || '' }),
-        departments: selectedDepartments,
-        firstPriority: primaryDepartment,
-        department: primaryDepartment,
-      };
+      if (departmentsChanged && normalizeRole(userData) === Roles.DEPARTMENT_HEAD) {
+        setError('Only an administrator can change your work departments.');
+        setSaving(false);
+        return;
+      }
 
-      await updateDoc(userRef, normalizedEditable);
-      setUserData((prev) => (prev ? normalizeProfileData({ ...prev, ...normalizedEditable }) : prev));
-      setSuccessMsg('Profile updated successfully.');
+      const profilePatch = {};
+      if (username !== previousUsername) {
+        profilePatch.username = username;
+        profilePatch.name = username;
+      }
+      if (fullName !== originalFullName) {
+        profilePatch.fullName = fullName;
+        if (!username) profilePatch.name = fullName;
+      }
+
+      ['phoneNo', 'birthday', 'gender', 'registrationNumber', 'batch', 'studyDepartment']
+        .forEach((field) => {
+          if (userData[field] !== originalData?.[field] && userData[field] !== undefined) {
+            profilePatch[field] = userData[field];
+          }
+        });
+
+      if (departmentsChanged) {
+        profilePatch.departments = selectedDepartments;
+        profilePatch.firstPriority = primaryDepartment;
+        profilePatch.department = primaryDepartment;
+      }
+
+      if (Object.keys(profilePatch).length === 0) {
+        setSuccessMsg('No changes to save.');
+        setIsEditingProfile(false);
+        setSaving(false);
+        return;
+      }
+
+      await updateDoc(userRef, profilePatch);
+
+      let profileSyncWarning = '';
+      if (username && auth.currentUser && auth.currentUser.displayName !== username) {
+        try {
+          await updateProfile(auth.currentUser, { displayName: username });
+        } catch (profileError) {
+          console.error('Profile saved, but Firebase Auth display name could not be synchronized.', profileError);
+          profileSyncWarning = ' Your Firebase sign-in display name could not be synchronized.';
+        }
+      }
+
+      setUserData((prev) => (prev ? normalizeProfileData({ ...prev, ...profilePatch }) : prev));
+      setSuccessMsg(`Profile updated successfully.${profileSyncWarning}`);
       setIsEditingProfile(false);
-      setOriginalData((prev) => (prev ? normalizeProfileData({ ...prev, ...normalizedEditable }) : prev));
+      setOriginalData((prev) => (prev ? normalizeProfileData({ ...prev, ...profilePatch }) : prev));
     } catch (err) {
       console.error(err);
-      setError('Failed to update profile.');
+      if (err.code === 'permission-denied' || err.code === 'firestore/permission-denied') {
+        setError('Profile changes were denied. Deploy the updated Firestore rules and try again.');
+      } else {
+        setError(err.message || 'Failed to update profile.');
+      }
     } finally {
       setSaving(false);
     }
@@ -1147,6 +1228,24 @@ const Profile = () => {
                       <FaUser /> Personal Information
                     </h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Username</label>
+                        <input
+                          ref={(el) => (fieldRefs.current.username = el)}
+                          type="text"
+                          name="username"
+                          value={userData.username || ''}
+                          onChange={handleFieldChange}
+                          className={inputClass}
+                          disabled={!isEditingProfile}
+                          minLength={3}
+                          maxLength={20}
+                          autoComplete="username"
+                        />
+                        <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+                          Uppercase and lowercase letters are supported; usernames do not need to be unique.
+                        </p>
+                      </div>
                       <div>
                         <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Full Name</label>
                         <input

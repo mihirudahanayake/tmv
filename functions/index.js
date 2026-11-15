@@ -18,7 +18,6 @@ const GMAIL_PASS = process.env.GMAIL_PASS;
 const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
 const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
 const WHATSAPP_FROM = process.env.WHATSAPP_FROM; // "whatsapp:+14247049505"
-
 /* ================== AUTHZ HELPERS ================== */
 
 const Roles = {
@@ -123,9 +122,6 @@ exports.deleteUserAccount = onCall(
   }
   const targetDoc = targetSnap.data() || {};
   const targetRole = normalizeRole(targetDoc);
-  const username = typeof targetDoc.username === 'string'
-    ? targetDoc.username.trim().toLowerCase()
-    : '';
 
   // Safety: don’t allow deleting admins
   if (targetRole === Roles.SITE_ADMIN || targetRole === Roles.SUPER_ADMIN || targetRole === Roles.DEPARTMENT_HEAD) {
@@ -150,14 +146,6 @@ exports.deleteUserAccount = onCall(
   } catch (e) {
     logger.warn('Failed deleting user Firestore doc', { targetUid, error: e?.message || String(e) });
     throw new HttpsError('internal', 'Failed to delete user data.');
-  }
-
-  if (username) {
-    try {
-      await db.collection('usernames').doc(username).delete();
-    } catch (e) {
-      logger.warn('Failed deleting username reservation', { targetUid, username, error: e?.message || String(e) });
-    }
   }
 
   // Delete Auth user

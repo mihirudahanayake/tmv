@@ -141,9 +141,6 @@ export const deleteUserAccount = onCall(
   }
   const targetDoc = targetSnap.data() || {};
   const targetRole = normalizeRole(targetDoc);
-  const username = typeof targetDoc.username === 'string'
-    ? targetDoc.username.trim().toLowerCase()
-    : '';
   if (targetRole === Roles.SITE_ADMIN || targetRole === Roles.SUPER_ADMIN || targetRole === Roles.DEPARTMENT_HEAD) {
     throw new HttpsError('permission-denied', 'You cannot delete admin accounts.');
   }
@@ -166,14 +163,6 @@ export const deleteUserAccount = onCall(
   } catch (e: any) {
     logger.warn('Failed deleting user Firestore doc', { targetUid, error: e?.message || String(e) });
     throw new HttpsError('internal', 'Failed to delete user data.');
-  }
-
-  if (username) {
-    try {
-      await db.collection('usernames').doc(username).delete();
-    } catch (e: any) {
-      logger.warn('Failed deleting username reservation', { targetUid, username, error: e?.message || String(e) });
-    }
   }
 
   try {

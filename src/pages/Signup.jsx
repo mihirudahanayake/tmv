@@ -13,7 +13,7 @@ import {
 } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 import { createUserWithEmailAndPassword, deleteUser, sendEmailVerification, signOut, updateProfile } from 'firebase/auth';
-import { doc, getDoc, runTransaction, updateDoc } from 'firebase/firestore';
+import { doc, setDoc, updateDoc } from 'firebase/firestore';
 import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { auth, db, storage } from '../firebase/config';
 import { WORK_DEPARTMENTS, formatWorkDepartmentLabel } from '../constants/workDepartments';
@@ -147,7 +147,7 @@ const Signup = () => {
 
   const handleChange = (e) => {
     const { name } = e.target;
-    const value = name === 'username' ? e.target.value.toLowerCase() : e.target.value;
+    const value = e.target.value;
     setForm((prev) => ({ ...prev, [name]: value }));
     setError('');
     setInfo('');
@@ -237,17 +237,7 @@ const Signup = () => {
     let profileCreated = false;
     let profilePictureWarning = '';
     try {
-      const username = form.username.trim().replace(/\s+/g, ' ').toLowerCase();
-      const usernameRef = doc(db, 'usernames', username);
-      const existingUsername = await getDoc(usernameRef);
-      if (existingUsername.exists()) {
-        setFieldErrors((previous) => ({
-          ...previous,
-          username: 'That username is already in use. Try another one.',
-        }));
-        document.querySelector('[name="username"]')?.focus();
-        return;
-      }
+      const username = form.username.trim().replace(/\s+/g, ' ');
 
       const userCredential = await createUserWithEmailAndPassword(
         auth,
@@ -271,35 +261,27 @@ const Signup = () => {
 
       const userType = role === 'departmentHead' ? 'admin' : role === 'superAdmin' ? 'superAdmin' : 'user';
 
-      await runTransaction(db, async (transaction) => {
-        const usernameSnapshot = await transaction.get(usernameRef);
-        if (usernameSnapshot.exists()) {
-          const duplicateUsernameError = new Error('That username is already in use.');
-          duplicateUsernameError.code = 'app/username-already-in-use';
-          throw duplicateUsernameError;
-        }
-
-        transaction.set(usernameRef, { username });
-        transaction.set(doc(db, 'users', user.uid), {
-          username,
-          name: username,
-          fullName: form.name.trim(),
-          email: form.email,
-          phoneNo: form.phoneNo,
-          departments: form.departments,
-          role,
-          managedDepartments,
-          batch: form.batch,
-          studyDepartment: form.studyDepartment,
-          gender: form.gender,
-          registrationNumber: form.registrationNumber,
-          cardNumber: form.cardNumber || null,
-          NFC_card_id: form.NFC_card_id || null,
-          birthday: form.birthday || null,
-          photoURL: null,
-          userType,
-          createdAt: new Date().toISOString()
-        });
+      await setDoc(doc(db, 'users', user.uid), {
+        username,
+        name: username,
+        fullName: form.name.trim(),
+        email: form.email,
+        phoneNo: form.phoneNo,
+        departments: form.departments,
+        firstPriority: form.departments[0] || 'videography',
+        department: form.departments[0] || 'videography',
+        role,
+        managedDepartments,
+        batch: form.batch,
+        studyDepartment: form.studyDepartment,
+        gender: form.gender,
+        registrationNumber: form.registrationNumber,
+        cardNumber: form.cardNumber || null,
+        NFC_card_id: form.NFC_card_id || null,
+        birthday: form.birthday || null,
+        photoURL: null,
+        userType,
+        createdAt: new Date().toISOString()
       });
       profileCreated = true;
 
@@ -348,15 +330,6 @@ const Signup = () => {
           setError('Account setup could not be completed or rolled back. Please contact support before trying again.');
           return;
         }
-      }
-
-      if (err.code === 'app/username-already-in-use') {
-        setFieldErrors((previous) => ({
-          ...previous,
-          username: 'That username was just claimed. Try another one.',
-        }));
-        document.querySelector('[name="username"]')?.focus();
-        return;
       }
 
       const friendlyErrors = {
@@ -723,7 +696,7 @@ const Signup = () => {
                     value={form.username}
                     onChange={handleChange}
                     onBlur={handleFieldBlur}
-                    autoComplete="username"
+                    autoComplete="nickname"
                     minLength={3}
                     maxLength={20}
                     required
@@ -735,7 +708,7 @@ const Signup = () => {
                   <FieldError id="username-error" message={fieldErrors.username} />
                   {!fieldErrors.username ? (
                     <p id="username-hint" className={`mt-1.5 text-xs ${isDarkMode ? 'text-slate-500' : 'text-slate-500'}`}>
-                      Choose a unique username using 3–20 letters, numbers, underscores, or spaces.
+                      Choose a display username using 3–20 letters, numbers, underscores, or spaces. Uppercase and lowercase letters are supported.
                     </p>
                   ) : null}
                 </label>
