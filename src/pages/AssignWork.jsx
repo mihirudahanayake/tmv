@@ -823,19 +823,22 @@ if (phones.length > 0) {
           aria-modal={isModal ? 'true' : undefined}
           aria-labelledby={isModal ? 'assign-work-title' : undefined}
           className={isModal
-            ? 'relative max-h-[92vh] w-full overflow-y-auto rounded-3xl bg-white p-4 shadow-2xl sm:p-8'
+            ? 'relative max-h-[calc(100dvh_-_1rem)] w-full overflow-y-auto rounded-2xl bg-white p-3 shadow-2xl sm:max-h-[92vh] sm:rounded-3xl sm:p-8'
             : 'mx-auto max-w-3xl rounded-lg bg-white p-4 shadow-md sm:p-8'}
         >
           {isModal ? (
-            <div className="sticky z-10 -mt-4 mb-5 border-b border-slate-100 bg-white/95 px-4 py-4 backdrop-blur sm:-mt-8 sm:px-5 sm:py-5">
+            <div className="sticky  z-10 -mt-3 mb-5 border-b border-slate-100 bg-white/95 px-3 py-3 backdrop-blur sm:-mt-8 sm:px-5 sm:py-5">
               <div className="flex items-start gap-3 sm:gap-4">
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-600">New assignment</p>
                   <h2 id="assign-work-title" className="mt-1 text-xl font-bold leading-tight text-slate-900 sm:text-2xl">
                     Create and assign work
                   </h2>
-                  <div className="mt-4 flex flex-wrap items-center gap-2">
-                    <span className="mr-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                  <p className="mt-2 max-w-2xl text-xs leading-4 text-slate-500 sm:text-sm sm:leading-5">
+                    Add the task details, choose team members, and optionally select equipment.
+                  </p>
+                  <div className="mt-3 flex flex-wrap items-center gap-2 sm:mt-4">
+                    <span className="mr-1 hidden text-[11px] font-semibold uppercase tracking-wide text-slate-400 sm:inline">
                       Jump to
                     </span>
                     {[
@@ -918,9 +921,9 @@ if (phones.length > 0) {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
-            <section id="work-details" className="scroll-mt-24 rounded-2xl border border-slate-200 bg-slate-50/60 p-4 sm:p-5">
+            <section id="work-details" className="scroll-mt-24 rounded-2xl border border-slate-200 bg-slate-50/60 p-3 sm:p-5">
               <div className="mb-4 flex items-start justify-between gap-3">
-                <div>
+                <div className="min-w-0">
                   <h3 className="font-bold text-slate-800">Task details</h3>
                   <p className="mt-1 text-xs text-slate-500">Add a clear title and a date or deadline.</p>
                 </div>
@@ -930,7 +933,7 @@ if (phones.length > 0) {
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
-                <div>
+                <div className="min-w-0">
                   <label className="mb-2 block text-sm font-semibold text-slate-700" htmlFor="assign-department">
                     Department
                   </label>
@@ -951,7 +954,7 @@ if (phones.length > 0) {
                   </select>
                 </div>
 
-                <div>
+                <div className="min-w-0">
                   <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700" htmlFor="assign-title">
                     <FaFileAlt className="text-blue-600" />
                     Work title
@@ -964,12 +967,12 @@ if (phones.length > 0) {
                     onChange={handleChange}
                     placeholder="e.g. Photograph the new campaign"
                     required
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm text-slate-800 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
+                    className="w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm text-slate-800 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
                   />
                 </div>
               </div>
 
-              <div className="mt-4">
+              <div className="mt-4 min-w-0">
                 <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700" htmlFor="assign-description">
                   <FaAlignLeft className="text-blue-600" />
                   Description
@@ -982,12 +985,12 @@ if (phones.length > 0) {
                   placeholder="Add instructions, location, or other helpful details..."
                   required
                   rows="3"
-                  className="w-full resize-y rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm text-slate-800 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
+                  className="w-full min-w-0 resize-y rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm text-slate-800 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
                 />
               </div>
 
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                <div>
+                <div className="min-w-0">
                   <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
                     <FaCalendarAlt className="text-blue-600" />
                     Date or deadline
@@ -1023,14 +1026,14 @@ if (phones.length > 0) {
                     value={formData[dateType]}
                     onChange={handleChange}
                     aria-label={dateType === 'date' ? 'Work date' : 'Deadline'}
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm text-slate-800 shadow-sm outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
+                    className="w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm text-slate-800 shadow-sm outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
                   />
                   <p className="mt-2 text-xs text-slate-500">
                     Set at least one date or deadline before assigning.
                   </p>
                 </div>
 
-                <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm">
+                <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-3.5">
                   <TimePickerAmPm
                     value={formData.time}
                     onChange={(next) => setFormData((prev) => ({ ...prev, time: next }))}
@@ -1039,7 +1042,7 @@ if (phones.length > 0) {
               </div>
             </section>
 
-            <section id="team-members" className="scroll-mt-24 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+            <section id="team-members" className="scroll-mt-24 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-5">
               <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <h3 className="flex items-center gap-2 font-bold text-slate-800">
@@ -1179,7 +1182,7 @@ if (phones.length > 0) {
               </div>
             </section>
 
-            <section id="equipment-items" className="scroll-mt-24 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+            <section id="equipment-items" className="scroll-mt-24 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-5">
               <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <h3 className="flex items-center gap-2 font-bold text-slate-800">
@@ -1268,7 +1271,7 @@ if (phones.length > 0) {
             </section>
 
             <div className={isModal
-              ? 'sticky z-10 -mb-4 mt-2 border-t border-slate-200 bg-white/95 px-4 py-4 shadow-[0_-8px_24px_rgba(15,23,42,0.06)] backdrop-blur sm:-mb-8 sm:px-5 sm:py-5'
+              ? 'sticky z-10 -mb-3 mt-2 border-t border-slate-200 bg-white/95 px-3 py-3 shadow-[0_-8px_24px_rgba(15,23,42,0.06)] backdrop-blur sm:-mb-8 sm:px-5 sm:py-5'
               : 'mt-2 border-t border-slate-200 pt-4'}
             >
               <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end sm:gap-5">
@@ -1279,7 +1282,8 @@ if (phones.length > 0) {
                       <div className="min-w-0">
                         <p className="text-base font-bold leading-4 text-slate-800">{formData.assignedUsers.length}</p>
                         <p className="mt-1 truncate text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                          Team member{formData.assignedUsers.length === 1 ? '' : 's'}
+                          <span className="sm:hidden">Team</span>
+                          <span className="hidden sm:inline">Team member{formData.assignedUsers.length === 1 ? '' : 's'}</span>
                         </p>
                       </div>
                     </div>
@@ -1288,7 +1292,8 @@ if (phones.length > 0) {
                       <div className="min-w-0">
                         <p className="text-base font-bold leading-4 text-slate-800">{formData.assignedItems.length}</p>
                         <p className="mt-1 truncate text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                          Equipment item{formData.assignedItems.length === 1 ? '' : 's'}
+                          <span className="sm:hidden">Items</span>
+                          <span className="hidden sm:inline">Equipment item{formData.assignedItems.length === 1 ? '' : 's'}</span>
                         </p>
                       </div>
                     </div>
@@ -1313,12 +1318,14 @@ if (phones.length > 0) {
                   <button
                     type="submit"
                     disabled={loading || formData.assignedUsers.length === 0}
+                    aria-label={loading ? 'Creating assignment' : 'Create assignment'}
                     className={isModal
                       ? 'inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-3 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-200 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none sm:w-auto sm:min-w-44 sm:px-5'
                       : 'inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-200 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none'}
                   >
                     {loading ? <FaSpinner className="animate-spin" /> : null}
-                    {loading ? 'Creating assignment...' : 'Create assignment'}
+                    <span className="sm:hidden">{loading ? 'Creating...' : 'Create'}</span>
+                    <span className="hidden sm:inline">{loading ? 'Creating assignment...' : 'Create assignment'}</span>
                   </button>
                 </div>
               </div>
@@ -1341,18 +1348,18 @@ if (phones.length > 0) {
             <p className="mt-2 text-sm text-slate-600">
               Your task details and selections will be lost if you close now.
             </p>
-            <div className="mt-5 flex justify-end gap-2">
+            <div className="mt-5 grid grid-cols-1 gap-2 sm:flex sm:justify-end">
               <button
                 type="button"
                 onClick={() => setShowDiscardPrompt(false)}
-                className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                className="w-full rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 sm:w-auto"
               >
                 Keep editing
               </button>
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700"
+                className="w-full rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700 sm:w-auto"
               >
                 Discard draft
               </button>
