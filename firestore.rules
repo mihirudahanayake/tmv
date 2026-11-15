@@ -16,16 +16,17 @@ service cloud.firestore {
     }
 
     function myRole() {
-      if (isSiteAdmin()) return 'siteAdmin';
-      return (myUserDoc().role != null)
-        ? myUserDoc().role
-        : (myUserDoc().userType == 'admin')
-          ? 'departmentHead'
-          : (myUserDoc().userType == 'superAdmin')
-            ? 'superAdmin'
-            : (myUserDoc().userType == 'supervisor')
-              ? 'supervisorTO'
-            : 'member';
+      return isSiteAdmin()
+        ? 'siteAdmin'
+        : (myUserDoc().role != null)
+          ? myUserDoc().role
+          : (myUserDoc().userType == 'admin')
+            ? 'departmentHead'
+            : (myUserDoc().userType == 'superAdmin')
+              ? 'superAdmin'
+              : (myUserDoc().userType == 'supervisor')
+                ? 'supervisorTO'
+                : 'member';
     }
 
     function isSuperAdmin() {
@@ -57,14 +58,17 @@ service cloud.firestore {
     }
 
     function myManagedDepartments() {
-      if (!isDeptHead()) return [];
-      return (myUserDoc().managedDepartments is list && myUserDoc().managedDepartments.size() > 0)
-        ? myUserDoc().managedDepartments
-        : (myUserDoc().firstPriority != null)
-          ? [myUserDoc().firstPriority]
-          : (myUserDoc().departments is list && myUserDoc().departments.size() > 0)
-            ? [myUserDoc().departments[0]]
-            : [];
+      return isDeptHead()
+        ? (
+            (myUserDoc().managedDepartments is list && myUserDoc().managedDepartments.size() > 0)
+              ? myUserDoc().managedDepartments
+              : (myUserDoc().firstPriority != null)
+                ? [myUserDoc().firstPriority]
+                : (myUserDoc().departments is list && myUserDoc().departments.size() > 0)
+                  ? [myUserDoc().departments[0]]
+                  : []
+          )
+        : [];
     }
 
     function workDept(res) {
@@ -105,18 +109,16 @@ service cloud.firestore {
     }
 
     function canReadUserDoc(targetUserId, targetData) {
-      if (!signedIn()) return false;
-      if (isSiteAdmin()) return true;
-      if (isSuperAdmin()) return true;
-      if (targetUserId == request.auth.uid) return true;
-
-      // Department heads: only users inside their managed department(s)
-      if (isDeptHead()) {
-        return myManagedDepartments().hasAny(departmentsFromUserData(targetData));
-      }
-
-      // Members: users that share at least one work department
-      return myDepartments().hasAny(departmentsFromUserData(targetData));
+      return signedIn() && (
+        isSiteAdmin()
+        || isSuperAdmin()
+        || targetUserId == request.auth.uid
+        || (
+          isDeptHead()
+            ? myManagedDepartments().hasAny(departmentsFromUserData(targetData))
+            : myDepartments().hasAny(departmentsFromUserData(targetData))
+        )
+      );
     }
 
     match /users/{userId} {

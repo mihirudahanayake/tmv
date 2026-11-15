@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useDarkMode } from '../context/DarkModeContext';
 import { FaSun, FaMoon, FaArrowLeft, FaEye, FaEyeSlash, FaSignInAlt, FaSpinner } from 'react-icons/fa';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { sendEmailVerification, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase/config';
 import { initPushForUser } from '../hooks/usePushNotifications';
@@ -37,6 +37,8 @@ const Login = () => {
   });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [resendingVerification, setResendingVerification] = useState(false);
+  const [showResendVerification, setShowResendVerification] = useState(false);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
 
@@ -52,6 +54,8 @@ const Login = () => {
 
   const handleChange = (e) => {
     setError('');
+    setInfo('');
+    setShowResendVerification(false);
     setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
@@ -59,6 +63,7 @@ const Login = () => {
     e.preventDefault();
     setError('');
     setInfo('');
+    setShowResendVerification(false);
     setLoading(true);
 
     try {
@@ -69,6 +74,12 @@ const Login = () => {
       );
 
       const user = userCredential.user;
+      if (!user.emailVerified) {
+        await signOut(auth);
+        setShowResendVerification(true);
+        setError('Please verify your email address using the link we sent before logging in.');
+        return;
+      }
 
       // Setup push for this user
       await initPushForUser(user.uid);
@@ -105,6 +116,44 @@ const Login = () => {
       setError(getLoginErrorMessage(err));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    setError('');
+    setInfo('');
+    setResendingVerification(true);
+    let verificationUser = null;
+
+    try {
+      const userCredential = await signInWithEmailAndPassword(
+        auth,
+        form.email.trim(),
+        form.password
+      );
+      verificationUser = userCredential.user;
+
+      if (verificationUser.emailVerified) {
+        setShowResendVerification(false);
+        setInfo('Your email is already verified. You can sign in now.');
+        return;
+      }
+
+      await sendEmailVerification(verificationUser);
+      setInfo(`A new verification link was sent to ${verificationUser.email || form.email.trim()}. Check your inbox and spam folder.`);
+    } catch (resendError) {
+      setError(getLoginErrorMessage(resendError));
+    } finally {
+      if (verificationUser && auth.currentUser?.uid === verificationUser.uid) {
+        try {
+          await signOut(auth);
+        } catch (signOutError) {
+          console.error('Failed to sign out after resending a verification email.', signOutError);
+          setInfo('');
+          setError('We could not safely end this sign-in session. Reload the page before continuing.');
+        }
+      }
+      setResendingVerification(false);
     }
   };
 
@@ -194,6 +243,28 @@ const Login = () => {
             >
               {error}
             </div>
+          ) : null}
+
+          {showResendVerification ? (
+            <button
+              type="button"
+              onClick={handleResendVerification}
+              disabled={loading || resendingVerification}
+              className={`mb-5 flex w-full items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                isDarkMode
+                  ? 'border-indigo-700/70 bg-indigo-950/40 text-indigo-200 hover:bg-indigo-900/50'
+                  : 'border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
+              }`}
+            >
+              {resendingVerification ? (
+                <>
+                  <FaSpinner className="animate-spin" />
+                  Sending verification link...
+                </>
+              ) : (
+                'Send verification link again'
+              )}
+            </button>
           ) : null}
 
           {info ? (

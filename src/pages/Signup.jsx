@@ -13,7 +13,7 @@ import {
 } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 import { createUserWithEmailAndPassword, deleteUser, sendEmailVerification, signOut, updateProfile } from 'firebase/auth';
-import { doc, getDoc, runTransaction } from 'firebase/firestore';
+import { doc, getDoc, runTransaction, updateDoc } from 'firebase/firestore';
 import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { auth, db, storage } from '../firebase/config';
 import { WORK_DEPARTMENTS, formatWorkDepartmentLabel } from '../constants/workDepartments';
@@ -235,7 +235,7 @@ const Signup = () => {
     setLoading(true);
     let createdUser = null;
     let profileCreated = false;
-    let uploadedProfilePictureRef = null;
+    let profilePictureWarning = '';
     try {
       const username = form.username.trim().replace(/\s+/g, ' ').toLowerCase();
       const usernameRef = doc(db, 'usernames', username);
@@ -258,18 +258,7 @@ const Signup = () => {
       const user = userCredential.user;
       createdUser = user;
 
-      let photoURL = null;
-      if (profilePicture) {
-        const picturePath = `memberProfileImage/${user.uid}/signup-${Date.now()}-${profilePicture.name}`;
-        const uploadSnapshot = await uploadBytes(ref(storage, picturePath), profilePicture);
-        uploadedProfilePictureRef = uploadSnapshot.ref;
-        photoURL = await getDownloadURL(uploadSnapshot.ref);
-      }
-
-      await updateProfile(user, {
-        displayName: username,
-        ...(photoURL ? { photoURL } : {}),
-      });
+      await updateProfile(user, { displayName: username });
 
       let role = 'member';
       let managedDepartments = [];
@@ -307,12 +296,34 @@ const Signup = () => {
           cardNumber: form.cardNumber || null,
           NFC_card_id: form.NFC_card_id || null,
           birthday: form.birthday || null,
-          photoURL,
+          photoURL: null,
           userType,
           createdAt: new Date().toISOString()
         });
       });
       profileCreated = true;
+
+      if (profilePicture) {
+        let uploadedProfilePictureRef = null;
+        try {
+          const picturePath = `memberProfileImage/${user.uid}/signup-${Date.now()}-${profilePicture.name}`;
+          const uploadSnapshot = await uploadBytes(ref(storage, picturePath), profilePicture);
+          uploadedProfilePictureRef = uploadSnapshot.ref;
+          const photoURL = await getDownloadURL(uploadSnapshot.ref);
+          await updateDoc(doc(db, 'users', user.uid), { photoURL });
+        } catch (pictureError) {
+          console.error('Failed to upload the signup profile picture.', pictureError);
+          if (uploadedProfilePictureRef) {
+            try {
+              await deleteObject(uploadedProfilePictureRef);
+            } catch (cleanupError) {
+              console.error('Failed to clean up an incomplete signup profile picture.', cleanupError);
+            }
+          }
+          profilePictureWarning =
+            ' Your account was created, but the profile picture could not be uploaded. You can add it later from your profile.';
+        }
+      }
 
       await sendEmailVerification(user);
 
@@ -320,20 +331,12 @@ const Signup = () => {
       await signOut(auth);
       navigate('/login', {
         state: {
-          info: 'Account created. Please verify your email using the link we sent before logging in.',
+          info: `Account created. Please verify your email using the link we sent before logging in.${profilePictureWarning}`,
         },
       });
     } catch (err) {
       if (createdUser && !profileCreated) {
         let cleanupFailed = false;
-        if (uploadedProfilePictureRef) {
-          try {
-            await deleteObject(uploadedProfilePictureRef);
-          } catch (cleanupError) {
-            console.error('Failed to clean up an incomplete signup profile picture.', cleanupError);
-            cleanupFailed = true;
-          }
-        }
         try {
           await deleteUser(createdUser);
           await signOut(auth);
@@ -375,9 +378,12 @@ const Signup = () => {
         }));
         document.querySelector(`[name="${invalidField}"]`)?.focus();
       } else {
+        console.error('Signup failed.', err);
         setError(
-          friendlyErrors[err.code]
-          || 'We could not create your account right now. Please try again in a moment.'
+          err.code === 'permission-denied'
+            ? 'We could not save your account profile. Please contact an administrator to confirm this account can register.'
+            : friendlyErrors[err.code]
+              || 'We could not create your account right now. Please try again in a moment.'
         );
       }
     } finally {
