@@ -83,6 +83,89 @@ const ALLOWED_WORK_DEPARTMENTS = new Set([
   'editing',
 ]);
 
+const DEPARTMENT_USER_LIST_FIELDS = [
+  'name',
+  'email',
+  'role',
+  'userType',
+  'photoURL',
+  'cardNumber',
+  'batch',
+  'studyDepartment',
+  'registrationNumber',
+  'departments',
+  'department',
+];
+
+exports.getDepartmentUsers = onCall(
+  {
+    cors: [
+      'http://localhost:5173',
+      'http://127.0.0.1:5173',
+      'https://tmv.fotmv.online',
+    ],
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'You must be signed in.');
+    }
+
+    const callerEmail = String(request.auth.token?.email || '');
+    const callerSnap = await db.collection('users').doc(request.auth.uid).get();
+    const callerDoc = callerSnap.exists ? callerSnap.data() : {};
+    const caller = { ...callerDoc, email: callerDoc?.email || callerEmail };
+    if (normalizeRole(caller) !== Roles.DEPARTMENT_HEAD) {
+      throw new HttpsError('permission-denied', 'Only department heads can use this endpoint.');
+    }
+
+    const managedDepartments = [
+      ...new Set(getManagedDepartments(caller).filter((department) =>
+        ALLOWED_WORK_DEPARTMENTS.has(department)
+      )),
+    ];
+    if (!managedDepartments.length) {
+      throw new HttpsError('failed-precondition', 'No managed department is assigned.');
+    }
+
+    const [departmentsSnap, departmentSnap] = await Promise.all([
+      db.collection('users')
+        .select(...DEPARTMENT_USER_LIST_FIELDS)
+        .where('departments', 'array-contains-any', managedDepartments)
+        .get(),
+      db.collection('users')
+        .select(...DEPARTMENT_USER_LIST_FIELDS)
+        .where('department', 'in', managedDepartments)
+        .get(),
+    ]);
+    const usersById = new Map();
+    for (const userDoc of [...departmentsSnap.docs, ...departmentSnap.docs]) {
+      usersById.set(userDoc.id, userDoc.data());
+    }
+
+    const users = [...usersById.entries()]
+      .filter(([, user]) =>
+        normalizeRole(user) === Roles.MEMBER &&
+        getUserDepartments(user).some((department) => managedDepartments.includes(department))
+      )
+      .map(([id, user]) => ({
+        id,
+        name: user.name || '',
+        email: user.email || '',
+        role: Roles.MEMBER,
+        userType: user.userType || 'user',
+        photoURL: user.photoURL || null,
+        cardNumber: user.cardNumber || null,
+        batch: user.batch || '',
+        studyDepartment: user.studyDepartment || '',
+        registrationNumber: user.registrationNumber || '',
+        departments: getUserDepartments(user),
+        department: user.department || getUserDepartments(user)[0] || null,
+      }));
+
+    return { users };
+  }
+);
+
 exports.getDepartmentUserCount = onCall(
   {
     cors: [

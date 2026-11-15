@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import * as XLSX from 'xlsx';
-import { collection, getDocs, query, where } from 'firebase/firestore';
+import { collection, getDocs } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 import { db, functions } from '../firebase/config';
 import Header from '../components/Header';
@@ -47,20 +47,25 @@ const ManageUsers = () => {
           return;
         }
 
-        const usersQuery = isSuperAdminView
-          ? collection(db, 'users')
-          : query(
-              collection(db, 'users'),
-              where('departments', 'array-contains-any', managedDepartments)
-            );
-        const snap = await getDocs(usersQuery);
-        const data = snap.docs
-          .map((doc) => ({ id: doc.id, ...doc.data() }))
-          .filter((user) => !isDepartmentHead || canManageUser(profile, user));
+        let data;
+        if (isDepartmentHead) {
+          const getDepartmentUsers = httpsCallable(functions, 'getDepartmentUsers');
+          const result = await getDepartmentUsers();
+          if (!Array.isArray(result.data?.users)) {
+            throw new Error('Invalid department users response from the server.');
+          }
+          data = result.data.users;
+        } else {
+          const snap = await getDocs(collection(db, 'users'));
+          data = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        }
+        data = data.filter((user) => !isDepartmentHead || canManageUser(profile, user));
         setUsers(data);
       } catch (err) {
         console.error('Error loading users:', err);
-        setActionError('Failed to load users. Check your department access and try again.');
+        setActionError(
+          `Failed to load users: ${err?.code || err?.message || 'Check your department access and try again.'}`
+        );
       } finally {
         setLoading(false);
       }
