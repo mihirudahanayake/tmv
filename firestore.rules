@@ -62,7 +62,9 @@ service cloud.firestore {
         ? myUserDoc().managedDepartments
         : (myUserDoc().firstPriority != null)
           ? [myUserDoc().firstPriority]
-          : ['videography'];
+          : (myUserDoc().departments is list && myUserDoc().departments.size() > 0)
+            ? [myUserDoc().departments[0]]
+            : [];
     }
 
     function workDept(res) {
@@ -122,7 +124,16 @@ service cloud.firestore {
         && request.resource.data.userType == 'user'
         && request.resource.data.isTO != true
         && (request.resource.data.departments is list)
-        && myManagedDepartments().hasAny(request.resource.data.departments);
+        && myManagedDepartments().hasAny(request.resource.data.departments)
+        && request.resource.data.departments.hasOnly(myManagedDepartments())
+        && (
+          request.resource.data.firstPriority == null
+          || myManagedDepartments().hasAny([request.resource.data.firstPriority])
+        )
+        && (
+          request.resource.data.department == null
+          || myManagedDepartments().hasAny([request.resource.data.department])
+        );
 
       // Users can update their own profile but cannot change role or departments.
       allow update: if signedIn() && userId == request.auth.uid
@@ -130,6 +141,14 @@ service cloud.firestore {
         && request.resource.data.userType == resource.data.userType
         && request.resource.data.managedDepartments == resource.data.managedDepartments
         && request.resource.data.isTO == resource.data.isTO
+        && (
+          myRole() != 'departmentHead'
+          || (
+            request.resource.data.departments == resource.data.departments
+            && request.resource.data.firstPriority == resource.data.firstPriority
+            && request.resource.data.department == resource.data.department
+          )
+        )
         && (
           // Allow updating work departments, but only to known department values.
           (request.resource.data.departments == resource.data.departments)
@@ -143,13 +162,31 @@ service cloud.firestore {
 
       // Department heads can update users in their managed department, but cannot grant elevated roles.
       allow update: if isDeptHead()
-        && (resource.data.departments is list)
-        && myManagedDepartments().hasAny(resource.data.departments)
+        && myManagedDepartments().hasAny(departmentsFromUserData(resource.data))
+        && resource.data.role == 'member'
+        && resource.data.userType == 'user'
         && request.resource.data.role == 'member'
         && request.resource.data.userType == 'user'
+        && request.resource.data.managedDepartments == resource.data.managedDepartments
         && request.resource.data.isTO == resource.data.isTO
         && (request.resource.data.departments is list)
-        && myManagedDepartments().hasAny(request.resource.data.departments);
+        && (
+          request.resource.data.departments == resource.data.departments
+          || (
+            myManagedDepartments().hasAny(request.resource.data.departments)
+            && request.resource.data.departments.hasOnly(myManagedDepartments())
+          )
+        )
+        && (
+          request.resource.data.firstPriority == resource.data.firstPriority
+          || request.resource.data.firstPriority == null
+          || myManagedDepartments().hasAny([request.resource.data.firstPriority])
+        )
+        && (
+          request.resource.data.department == resource.data.department
+          || request.resource.data.department == null
+          || myManagedDepartments().hasAny([request.resource.data.department])
+        );
 
       allow delete: if false;
 

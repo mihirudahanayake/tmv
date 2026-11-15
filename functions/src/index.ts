@@ -75,12 +75,14 @@ function getManagedDepartments(userDoc: any): string[] {
     : [];
   if (managed.length) return managed;
 
+  if (isNonEmptyString(userDoc?.firstPriority)) return [userDoc.firstPriority];
+
   const fromDepartments: string[] = Array.isArray(userDoc?.departments)
     ? userDoc.departments.filter(isNonEmptyString)
     : [];
   if (fromDepartments.length) return [fromDepartments[0]];
 
-  return ['videography'];
+  return [];
 }
 
 function getUserDepartments(userDoc: any): string[] {

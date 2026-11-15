@@ -6,7 +6,8 @@ import Header from '../components/Header';
 import { FaCalendarAlt, FaSpinner, FaCheck, FaTrash } from 'react-icons/fa';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { httpsCallable } from 'firebase/functions';
-import { canEdit, Roles } from '../utils/authz';
+import { canEdit, canManageUser, getManagedDepartments, normalizeRole, Roles } from '../utils/authz';
+import { WORK_DEPARTMENTS, formatWorkDepartmentLabel } from '../constants/workDepartments';
 import {
   getWorkRolesForDepartment,
   normalizeRolesForDepartment,
@@ -28,42 +29,75 @@ const UserDetails = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState(null);
   const [savingDetails, setSavingDetails] = useState(false);
+  const [savingDepartmentHead, setSavingDepartmentHead] = useState(false);
+  const [departmentHeadDepartments, setDepartmentHeadDepartments] = useState([]);
   const [actionError, setActionError] = useState('');
   const [actionSuccess, setActionSuccess] = useState('');
   const nfcUrl = (import.meta.env.NFC_URL || import.meta.env.VITE_NFC_URL || '').trim();
 
   useEffect(() => {
+    if (loadingProfile) return;
+    setLoading(true);
+    setUser(null);
+    setWorks([]);
+    setDepartmentHeadDepartments([]);
+
     const load = async () => {
       try {
+        setActionError('');
         const userSnap = await getDoc(doc(db, 'users', userId));
         if (userSnap.exists()) {
-          setUser({ id: userId, ...userSnap.data() });
+          const userData = { id: userId, ...userSnap.data() };
+          if (profile?.role === Roles.DEPARTMENT_HEAD && !canManageUser(profile, userData)) {
+            setUser(null);
+            setActionError('You can only manage users in your department.');
+            return;
+          }
+          setUser(userData);
+          setDepartmentHeadDepartments(
+            normalizeRole(userData) === Roles.DEPARTMENT_HEAD
+              ? getManagedDepartments(userData).filter((department) =>
+                  WORK_DEPARTMENTS.includes(department)
+                )
+              : []
+          );
+        } else {
+          setUser(null);
+          return;
         }
 
-        if (loadingProfile) return;
-        const dept = (profile?.managedDepartments || [])[0] || 'videography';
-
-        const snaps = [];
-        snaps.push(
-          await getDocs(
+        const userData = { id: userId, ...userSnap.data() };
+        const userDepartments = Array.isArray(userData.departments)
+          ? userData.departments
+          : userData.department
+            ? [userData.department]
+            : [];
+        const managedDepartments = profile?.managedDepartments || [];
+        const workDepartments = profile?.role === Roles.DEPARTMENT_HEAD
+          ? userDepartments.filter((dept) => managedDepartments.includes(dept))
+          : userDepartments.length
+            ? userDepartments
+            : [managedDepartments[0] || 'videography'];
+        const workQueries = workDepartments.flatMap((dept) => {
+          const departmentQueries = [
             query(
               collection(db, 'works'),
               where('department', '==', dept),
               where('assignedUsers', 'array-contains', userId)
-            )
-          )
-        );
-        if (dept === 'videography') {
-          snaps.push(
-            await getDocs(
+            ),
+          ];
+          if (dept === 'videography') {
+            departmentQueries.push(
               query(
                 collection(db, 'works'),
                 where('department', '==', null),
                 where('assignedUsers', 'array-contains', userId)
               )
-            )
-          );
-        }
+            );
+          }
+          return departmentQueries;
+        });
+        const snaps = await Promise.all(workQueries.map((workQuery) => getDocs(workQuery)));
 
         const dedup = new Map();
         snaps.forEach((snap) => {
@@ -81,6 +115,11 @@ const UserDetails = () => {
         setWorks(userWorks);
       } catch (err) {
         console.error('Error loading user details:', err);
+        setActionError(
+          err?.code === 'permission-denied'
+            ? 'You can only manage users in your department.'
+            : 'Failed to load user details.'
+        );
       } finally {
         setLoading(false);
       }
@@ -166,9 +205,84 @@ const UserDetails = () => {
     };
   }, [offerLoading, nfcUrl, userId]);
 
-  const canEditUser = canEdit(profile);
+  const profileRole = normalizeRole(profile);
+  const isDepartmentHead = profileRole === Roles.DEPARTMENT_HEAD;
+  const canEditUser = canEdit(profile) && canManageUser(profile, user);
   const canDeleteUsers = canEditUser;
-  const canAssignTO = profile?.role === Roles.SUPER_ADMIN || profile?.userType === 'superAdmin';
+  const targetRole = normalizeRole(user);
+  const canAssignTO = profileRole === Roles.SUPER_ADMIN;
+  const canManageDepartmentHead = profileRole === Roles.SUPER_ADMIN
+    && targetRole !== Roles.SITE_ADMIN
+    && [Roles.MEMBER, Roles.DEPARTMENT_HEAD].includes(targetRole);
+
+  const toggleDepartmentHeadDepartment = (department) => {
+    setDepartmentHeadDepartments((current) =>
+      current.includes(department)
+        ? current.filter((value) => value !== department)
+        : [...current, department]
+    );
+  };
+
+  const handleSaveDepartmentHead = async () => {
+    if (!userId || !user || !canManageDepartmentHead) return;
+    const managedDepartments = [...new Set(departmentHeadDepartments)]
+      .filter((department) => WORK_DEPARTMENTS.includes(department));
+    if (!managedDepartments.length) {
+      setActionError('Select at least one department for this department head.');
+      setActionSuccess('');
+      return;
+    }
+
+    setSavingDepartmentHead(true);
+    setActionError('');
+    setActionSuccess('');
+    const patch = {
+      role: Roles.DEPARTMENT_HEAD,
+      userType: 'admin',
+      managedDepartments,
+      isTO: false,
+    };
+
+    try {
+      await updateDoc(doc(db, 'users', userId), patch);
+      setUser((previous) => (previous ? { ...previous, ...patch } : previous));
+      setActionSuccess('Department head access saved.');
+    } catch (err) {
+      console.error('Failed to update department head access', err);
+      setActionError('Failed to update department head access. Please try again.');
+    } finally {
+      setSavingDepartmentHead(false);
+    }
+  };
+
+  const handleRemoveDepartmentHead = async () => {
+    if (!userId || !user || !canManageDepartmentHead || targetRole !== Roles.DEPARTMENT_HEAD) return;
+    if (!window.confirm(`Remove department head access from ${user.name || user.email || 'this user'}?`)) {
+      return;
+    }
+
+    setSavingDepartmentHead(true);
+    setActionError('');
+    setActionSuccess('');
+    const patch = {
+      role: Roles.MEMBER,
+      userType: 'user',
+      managedDepartments: [],
+      isTO: false,
+    };
+
+    try {
+      await updateDoc(doc(db, 'users', userId), patch);
+      setUser((previous) => (previous ? { ...previous, ...patch } : previous));
+      setDepartmentHeadDepartments([]);
+      setActionSuccess('Department head access removed.');
+    } catch (err) {
+      console.error('Failed to remove department head access', err);
+      setActionError('Failed to remove department head access. Please try again.');
+    } finally {
+      setSavingDepartmentHead(false);
+    }
+  };
 
   const handleToggleTO = async () => {
     if (!userId || !user || !canAssignTO) return;
@@ -182,10 +296,14 @@ const UserDetails = () => {
         isTO: nextValue,
       };
 
-      if (user.role === Roles.SUPERVISOR_TO) patch.role = Roles.MEMBER;
-      if (user.userType === 'supervisor') patch.userType = 'user';
+      if (user.role === Roles.SUPERVISOR_TO && targetRole !== Roles.DEPARTMENT_HEAD) {
+        patch.role = Roles.MEMBER;
+      }
+      if (user.userType === 'supervisor' && targetRole !== Roles.DEPARTMENT_HEAD) {
+        patch.userType = 'user';
+      }
 
-      if (nextValue) {
+      if (nextValue && targetRole !== Roles.DEPARTMENT_HEAD) {
         patch.role = Roles.MEMBER;
         patch.userType = 'user';
       }
@@ -200,7 +318,7 @@ const UserDetails = () => {
   };
 
   const handleStartEdit = () => {
-    if (!user) return;
+    if (!user || !canEditUser) return;
     setEditForm({
       name: user.name || '',
       email: user.email || '',
@@ -238,7 +356,7 @@ const UserDetails = () => {
   };
 
   const handleSaveUserDetails = async () => {
-    if (!userId || !editForm) return;
+    if (!userId || !editForm || !canEditUser) return;
 
     setSavingDetails(true);
     setActionError('');
@@ -250,9 +368,12 @@ const UserDetails = () => {
         .map((item) => item.trim())
         .filter(Boolean);
 
-      const primaryDepartment =
-        (editForm.firstPriority || selectedDepartments[0] || editForm.studyDepartment || 'videography')
-          .trim();
+      const primaryDepartment = isDepartmentHead
+        ? (user.firstPriority || user.department || selectedDepartments[0] || '').trim()
+        : (editForm.firstPriority || selectedDepartments[0] || editForm.studyDepartment || 'videography').trim();
+      const departmentValue = isDepartmentHead
+        ? (user.department || primaryDepartment)
+        : primaryDepartment;
 
       const normalized = {
         name: editForm.name?.trim() || '',
@@ -266,8 +387,8 @@ const UserDetails = () => {
         userType: editForm.userType?.trim() || 'user',
         isTO: Boolean(editForm.isTO),
         departments: selectedDepartments.length ? selectedDepartments : [primaryDepartment],
-        firstPriority: primaryDepartment,
-        department: primaryDepartment,
+        firstPriority: isDepartmentHead ? (user.firstPriority || primaryDepartment) : primaryDepartment,
+        department: departmentValue,
       };
 
       await updateDoc(doc(db, 'users', userId), normalized);
@@ -284,7 +405,7 @@ const UserDetails = () => {
   };
 
   const handleDeleteUser = async () => {
-    if (!canDeleteUsers || !userId) return;
+    if (!canDeleteUsers || !canManageUser(profile, user) || !userId) return;
     setActionError('');
     setActionSuccess('');
 
@@ -499,6 +620,59 @@ const UserDetails = () => {
               </div>
             </div>
 
+            {canManageDepartmentHead ? (
+              <section className="mb-6 rounded-[24px] border border-indigo-200 bg-white p-4 shadow-sm sm:p-6">
+                <h2 className="text-lg font-bold text-slate-800">Department head access</h2>
+                <p className="mt-1 text-sm text-slate-600">
+                  {targetRole === Roles.DEPARTMENT_HEAD
+                    ? 'Choose which departments this user can manage.'
+                    : 'Select the departments this user will manage.'}
+                </p>
+
+                <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                  {WORK_DEPARTMENTS.map((department) => (
+                    <label
+                      key={department}
+                      className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={departmentHeadDepartments.includes(department)}
+                        onChange={() => toggleDepartmentHeadDepartment(department)}
+                        disabled={savingDepartmentHead}
+                      />
+                      {formatWorkDepartmentLabel(department)}
+                    </label>
+                  ))}
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={handleSaveDepartmentHead}
+                    disabled={savingDepartmentHead}
+                    className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+                  >
+                    {savingDepartmentHead
+                      ? 'Saving...'
+                      : targetRole === Roles.DEPARTMENT_HEAD
+                        ? 'Save departments'
+                        : 'Make department head'}
+                  </button>
+                  {targetRole === Roles.DEPARTMENT_HEAD ? (
+                    <button
+                      type="button"
+                      onClick={handleRemoveDepartmentHead}
+                      disabled={savingDepartmentHead}
+                      className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+                    >
+                      Remove department head
+                    </button>
+                  ) : null}
+                </div>
+              </section>
+            ) : null}
+
             {isEditing && editForm ? (
               <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-6 text-sm sm:text-base">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -582,6 +756,7 @@ const UserDetails = () => {
                       name="userType"
                       value={editForm.userType}
                       onChange={handleEditFieldChange}
+                      disabled={isDepartmentHead}
                       className="border rounded px-3 py-2"
                     />
                   </label>
@@ -591,6 +766,7 @@ const UserDetails = () => {
                       name="departments"
                       value={editForm.departments}
                       onChange={handleEditFieldChange}
+                      disabled={isDepartmentHead}
                       placeholder="ITT, EET"
                       className="border rounded px-3 py-2"
                     />
@@ -603,6 +779,7 @@ const UserDetails = () => {
                     type="checkbox"
                     checked={Boolean(editForm.isTO)}
                     onChange={handleEditFieldChange}
+                    disabled={isDepartmentHead}
                   />
                   TO status
                 </label>

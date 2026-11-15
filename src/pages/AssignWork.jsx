@@ -25,6 +25,7 @@ import TimePickerAmPm from '../components/TimePickerAmPm';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { WORK_DEPARTMENTS, formatWorkDepartmentLabel } from '../constants/workDepartments';
 import { fanOutUserNotifications } from '../utils/fanOutUserNotifications';
+import { canManageUser, normalizeRole, Roles } from '../utils/authz';
 import {
   getWorkRolesForDepartment,
   getDefaultRolesForDepartment,
@@ -55,30 +56,47 @@ const AssignWork = () => {
 
   const navigate = useNavigate();
 
+  const role = normalizeRole(profile);
+  const isDepartmentHead = role === Roles.DEPARTMENT_HEAD;
+  const managedDepartments = Array.isArray(profile?.managedDepartments)
+    ? profile.managedDepartments
+    : [];
+  const allowedDepartments = isDepartmentHead ? managedDepartments : WORK_DEPARTMENTS;
   const workRoles = getWorkRolesForDepartment(department);
   const hasMultipleRoles = workRoles.length > 1;
 
   useEffect(() => {
-    if (!loadingProfile && profile?.managedDepartments?.length) {
-      setDepartment(profile.managedDepartments[0]);
+    if (!loadingProfile) {
+      setDepartment((current) =>
+        allowedDepartments.includes(current) ? current : allowedDepartments[0] || ''
+      );
     }
-  }, [loadingProfile, profile]);
+  }, [loadingProfile, allowedDepartments]);
 
   useEffect(() => {
     if (loadingProfile) return;
+    if (!allowedDepartments.includes(department)) {
+      setUsers([]);
+      setFormData((prev) => ({ ...prev, assignedUsers: [] }));
+      return;
+    }
     fetchUsers();
     fetchItems();
-  }, [loadingProfile, department]);
+  }, [loadingProfile, department, allowedDepartments]);
 
   const fetchUsers = async () => {
     try {
+      if (!allowedDepartments.includes(department)) {
+        setUsers([]);
+        return;
+      }
+
       const querySnapshot = await getDocs(
         query(collection(db, 'users'), where('departments', 'array-contains', department))
       );
-      const usersData = querySnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+      const usersData = querySnapshot.docs
+        .map((userDoc) => ({ id: userDoc.id, ...userDoc.data() }))
+        .filter((user) => !isDepartmentHead || canManageUser(profile, user));
 
       // Sort alphabetically by name
       usersData.sort((a, b) => {
@@ -90,6 +108,7 @@ const AssignWork = () => {
       setUsers(usersData);
     } catch (error) {
       console.error('Error fetching users:', error);
+      setMessage({ type: 'error', text: 'Failed to load users in this department.' });
     }
   };
 
@@ -478,6 +497,28 @@ const AssignWork = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!allowedDepartments.includes(department)) {
+      setMessage({ type: 'error', text: 'You can only assign work in a department you manage.' });
+      return;
+    }
+
+    const assignedUsersAreInScope = formData.assignedUsers.every(({ userId }) =>
+      users.some((user) => {
+        const userDepartments = Array.isArray(user.departments)
+          ? user.departments
+          : user.department
+            ? [user.department]
+            : [];
+        return user.id === userId
+          && userDepartments.includes(department)
+          && (!isDepartmentHead || canManageUser(profile, user));
+      })
+    );
+    if (!assignedUsersAreInScope) {
+      setMessage({ type: 'error', text: 'Remove users outside this department before assigning work.' });
+      return;
+    }
+
     setLoading(true);
     setMessage({ type: '', text: '' });
     setLastCreatedTask(null);
@@ -679,11 +720,6 @@ if (phones.length > 0) {
     return name.includes(normalizedItemSearch) || no.includes(normalizedItemSearch);
   });
 
-  const allowedDepartments =
-    Array.isArray(profile?.managedDepartments) && profile.managedDepartments.length
-      ? profile.managedDepartments
-      : WORK_DEPARTMENTS;
-
   return (
     <div className="min-h-screen bg-gray-100">
       <Header userType="admin" />
@@ -744,14 +780,17 @@ if (phones.length > 0) {
               </label>
               <select
                 value={department}
-                onChange={(e) => setDepartment(e.target.value)}
+                onChange={(e) => {
+                  setDepartment(e.target.value);
+                  setFormData((prev) => ({ ...prev, assignedUsers: [] }));
+                }}
                 className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 text-sm sm:text-base"
               >
-                {allowedDepartments.map((dept) => (
+                {allowedDepartments.length ? allowedDepartments.map((dept) => (
                   <option key={dept} value={dept}>
                     {formatWorkDepartmentLabel(dept)}
                   </option>
-                ))}
+                )) : <option value="">No managed department assigned</option>}
               </select>
             </div>
 

@@ -40,13 +40,14 @@ export const getManagedDepartments = (userDoc) => {
   const managed = Array.isArray(userDoc?.managedDepartments)
     ? userDoc.managedDepartments.filter(Boolean)
     : [];
-
   if (managed.length) return managed;
+
+  if (userDoc?.firstPriority) return [userDoc.firstPriority];
 
   const fromDepartments = Array.isArray(userDoc?.departments) ? userDoc.departments.filter(Boolean) : [];
   if (fromDepartments.length) return [fromDepartments[0]];
 
-  return ['videography'];
+  return [];
 };
 
 export const canEdit = (userDoc) => {
@@ -56,4 +57,19 @@ export const canEdit = (userDoc) => {
     role === Roles.SUPER_ADMIN ||
     role === Roles.SITE_ADMIN
   );
+};
+
+export const canManageUser = (manager, target) => {
+  const role = normalizeRole(manager);
+  if (role === Roles.SITE_ADMIN || role === Roles.SUPER_ADMIN) return true;
+  if (role !== Roles.DEPARTMENT_HEAD || normalizeRole(target) !== Roles.MEMBER) return false;
+
+  const managedDepartments = getManagedDepartments(manager);
+  const targetDepartments = Array.isArray(target?.departments)
+    ? target.departments.filter(Boolean)
+    : target?.department
+      ? [target.department]
+      : [];
+
+  return managedDepartments.some((department) => targetDepartments.includes(department));
 };

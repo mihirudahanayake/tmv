@@ -58,12 +58,14 @@ function getManagedDepartments(userDoc) {
     : [];
   if (managed.length) return managed;
 
+  if (userDoc?.firstPriority) return [userDoc.firstPriority];
+
   const fromDepartments = Array.isArray(userDoc?.departments)
     ? userDoc.departments.filter(Boolean)
     : [];
   if (fromDepartments.length) return [fromDepartments[0]];
 
-  return ['videography'];
+  return [];
 }
 
 function getUserDepartments(userDoc) {
