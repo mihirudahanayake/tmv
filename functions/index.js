@@ -123,6 +123,9 @@ exports.deleteUserAccount = onCall(
   }
   const targetDoc = targetSnap.data() || {};
   const targetRole = normalizeRole(targetDoc);
+  const username = typeof targetDoc.username === 'string'
+    ? targetDoc.username.trim().toLowerCase()
+    : '';
 
   // Safety: don’t allow deleting admins
   if (targetRole === Roles.SITE_ADMIN || targetRole === Roles.SUPER_ADMIN || targetRole === Roles.DEPARTMENT_HEAD) {
@@ -147,6 +150,14 @@ exports.deleteUserAccount = onCall(
   } catch (e) {
     logger.warn('Failed deleting user Firestore doc', { targetUid, error: e?.message || String(e) });
     throw new HttpsError('internal', 'Failed to delete user data.');
+  }
+
+  if (username) {
+    try {
+      await db.collection('usernames').doc(username).delete();
+    } catch (e) {
+      logger.warn('Failed deleting username reservation', { targetUid, username, error: e?.message || String(e) });
+    }
   }
 
   // Delete Auth user

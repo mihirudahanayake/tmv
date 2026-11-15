@@ -301,6 +301,7 @@ const Profile = () => {
 
       const normalizedEditable = {
         ...editable,
+        ...(userData.username ? {} : { name: editable.fullName?.trim() || '' }),
         departments: selectedDepartments,
         firstPriority: primaryDepartment,
         department: primaryDepartment,
@@ -1149,10 +1150,10 @@ const Profile = () => {
                       <div>
                         <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Full Name</label>
                         <input
-                          ref={(el) => (fieldRefs.current.name = el)}
+                          ref={(el) => (fieldRefs.current.fullName = el)}
                           type="text"
-                          name="name"
-                          value={userData.name || ''}
+                          name="fullName"
+                          value={userData.fullName || (userData.username ? '' : userData.name || '')}
                           onChange={handleFieldChange}
                           className={inputClass}
                           disabled={!isEditingProfile}

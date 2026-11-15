@@ -316,7 +316,7 @@ const UserDetails = () => {
   const handleStartEdit = () => {
     if (!user || !canEditUser) return;
     setEditForm({
-      name: user.name || '',
+      name: user.fullName || (user.username ? '' : user.name || ''),
       email: user.email || '',
       phoneNo: user.phoneNo || '',
       batch: user.batch || '',
@@ -372,7 +372,8 @@ const UserDetails = () => {
         : primaryDepartment;
 
       const normalized = {
-        name: editForm.name?.trim() || '',
+        name: user.username || editForm.name?.trim() || '',
+        fullName: editForm.name?.trim() || '',
         email: editForm.email?.trim() || '',
         phoneNo: editForm.phoneNo?.trim() || '',
         batch: editForm.batch?.trim() || '',
@@ -744,7 +745,7 @@ const UserDetails = () => {
               <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-6 text-sm sm:text-base">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <label className="flex flex-col gap-1">
-                    <span className="font-semibold text-gray-700">Name</span>
+                    <span className="font-semibold text-gray-700">Full Name</span>
                     <input
                       name="name"
                       value={editForm.name}

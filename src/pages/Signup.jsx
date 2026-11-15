@@ -11,8 +11,8 @@ import {
   FaSpinner,
 } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
-import { createUserWithEmailAndPassword, sendEmailVerification, signOut } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
+import { createUserWithEmailAndPassword, deleteUser, sendEmailVerification, signOut, updateProfile } from 'firebase/auth';
+import { doc, getDoc, runTransaction } from 'firebase/firestore';
 import { auth, db } from '../firebase/config';
 import { WORK_DEPARTMENTS, formatWorkDepartmentLabel } from '../constants/workDepartments';
 
@@ -35,13 +35,14 @@ const Signup = () => {
 
   const [form, setForm] = useState({
     name: '',
+    username: '',
     email: '',
     phoneNo: '',
     // work departments as array
     departments: ['videography'],
     batch: '20/21',
     studyDepartment: 'ITT',
-    gender: 'male',
+    gender: '',
     registrationNumber: '',
     cardNumber: '',
     NFC_card_id: '',
@@ -59,8 +60,11 @@ const Signup = () => {
 
   const requiredValues = [
     form.name,
+    form.username,
     form.email,
     form.phoneNo,
+    form.birthday,
+    form.gender,
     form.batch,
     form.studyDepartment,
     form.registrationNumber,
@@ -70,7 +74,7 @@ const Signup = () => {
   const completedFields =
     requiredValues.filter((value) => String(value).trim()).length
     + (form.departments.length ? 1 : 0);
-  const completionPercent = Math.round((completedFields / 9) * 100);
+  const completionPercent = Math.round((completedFields / 12) * 100);
   const passwordChecks = [
     { label: 'At least 6 characters', passed: form.password.length >= 6 },
     { label: 'Uppercase and lowercase', passed: /[a-z]/.test(form.password) && /[A-Z]/.test(form.password) },
@@ -83,6 +87,17 @@ const Signup = () => {
   const validateField = (name, value) => {
     const trimmedValue = typeof value === 'string' ? value.trim() : '';
     if (name === 'name' && !trimmedValue) return 'Please enter your name.';
+    if (name === 'username') {
+      if (!trimmedValue) return 'Please choose a username.';
+      const normalizedUsername = trimmedValue.replace(/\s+/g, ' ');
+      if (
+        normalizedUsername.length < 3
+        || normalizedUsername.length > 20
+        || !/^[a-z0-9_]+( [a-z0-9_]+)*$/i.test(normalizedUsername)
+      ) {
+        return 'Use 3–20 letters, numbers, underscores, or spaces.';
+      }
+    }
     if (name === 'email') {
       if (!trimmedValue) return 'Please enter your email address.';
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedValue)) {
@@ -93,6 +108,8 @@ const Signup = () => {
       if (!trimmedValue) return 'Please enter your phone number.';
       if (!/^\d{10}$/.test(trimmedValue)) return 'Enter a valid 10-digit phone number.';
     }
+    if (name === 'birthday' && !value) return 'Please enter your birthday.';
+    if (name === 'gender' && !value) return 'Please select your gender.';
     if (name === 'batch' && !value) return 'Please choose your batch.';
     if (name === 'studyDepartment' && !value) return 'Please choose your study department.';
     if (name === 'registrationNumber' && !trimmedValue) {
@@ -113,7 +130,8 @@ const Signup = () => {
   };
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
+    const { name } = e.target;
+    const value = name === 'username' ? e.target.value.toLowerCase() : e.target.value;
     setForm((prev) => ({ ...prev, [name]: value }));
     setError('');
     setInfo('');
@@ -171,8 +189,11 @@ const Signup = () => {
 
     const fieldsToValidate = [
       'name',
+      'username',
       'email',
       'phoneNo',
+      'birthday',
+      'gender',
       'batch',
       'studyDepartment',
       'registrationNumber',
@@ -196,7 +217,21 @@ const Signup = () => {
     }
 
     setLoading(true);
+    let createdUser = null;
+    let profileCreated = false;
     try {
+      const username = form.username.trim().replace(/\s+/g, ' ').toLowerCase();
+      const usernameRef = doc(db, 'usernames', username);
+      const existingUsername = await getDoc(usernameRef);
+      if (existingUsername.exists()) {
+        setFieldErrors((previous) => ({
+          ...previous,
+          username: 'That username is already in use. Try another one.',
+        }));
+        document.querySelector('[name="username"]')?.focus();
+        return;
+      }
+
       const userCredential = await createUserWithEmailAndPassword(
         auth,
         form.email,
@@ -204,6 +239,8 @@ const Signup = () => {
       );
 
       const user = userCredential.user;
+      createdUser = user;
+      await updateProfile(user, { displayName: username });
 
       let role = 'member';
       let managedDepartments = [];
@@ -216,25 +253,36 @@ const Signup = () => {
 
       const userType = role === 'departmentHead' ? 'admin' : role === 'superAdmin' ? 'superAdmin' : 'user';
 
-      await setDoc(doc(db, 'users', user.uid), {
-        name: form.name,
-        email: form.email,
-        phoneNo: form.phoneNo,
-        // work fields
-        departments: form.departments,
-        role,
-        managedDepartments,
-        // study / personal
-        batch: form.batch,
-        studyDepartment: form.studyDepartment,
-        gender: form.gender,
-        registrationNumber: form.registrationNumber,
-        cardNumber: form.cardNumber || null,
-        NFC_card_id: form.NFC_card_id || null,
-        birthday: form.birthday || null,
-        userType,
-        createdAt: new Date().toISOString()
+      await runTransaction(db, async (transaction) => {
+        const usernameSnapshot = await transaction.get(usernameRef);
+        if (usernameSnapshot.exists()) {
+          const duplicateUsernameError = new Error('That username is already in use.');
+          duplicateUsernameError.code = 'app/username-already-in-use';
+          throw duplicateUsernameError;
+        }
+
+        transaction.set(usernameRef, { username });
+        transaction.set(doc(db, 'users', user.uid), {
+          username,
+          name: username,
+          fullName: form.name.trim(),
+          email: form.email,
+          phoneNo: form.phoneNo,
+          departments: form.departments,
+          role,
+          managedDepartments,
+          batch: form.batch,
+          studyDepartment: form.studyDepartment,
+          gender: form.gender,
+          registrationNumber: form.registrationNumber,
+          cardNumber: form.cardNumber || null,
+          NFC_card_id: form.NFC_card_id || null,
+          birthday: form.birthday || null,
+          userType,
+          createdAt: new Date().toISOString()
+        });
       });
+      profileCreated = true;
 
       await sendEmailVerification(user);
 
@@ -246,6 +294,26 @@ const Signup = () => {
         },
       });
     } catch (err) {
+      if (createdUser && !profileCreated) {
+        try {
+          await deleteUser(createdUser);
+          await signOut(auth);
+        } catch (cleanupError) {
+          console.error('Failed to clean up an incomplete signup account.', cleanupError);
+          setError('Account setup could not be completed or rolled back. Please contact support before trying again.');
+          return;
+        }
+      }
+
+      if (err.code === 'app/username-already-in-use') {
+        setFieldErrors((previous) => ({
+          ...previous,
+          username: 'That username was just claimed. Try another one.',
+        }));
+        document.querySelector('[name="username"]')?.focus();
+        return;
+      }
+
       const friendlyErrors = {
         'auth/email-already-in-use': 'An account with this email already exists. Log in instead.',
         'auth/invalid-email': 'That email address does not look valid. Check it and try again.',
@@ -279,7 +347,7 @@ const Signup = () => {
   const labelClass = `mb-1.5 block text-sm font-semibold ${
     isDarkMode ? 'text-slate-200' : 'text-slate-700'
   }`;
-  const inputClass = `w-full rounded-xl border px-3.5 py-3 text-sm outline-none transition focus:ring-4 ${
+  const inputClass = `w-full rounded-xl border px-3.5 py-3 text-sm outline-none transition hover:-translate-y-0.5 hover:shadow-sm focus:ring-4 ${
     isDarkMode
       ? 'border-slate-700 bg-slate-800 text-white placeholder:text-slate-500 focus:border-indigo-400 focus:ring-indigo-500/15'
       : 'border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-indigo-500/10'
@@ -306,7 +374,7 @@ const Signup = () => {
       />
       <div
         aria-hidden="true"
-        className={`pointer-events-none absolute -bottom-28 -right-20 h-80 w-80 rounded-full blur-3xl ${
+        className={`pointer-events-none absolute bottom-0 -right-20 h-80 w-80 rounded-full blur-3xl ${
           isDarkMode ? 'bg-cyan-700/20' : 'bg-cyan-200/60'
         }`}
       />
@@ -520,12 +588,37 @@ const Signup = () => {
                     onBlur={handleFieldBlur}
                     autoComplete="name"
                     required
-                    placeholder="e.g. Alex M. Perera"
+                    placeholder="e.g. A B User"
                     aria-invalid={Boolean(fieldErrors.name)}
                     aria-describedby={fieldErrors.name ? 'name-error' : undefined}
                     className={inputClass}
                   />
                   <FieldError id="name-error" message={fieldErrors.name} />
+                </label>
+
+                <label className="sm:col-span-2">
+                  <span className={labelClass}>Username <span className="text-rose-500">*</span></span>
+                  <input
+                    type="text"
+                    name="username"
+                    value={form.username}
+                    onChange={handleChange}
+                    onBlur={handleFieldBlur}
+                    autoComplete="username"
+                    minLength={3}
+                    maxLength={20}
+                    required
+                    placeholder="e.g. New User"
+                    aria-invalid={Boolean(fieldErrors.username)}
+                    aria-describedby={fieldErrors.username ? 'username-error' : 'username-hint'}
+                    className={inputClass}
+                  />
+                  <FieldError id="username-error" message={fieldErrors.username} />
+                  {!fieldErrors.username ? (
+                    <p id="username-hint" className={`mt-1.5 text-xs ${isDarkMode ? 'text-slate-500' : 'text-slate-500'}`}>
+                      Choose a unique username using 3–20 letters, numbers, underscores, or spaces.
+                    </p>
+                  ) : null}
                 </label>
 
                 <label>
@@ -635,18 +728,27 @@ const Signup = () => {
                 </label>
 
                 <label>
-                  <span className={labelClass}>Birthday <span className={`font-normal ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>(optional)</span></span>
+                  <span className={labelClass}>Birthday <span className="text-rose-500">*</span></span>
                   <input
                     type="date"
                     name="birthday"
                     value={form.birthday}
                     onChange={handleChange}
+                    onBlur={handleFieldBlur}
+                    required
+                    aria-invalid={Boolean(fieldErrors.birthday)}
+                    aria-describedby={fieldErrors.birthday ? 'birthday-error' : undefined}
                     className={inputClass}
                   />
+                  <FieldError id="birthday-error" message={fieldErrors.birthday} />
                 </label>
 
-                <fieldset className="sm:col-span-2">
-                  <legend className={labelClass}>Gender <span className={`font-normal ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>(optional)</span></legend>
+                <fieldset
+                  className="sm:col-span-2"
+                  aria-invalid={Boolean(fieldErrors.gender)}
+                  aria-describedby={fieldErrors.gender ? 'gender-error' : undefined}
+                >
+                  <legend className={labelClass}>Gender <span className="text-rose-500">*</span></legend>
                   <div className="flex gap-3">
                     {['male', 'female'].map((gender) => (
                       <label
@@ -667,12 +769,15 @@ const Signup = () => {
                           value={gender}
                           checked={form.gender === gender}
                           onChange={handleChange}
+                          onBlur={handleFieldBlur}
+                          required
                           className="accent-indigo-600"
                         />
                         {gender}
                       </label>
                     ))}
                   </div>
+                  <FieldError id="gender-error" message={fieldErrors.gender} />
                 </fieldset>
               </div>
             </section>
