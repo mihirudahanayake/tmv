@@ -10,8 +10,9 @@ import {
   doc,
   serverTimestamp
 } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
 
-import { db } from '../firebase/config';
+import { db, functions } from '../firebase/config';
 import {
   FaFileAlt,
   FaAlignLeft,
@@ -91,11 +92,33 @@ const AssignWork = () => {
         return;
       }
 
-      const querySnapshot = await getDocs(
-        query(collection(db, 'users'), where('departments', 'array-contains', department))
-      );
-      const usersData = querySnapshot.docs
-        .map((userDoc) => ({ id: userDoc.id, ...userDoc.data() }))
+      let usersData;
+      if (isDepartmentHead) {
+        const getDepartmentUsers = httpsCallable(functions, 'getDepartmentUsers');
+        const result = await getDepartmentUsers();
+        if (!Array.isArray(result.data?.users)) {
+          throw new Error('Invalid department users response from the server.');
+        }
+        usersData = result.data.users.filter((user) => {
+          const departments = Array.isArray(user.departments) && user.departments.length
+            ? user.departments
+            : user.department
+              ? [user.department]
+              : [];
+          return departments.includes(department);
+        });
+      } else {
+        const [departmentsSnapshot, departmentSnapshot] = await Promise.all([
+          getDocs(query(collection(db, 'users'), where('departments', 'array-contains', department))),
+          getDocs(query(collection(db, 'users'), where('department', '==', department))),
+        ]);
+        const usersById = new Map();
+        for (const userDoc of [...departmentsSnapshot.docs, ...departmentSnapshot.docs]) {
+          usersById.set(userDoc.id, { id: userDoc.id, ...userDoc.data() });
+        }
+        usersData = [...usersById.values()];
+      }
+      usersData = usersData
         .filter((user) => !isDepartmentHead || canManageUser(profile, user));
 
       // Sort alphabetically by name
@@ -108,7 +131,10 @@ const AssignWork = () => {
       setUsers(usersData);
     } catch (error) {
       console.error('Error fetching users:', error);
-      setMessage({ type: 'error', text: 'Failed to load users in this department.' });
+      setMessage({
+        type: 'error',
+        text: `Failed to load users in this department: ${error?.code || error?.message || 'Check your department access and try again.'}`,
+      });
     }
   };
 
