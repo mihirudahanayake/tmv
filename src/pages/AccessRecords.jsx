@@ -48,15 +48,36 @@ const AccessRecords = () => {
   const headerUserType = profile?.userType || (profile?.role === 'superAdmin' ? 'superAdmin' : profile?.role === 'siteAdmin' ? 'siteAdmin' : profile?.role === 'departmentHead' ? 'admin' : profile?.role === 'supervisorTO' ? 'supervisor' : 'user');
 
   useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      setError('');
-      try {
-        const snap = await getDocs(
-          query(collection(db, 'accessRecords'), orderBy('createdAt', 'desc'), limit(200))
+    if (!selectedRecord) return undefined;
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') setSelectedRecord(null);
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedRecord]);
+
+  useEffect(() => {
+    setLoading(true);
+    setError('');
+    return onSnapshot(
+      query(collection(db, 'accessRecords'), orderBy('createdAt', 'desc'), limit(200)),
+      (snap) => {
+        setRecords(
+          snap.docs
+            .map((d) => ({ id: d.id, ...d.data() }))
+            .filter((record) => !(
+              record.authorized &&
+              (
+                (record.action === 'issue' && Array.isArray(record.itemsIssued)) ||
+                (record.action === 'return' && record.itemId)
+              )
+            ))
         );
-        setRecords(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-      } catch (e) {
+        setLoading(false);
+      },
+      (e) => {
         console.error(e);
         setError('Failed to load access records.');
         setLoading(false);
