@@ -13,7 +13,8 @@ import {
   limit,
 } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
-import { db, auth } from '../firebase/config';
+import { httpsCallable } from 'firebase/functions';
+import { db, auth, functions } from '../firebase/config';
 import Header from '../components/Header';
 import { sortWorksByNearestToNow } from '../utils/workDateTime';
 import {
@@ -48,6 +49,8 @@ const Home = () => {
   const [userDetails, setUserDetails] = useState({}); // userId -> user data
   const [loadingUser, setLoadingUser] = useState(true);
   const [loadingTasks, setLoadingTasks] = useState(false);
+  const [taskError, setTaskError] = useState('');
+  const [itemsError, setItemsError] = useState('');
   const [toast, setToast] = useState('');
 
   // Meetings/Workshops state
@@ -76,7 +79,6 @@ const Home = () => {
   // Set userType based on logged-in user
   const [userType, setUserType] = useState('user');
   const [isTO, setIsTO] = useState(false);
-  const [myDepartments, setMyDepartments] = useState([]);
 
   useEffect(() => {
     if (!user) return;
@@ -87,11 +89,9 @@ const Home = () => {
         const data = profileSnap.data();
         setUserType(data.userType || 'user');
         setIsTO(!!data.isTO);
-        setMyDepartments(Array.isArray(data.departments) ? data.departments : []);
       } catch (err) {
         setUserType('user');
         setIsTO(false);
-        setMyDepartments([]);
       }
     };
     fetchUserType();
@@ -108,75 +108,80 @@ const Home = () => {
   }, []);
 
   useEffect(() => {
-    if (!user) return;
+    if (loadingUser) return;
+    if (!user) {
+      setTasks([]);
+      setItems({});
+      setTaskError('');
+      setItemsError('');
+      setLoadingTasks(false);
+      return;
+    }
 
-    const loadTasks = async () => {
-      setLoadingTasks(true);
+    let cancelled = false;
+    setTasks([]);
+    setItems({});
+    setLoadingTasks(true);
+    setTaskError('');
+    setItemsError('');
+
+    const loadAssignedWork = async () => {
       try {
-        const snap = await getDocs(
-          query(
-            collection(db, 'works'),
-            where('assignedUsers', 'array-contains', user.uid)
-          )
-        );
-        const mine = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-
-        // Hide works where this user is marked as missed by admin.
-        const visibleMine = mine.filter(
-          (t) => (t?.workAttendance?.[user.uid]?.status || '') !== 'missed'
-        );
-
-        setTasks(sortWorksByNearestToNow(visibleMine));
-
-        const invSnap = await getDocs(collection(db, 'inventory'));
-        const itemsMap = {};
-        invSnap.docs.forEach((docSnap) => {
-          itemsMap[docSnap.id] = docSnap.data();
-        });
-        setItems(itemsMap);
-      } catch (err) {
-        console.error('Error loading user tasks:', err);
-      } finally {
-        setLoadingTasks(false);
-      }
-    };
-
-    loadTasks();
-  }, [user]);
-
-  // Load all users
-  useEffect(() => {
-    const loadUsers = async () => {
-      try {
-        if (!user) return;
-
-        let usersMap = {};
-
-        if (Array.isArray(myDepartments) && myDepartments.length) {
-          const usersSnap = await getDocs(
-            query(
-              collection(db, 'users'),
-              where('departments', 'array-contains-any', myDepartments)
-            )
-          );
-          usersSnap.docs.forEach((docSnap) => {
-            usersMap[docSnap.id] = docSnap.data();
-          });
-        } else {
-          const selfSnap = await getDoc(doc(db, 'users', user.uid));
-          if (selfSnap.exists()) {
-            usersMap[user.uid] = selfSnap.data();
-          }
+        await user.getIdToken(true);
+        const getUserHomeData = httpsCallable(functions, 'getUserHomeData');
+        const result = await getUserHomeData();
+        const homeData = result.data;
+        if (
+          !Array.isArray(homeData?.tasks) ||
+          !homeData.userDetails ||
+          typeof homeData.userDetails !== 'object'
+        ) {
+          throw new Error('Invalid user home data returned by the server.');
         }
 
-        setUserDetails(usersMap);
+        // Hide works where this user is marked as missed by admin.
+        const visibleMine = homeData.tasks.filter(
+          (t) => (t?.workAttendance?.[t.__viewerUserId || user.uid]?.status || '') !== 'missed'
+        );
+
+        if (!cancelled) {
+          setTasks(sortWorksByNearestToNow(visibleMine));
+          setUserDetails(homeData.userDetails);
+        }
       } catch (err) {
-        console.error('Error loading users:', err);
+        console.error('Error loading assigned work:', err);
+        if (!cancelled) {
+          const errorCode = typeof err?.code === 'string' ? ` (${err.code})` : '';
+          setTaskError(`Could not load your assigned work${errorCode}. Please refresh and try again.`);
+        }
+      } finally {
+        if (!cancelled) setLoadingTasks(false);
       }
     };
 
-    loadUsers();
-  }, [user, myDepartments]);
+    const loadInventoryItems = async () => {
+      try {
+        const snapshot = await getDocs(collection(db, 'inventory'));
+        const itemsMap = {};
+        snapshot.docs.forEach((docSnap) => {
+          itemsMap[docSnap.id] = docSnap.data();
+        });
+        if (!cancelled) setItems(itemsMap);
+      } catch (err) {
+        console.error('Error loading assigned work item details:', err);
+        if (!cancelled) {
+          setItemsError('Some assigned item details could not be loaded.');
+        }
+      }
+    };
+
+    loadAssignedWork();
+    loadInventoryItems();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user, loadingUser]);
 
   const showToast = (msg) => {
     setToast(msg);
@@ -226,41 +231,48 @@ const Home = () => {
   };
 
   const statusOf = (task) => task.status || 'incomplete';
+  const getTaskUserId = (task) => task?.__viewerUserId || user?.uid;
 
   const getUserAcceptance = (task) => {
     const acceptance = task.userAcceptance || {};
-    return acceptance[user?.uid] || 'pending';
+    return acceptance[getTaskUserId(task)] || 'pending';
   };
 
   // ACCEPT + notification
   const handleAccept = async (task) => {
+    const workUserId = getTaskUserId(task);
+    if (!workUserId) return;
     try {
-      const acceptance = task.userAcceptance || {};
-      acceptance[user.uid] = 'accepted';
-
-      const ref = doc(db, 'works', task.id);
-      await updateDoc(ref, { userAcceptance: acceptance });
+      const updateUserWorkAction = httpsCallable(functions, 'updateUserWorkAction');
+      await updateUserWorkAction({ workId: task.id, action: 'accept' });
+      const acceptance = { ...(task.userAcceptance || {}), [workUserId]: 'accepted' };
       setTasks((prev) =>
         prev.map((t) =>
           t.id === task.id ? { ...t, userAcceptance: acceptance } : t
         )
       );
       showToast('Work accepted successfully!');
+    } catch (err) {
+      console.error('Failed to accept:', err);
+      showToast('Could not accept this work. Please refresh and try again.');
+      return;
+    }
 
-      // global admin notification
+    try {
       await addDoc(collection(db, 'notifications'), {
         department: task.department || 'videography',
         type: 'accept',
         source: 'user-action',
         audience: 'admin',
         workId: task.id,
-        userId: user.uid,
+        userId: workUserId,
         userName: user.displayName || '',
         createdAt: serverTimestamp(),
         read: false,
       });
     } catch (err) {
-      console.error('Failed to accept:', err);
+      console.error('Work was accepted, but its notification could not be created:', err);
+      showToast('Work accepted, but the notification could not be sent.');
     }
   };
 
@@ -276,20 +288,20 @@ const Home = () => {
       showToast('Please provide a reason for rejection.');
       return;
     }
+    if (!user?.uid || !selectedTask) return;
+    const workUserId = getTaskUserId(selectedTask);
+    if (!workUserId) return;
 
     try {
-      const acceptance = selectedTask.userAcceptance || {};
-      acceptance[user.uid] = 'rejected';
-
-      const rejections = selectedTask.rejections || {};
-      rejections[user.uid] = {
+      const updateUserWorkAction = httpsCallable(functions, 'updateUserWorkAction');
+      const result = await updateUserWorkAction({
+        workId: selectedTask.id,
+        action: 'reject',
         reason: rejectReason.trim(),
-        timestamp: new Date().toISOString(),
-        approved: false,
-      };
-
-      const ref = doc(db, 'works', selectedTask.id);
-      await updateDoc(ref, { userAcceptance: acceptance, rejections });
+      });
+      const rejection = result.data.rejection;
+      const acceptance = { ...(selectedTask.userAcceptance || {}), [workUserId]: 'rejected' };
+      const rejections = { ...(selectedTask.rejections || {}), [workUserId]: rejection };
       setTasks((prev) =>
         prev.map((t) =>
           t.id === selectedTask.id
@@ -300,21 +312,27 @@ const Home = () => {
       showToast('Work rejected.');
       setShowRejectModal(false);
       setSelectedTask(null);
+    } catch (err) {
+      console.error('Failed to reject:', err);
+      showToast('Could not reject this work. Please refresh and try again.');
+      return;
+    }
 
-      // global admin notification
+    try {
       await addDoc(collection(db, 'notifications'), {
         department: selectedTask.department || 'videography',
         type: 'reject',
         source: 'user-action',
         audience: 'admin',
         workId: selectedTask.id,
-        userId: user.uid,
+        userId: workUserId,
         userName: user.displayName || '',
         createdAt: serverTimestamp(),
         read: false,
       });
     } catch (err) {
-      console.error('Failed to reject:', err);
+      console.error('Work was rejected, but its notification could not be created:', err);
+      showToast('Work rejected, but the notification could not be sent.');
     }
   };
 
@@ -322,7 +340,7 @@ const Home = () => {
   const getStoredUserRoles = (task) => {
     if (!user) return [];
     const details = task.assignedUserDetails || [];
-    const mine = details.find((d) => d.userId === user.uid);
+    const mine = details.find((d) => d.userId === getTaskUserId(task));
     return mine?.roles || [];
   };
 
@@ -358,11 +376,11 @@ const Home = () => {
       const completionRoles = getCompletionRoles(task);
       if (!completionRoles.length) return false;
       return completionRoles.every(
-        (r) => roleCompletion[`${user.uid}_${r}`] === 'done'
+        (r) => roleCompletion[`${getTaskUserId(task)}_${r}`] === 'done'
       );
     }
 
-    return roleCompletion[`${user.uid}_${role}`] === 'done';
+    return roleCompletion[`${getTaskUserId(task)}_${role}`] === 'done';
   };
 
   const allRolesDone = (task) => {
@@ -370,7 +388,7 @@ const Home = () => {
     if (!completionRoles.length) return false;
     const roleCompletion = task.roleCompletion || {};
     return completionRoles.every(
-      (r) => roleCompletion[`${user.uid}_${r}`] === 'done'
+      (r) => roleCompletion[`${getTaskUserId(task)}_${r}`] === 'done'
     );
   };
 
@@ -378,13 +396,15 @@ const Home = () => {
   const handleToggleRole = async (task, role) => {
     if (statusOf(task) === 'complete') return;
 
+    const workUserId = getTaskUserId(task);
+    if (!workUserId) return;
     const roleCompletion = task.roleCompletion || {};
     const completionRoles = getCompletionRoles(task);
 
     const allDoneBefore =
       completionRoles.length > 0 &&
       completionRoles.every(
-        (r) => roleCompletion[`${user.uid}_${r}`] === 'done'
+        (r) => roleCompletion[`${workUserId}_${r}`] === 'done'
       );
 
     const nextCompletion = { ...roleCompletion };
@@ -395,18 +415,18 @@ const Home = () => {
     if (isSingleDoneDept && role === 'done') {
       if (allDoneBefore) {
         completionRoles.forEach((r) => {
-          delete nextCompletion[`${user.uid}_${r}`];
+          delete nextCompletion[`${workUserId}_${r}`];
         });
-        delete nextCompletion[`${user.uid}_done`];
+        delete nextCompletion[`${workUserId}_done`];
       } else {
         completionRoles.forEach((r) => {
-          nextCompletion[`${user.uid}_${r}`] = 'done';
+          nextCompletion[`${workUserId}_${r}`] = 'done';
         });
         // also set explicit done key for consistency going forward
-        nextCompletion[`${user.uid}_done`] = 'done';
+        nextCompletion[`${workUserId}_done`] = 'done';
       }
     } else {
-      const key = `${user.uid}_${role}`;
+      const key = `${workUserId}_${role}`;
       const isDone = roleCompletion[key] === 'done';
       if (isDone) {
         delete nextCompletion[key];
@@ -418,40 +438,26 @@ const Home = () => {
     const allDoneNow =
       completionRoles.length > 0 &&
       completionRoles.every(
-        (r) => nextCompletion[`${user.uid}_${r}`] === 'done'
+        (r) => nextCompletion[`${workUserId}_${r}`] === 'done'
       );
 
-    try {
-      if (allDoneNow && !allDoneBefore) {
-        // global admin notification
-        await addDoc(collection(db, 'notifications'), {
-          department: task.department || 'videography',
-          type: 'done',
-          source: 'user-action',
-          audience: 'admin',
-          workId: task.id,
-          userId: user.uid,
-          userName: user.displayName || '',
-          createdAt: serverTimestamp(),
-          read: false,
-        });
-      } else if (!allDoneNow && allDoneBefore) {
-        // global admin notification
-        await addDoc(collection(db, 'notifications'), {
-          department: task.department || 'videography',
-          type: 'undo-done',
-          source: 'user-action',
-          audience: 'admin',
-          workId: task.id,
-          userId: user.uid,
-          userName: user.displayName || '',
-          createdAt: serverTimestamp(),
-          read: false,
-        });
-      }
+    const roleDone = isSingleDoneDept && role === 'done'
+      ? !allDoneBefore
+      : nextCompletion[`${workUserId}_${role}`] === 'done';
+    const rolesToUpdate = isSingleDoneDept && role === 'done'
+      ? [...new Set([...completionRoles, 'done'])]
+      : [role];
 
-      const ref = doc(db, 'works', task.id);
-      await updateDoc(ref, { roleCompletion: nextCompletion });
+    try {
+      const updateUserWorkAction = httpsCallable(functions, 'updateUserWorkAction');
+      await updateUserWorkAction({
+        workId: task.id,
+        action: 'set-role',
+        role,
+        roles: rolesToUpdate,
+        done: roleDone,
+      });
+
       setTasks((prev) =>
         prev.map((t) =>
           t.id === task.id ? { ...t, roleCompletion: nextCompletion } : t
@@ -459,6 +465,27 @@ const Home = () => {
       );
     } catch (err) {
       console.error('Failed to update role status:', err);
+      showToast('Could not update this work status. Please refresh and try again.');
+      return;
+    }
+
+    if (allDoneNow !== allDoneBefore) {
+      try {
+        await addDoc(collection(db, 'notifications'), {
+          department: task.department || 'videography',
+          type: allDoneNow ? 'done' : 'undo-done',
+          source: 'user-action',
+          audience: 'admin',
+          workId: task.id,
+          userId: workUserId,
+          userName: user.displayName || '',
+          createdAt: serverTimestamp(),
+          read: false,
+        });
+      } catch (err) {
+        console.error('Work status updated, but its notification could not be created:', err);
+        showToast('Work status updated, but the notification could not be sent.');
+      }
     }
   };
 
@@ -503,7 +530,7 @@ const Home = () => {
   // render team members
 const renderTeamMembers = (task) => {
   const assignedUsers = task.assignedUsers || [];
-  const otherMembers = assignedUsers.filter((uid) => uid !== user?.uid);
+  const otherMembers = assignedUsers.filter((uid) => uid !== getTaskUserId(task));
 
   if (otherMembers.length === 0) {
     return (
@@ -727,6 +754,10 @@ const renderTeamMembers = (task) => {
             <FaSpinner className="animate-spin text-5xl text-blue-600 dark:text-yellow-300 mb-4" />
             <p className="text-gray-600 dark:text-gray-300">Loading your tasks...</p>
           </div>
+        ) : taskError ? (
+          <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
+            {taskError}
+          </div>
         ) : visibleTasks.length === 0 ? (
           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-lg p-12 text-center border border-gray-100 dark:border-slate-700">
             <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-purple-100 dark:from-yellow-300 dark:to-pink-400 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -846,7 +877,7 @@ const renderTeamMembers = (task) => {
                   <div className="space-y-4">
                     {rejectedTasks.map((task) => {
                       const rejection =
-                        (task.rejections || {})[user.uid] || {};
+                        (task.rejections || {})[getTaskUserId(task)] || {};
 
                       return (
                         <div
@@ -1080,6 +1111,11 @@ const renderTeamMembers = (task) => {
               </section>
             )}
           </>
+        )}
+        {itemsError && !taskError && (
+          <p role="status" className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            {itemsError}
+          </p>
         )}
       </main>
     </div>

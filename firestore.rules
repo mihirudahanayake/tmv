@@ -12,7 +12,13 @@ service cloud.firestore {
     }
 
     function myUserDoc() {
-      return signedIn() ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data : {};
+      return signedIn()
+        ? (
+            exists(/databases/$(database)/documents/users/$(request.auth.uid))
+              ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data
+              : {}
+          )
+        : {};
     }
 
     function myRole() {
@@ -318,9 +324,12 @@ service cloud.firestore {
 
     match /works/{workId} {
       allow read: if signedIn() && (
-        isSuperAdmin()
+        (
+          resource.data.assignedUsers is list
+          && request.auth.uid in resource.data.assignedUsers
+        )
+        || isSuperAdmin()
         || canManageDept(workDept(resource))
-        || ((resource.data.assignedUsers is list) && resource.data.assignedUsers.hasAny([request.auth.uid]))
       );
 
       allow create: if isDeptHead()
@@ -360,6 +369,10 @@ service cloud.firestore {
         || isDeptHead()
         || isSupervisorTO()
         || resource.data.userId == request.auth.uid
+        || (
+          resource.data.issuedToUserIds is list
+          && resource.data.issuedToUserIds.hasAny([request.auth.uid])
+        )
       );
 
       // Created/updated by inventory managers (Supervisor TO / Super Admin).

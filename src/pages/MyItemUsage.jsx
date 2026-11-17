@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
 import Header from '../components/Header';
-import { db } from '../firebase/config';
+import { functions } from '../firebase/config';
 import { useUserProfile } from '../hooks/useUserProfile';
 
 const formatDateTime = (value) => {
@@ -28,29 +28,9 @@ const getLastComment = (comments) => {
 
 const getOverdueAt = (checkedOutAt, dueAt) => checkedOutAt ? addHours(checkedOutAt, 24) : dueAt;
 
-const normalizeText = (value) => String(value || '').trim().toLowerCase();
-
-const samePerson = (member, profile, user) => {
-  if (!member) return false;
-
-  const memberId = String(member.id || member.userId || '').trim();
-  const memberEmail = normalizeText(member.email);
-  const memberName = normalizeText(member.name);
-  const profileId = String(profile?.id || user?.uid || '').trim();
-  const profileEmail = normalizeText(profile?.email || user?.email);
-  const profileName = normalizeText(profile?.name || profile?.displayName);
-
-  return Boolean(
-    (memberId && memberId === profileId) ||
-    (memberEmail && memberEmail === profileEmail) ||
-    (memberName && (memberName === profileName || memberName === profileEmail))
-  );
-};
-
 const MyItemUsage = () => {
   const { user, profile, loading: loadingProfile } = useUserProfile();
   const [usageRows, setUsageRows] = useState([]);
-  const [accessRecords, setAccessRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -66,80 +46,46 @@ const MyItemUsage = () => {
     if (loadingProfile) return undefined;
     if (!user?.uid) {
       setUsageRows([]);
-      setAccessRecords([]);
       setLoading(false);
+      setError('');
       return undefined;
     }
 
+    let cancelled = false;
     setLoading(true);
     setError('');
 
-    const usageQuery = query(
-      collection(db, 'inventoryUsage'),
-      where('userId', '==', user.uid)
-    );
-
-    const accessQuery = query(collection(db, 'accessRecords'));
-
-    const unsubscribeUsage = onSnapshot(
-      usageQuery,
-      (snapshot) => {
-        setUsageRows(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
-        setLoading(false);
-      },
-      (err) => {
-        console.error('inventoryUsage listener failed:', err);
-        setError('Failed to load usage history.');
-        setLoading(false);
+    const loadUsage = async () => {
+      try {
+        await user.getIdToken(true);
+        const getUserItemUsage = httpsCallable(functions, 'getUserItemUsage');
+        const result = await getUserItemUsage();
+        if (!Array.isArray(result.data?.usageRows)) {
+          throw new Error('Invalid item usage response from the server.');
+        }
+        if (!cancelled) setUsageRows(result.data.usageRows);
+      } catch (err) {
+        console.error('Failed to load usage history:', err);
+        if (!cancelled) setError('Failed to load usage history.');
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-    );
-
-    const unsubscribeAccess = onSnapshot(
-      accessQuery,
-      (snapshot) => {
-        setAccessRecords(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
-      },
-      (err) => {
-        console.error('accessRecords listener failed:', err);
-      }
-    );
-
-    return () => {
-      unsubscribeUsage();
-      unsubscribeAccess();
     };
-  }, [loadingProfile, user?.uid]);
+
+    loadUsage();
+    return () => {
+      cancelled = true;
+    };
+  }, [loadingProfile, user]);
 
   const enrichedRows = useMemo(() => {
-    const issueRecords = accessRecords.filter((record) => record.action === 'issue' && Array.isArray(record.itemsIssued));
-
     const rowsFromUsage = usageRows.map((usage) => {
-      const matchingIssueRecord = issueRecords.find((record) =>
-        record.itemsIssued.some((item) => item.itemId === usage.itemId || item.itemNo === usage.itemNo)
-      );
-
-      const matchingIssuedItem = matchingIssueRecord?.itemsIssued.find((item) =>
-        item.itemId === usage.itemId || item.itemNo === usage.itemNo
-      );
-
-      const latestComment = getLastComment(matchingIssuedItem?.comments || usage.comments || []);
-      const returnedAt = toDate(usage.returnedAt || matchingIssuedItem?.returnedAt);
-      const checkedOutAt = toDate(usage.checkedOutAt || matchingIssueRecord?.createdAt);
+      const latestComment = getLastComment(usage.comments || []);
+      const returnedAt = toDate(usage.returnedAt);
+      const checkedOutAt = toDate(usage.checkedOutAt || usage.createdAt);
       const dueAt = getOverdueAt(checkedOutAt, toDate(usage.dueAt));
 
       const issuedMembers = Array.isArray(usage.issuedToMembers) ? usage.issuedToMembers : [];
-      const currentUserWasIssued = issuedMembers.some((member) => samePerson(member, profile, user));
-      const currentUserMatchesPrimary = samePerson(
-        {
-          id: usage.userId,
-          name: usage.userName,
-          email: usage.userEmail,
-        },
-        profile,
-        user
-      );
-
-      if (!currentUserWasIssued && !currentUserMatchesPrimary) return null;
 
       return {
         key: `usage-${usage.id}`,
@@ -147,63 +93,24 @@ const MyItemUsage = () => {
         ...usage,
         issuedToName: usage.userName || profile?.name || profile?.email || 'You',
         issuedMembers,
-        issuedByName: usage.issuedByName || matchingIssueRecord?.createdByName || 'Unknown',
-        returnedByName: usage.returnedByName || matchingIssuedItem?.returnedByName || usage.updatedByName || 'Unknown',
+        issuedByName: usage.issuedByName || 'Unknown',
+        returnedByName: usage.returnedByName || usage.updatedByName || 'Unknown',
         checkedOutAt,
         returnedAt,
         dueAt,
-        commentText: usage.comment || latestComment?.text || '',
+        commentText: usage.comment || latestComment?.text || usage.description || '',
         statusText: returnedAt ? 'Returned' : dueAt && dueAt < new Date() ? 'Overdue' : 'Checked out',
       };
-    }).filter(Boolean);
-
-    const rowsFromIssueRecords = issueRecords.flatMap((record) => {
-      const issueTime = toDate(record.createdAt);
-      const issuedByName = record.createdByName || 'Unknown';
-
-      return record.itemsIssued
-        .filter((item) => {
-          const members = Array.isArray(record.issuedToMembers) ? record.issuedToMembers : [];
-          return members.some((member) => samePerson(member, profile, user));
-        })
-        .map((item, index) => {
-          const itemReturnedAt = toDate(item.returnedAt);
-          const itemDueAt = toDate(item.dueAt);
-          const itemMembers = Array.isArray(record.issuedToMembers) ? record.issuedToMembers : [];
-          const dueByAt = getOverdueAt(issueTime, itemDueAt);
-          const issuedToName = itemMembers
-            .filter((member) => samePerson(member, profile, user))
-            .map((member) => member.name || member.email || 'You')
-            .join(', ') || profile?.name || profile?.email || 'You';
-
-          return {
-            key: `issue-${record.id}-${item.itemId || item.itemNo || index}`,
-            source: 'issue',
-            id: `${record.id}-${item.itemId || item.itemNo || index}`,
-            itemId: item.itemId || item.itemNo || `${record.id}-${index}`,
-            itemNo: item.itemNo || '',
-            itemName: item.itemName || 'Item',
-            issuedToName,
-            issuedMembers: itemMembers,
-            issuedByName,
-            returnedByName: item.returnedByName || 'Unknown',
-            checkedOutAt: issueTime,
-            returnedAt: itemReturnedAt,
-            dueAt: dueByAt,
-            commentText: getLastComment(item.comments)?.text || record.description || '',
-            statusText: itemReturnedAt ? 'Returned' : dueByAt && dueByAt < new Date() ? 'Overdue' : 'Checked out',
-          };
-        });
     });
 
-    const rows = [...rowsFromUsage, ...rowsFromIssueRecords].sort((a, b) => {
+    const rows = rowsFromUsage.map((row) => ({ ...row, key: `usage-${row.id}` })).sort((a, b) => {
       const aTime = a.checkedOutAt?.getTime?.() || 0;
       const bTime = b.checkedOutAt?.getTime?.() || 0;
       return bTime - aTime;
     });
 
     return rows;
-  }, [accessRecords, profile, usageRows, user]);
+  }, [profile, usageRows, user]);
 
   const summary = useMemo(() => {
     const total = enrichedRows.length;

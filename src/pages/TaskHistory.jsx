@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { collection, getDocs, query, where } from 'firebase/firestore';
-import { db } from '../firebase/config';
+import { httpsCallable } from 'firebase/functions';
+import { functions } from '../firebase/config';
 import Header from '../components/Header';
 import { FaCalendarAlt, FaSpinner, FaCheck, FaTimes, FaExclamationTriangle } from 'react-icons/fa';
 import { useUserProfile } from '../hooks/useUserProfile';
+import { getDefaultRolesForDepartment, normalizeRolesForDepartment } from '../constants/workRoles';
 
 const TaskHistory = () => {
   const { user, profile, loading: loadingProfile } = useUserProfile();
@@ -11,59 +12,70 @@ const TaskHistory = () => {
   const [rejectedTasks, setRejectedTasks] = useState([]);
   const [missedTasks, setMissedTasks] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const getTaskUserId = (task) => task?.__viewerUserId || user?.uid;
 
   useEffect(() => {
     if (loadingProfile) return;
-    if (!user) return;
+    if (!user?.uid) {
+      setCompletedTasks([]);
+      setRejectedTasks([]);
+      setMissedTasks([]);
+      setLoading(false);
+      setError('');
+      return;
+    }
 
     const fetchData = async () => {
       setLoading(true);
+      setError('');
       try {
-        // Fetch missed works (works where admin marked this user as missed)
-        const allAssignedSnap = await getDocs(
-          query(
-            collection(db, 'works'),
-            where('assignedUsers', 'array-contains', user.uid)
-          )
-        );
-        const allAssigned = allAssignedSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        await user.getIdToken(true);
+        const getUserTaskHistory = httpsCallable(functions, 'getUserTaskHistory');
+        const result = await getUserTaskHistory();
+        if (!Array.isArray(result.data?.tasks) || !Array.isArray(result.data?.rejectedTasks)) {
+          throw new Error('Invalid task history response from the server.');
+        }
+        const allAssigned = result.data.tasks;
         const missed = allAssigned
-          .filter((t) => (t?.workAttendance?.[user.uid]?.status || '') === 'missed')
+          .filter((task) => (task?.workAttendance?.[getTaskUserId(task)]?.status || '') === 'missed')
           .sort((a, b) => {
-            const ma = a?.workAttendance?.[user.uid]?.markedAt;
-            const mb = b?.workAttendance?.[user.uid]?.markedAt;
+            const ma = a?.workAttendance?.[getTaskUserId(a)]?.markedAt;
+            const mb = b?.workAttendance?.[getTaskUserId(b)]?.markedAt;
             const ta = typeof ma?.toDate === 'function' ? ma.toDate().getTime() : new Date(ma || 0).getTime();
             const tb = typeof mb?.toDate === 'function' ? mb.toDate().getTime() : new Date(mb || 0).getTime();
             return tb - ta;
           });
         setMissedTasks(missed);
 
-        // Fetch completed works
-        const worksSnap = await getDocs(
-          query(
-            collection(db, 'works'),
-            where('assignedUsers', 'array-contains', user.uid),
-            where('status', '==', 'complete')
-          )
-        );
-        const completed = worksSnap.docs
-          .map((d) => ({ id: d.id, ...d.data() }))
-          // If user was marked missed, don't show under completed for that user
-          .filter((t) => (t?.workAttendance?.[user.uid]?.status || '') !== 'missed');
+        const completed = allAssigned.filter((task) => {
+          const taskUserId = getTaskUserId(task);
+          if (task?.workAttendance?.[taskUserId]?.status === 'missed') return false;
+          if ((task.status || '').toLowerCase() === 'complete') return true;
+          if (task.userAcceptance?.[taskUserId] !== 'accepted') return false;
+
+          const assignedUser = (task.assignedUserDetails || []).find(
+            (detail) => detail.userId === taskUserId
+          );
+          const departmentRoles = getDefaultRolesForDepartment(task.department);
+          const roles = normalizeRolesForDepartment(
+            task.department,
+            assignedUser?.roles?.length ? assignedUser.roles : departmentRoles
+          );
+          return roles.every((role) => task.roleCompletion?.[`${taskUserId}_${role}`] === 'done');
+        });
 
         completed.sort((a, b) => {
-          const da = a.date ? new Date(a.date).getTime() : 0;
-          const dbt = b.date ? new Date(b.date).getTime() : 0;
+          const dateA = a.date || a.createdAt?.toDate?.() || a.createdAt || 0;
+          const dateB = b.date || b.createdAt?.toDate?.() || b.createdAt || 0;
+          const da = new Date(dateA).getTime();
+          const dbt = new Date(dateB).getTime();
           return dbt - da;
         });
 
         setCompletedTasks(completed);
 
-        // Fetch rejected works
-        const rejectedSnap = await getDocs(
-          query(collection(db, 'rejectedWorks'), where('userId', '==', user.uid))
-        );
-        const rejected = rejectedSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        const rejected = result.data.rejectedTasks;
 
         rejected.sort((a, b) => {
           const da = a.approvedAt ? new Date(a.approvedAt).getTime() : 0;
@@ -74,6 +86,7 @@ const TaskHistory = () => {
         setRejectedTasks(rejected);
       } catch (err) {
         console.error('Error loading task history:', err);
+        setError('Could not load your work history. Please refresh and try again.');
       } finally {
         setLoading(false);
       }
@@ -85,7 +98,7 @@ const TaskHistory = () => {
   const getUserRoles = (task) => {
     if (!user) return [];
     const details = task.assignedUserDetails || [];
-    const mine = details.find((d) => d.userId === user.uid);
+    const mine = details.find((d) => d.userId === getTaskUserId(task));
     return mine?.roles || [];
   };
 
@@ -109,6 +122,11 @@ const TaskHistory = () => {
             <p className="text-gray-600">Loading history...</p>
           </div>
         ) : completedTasks.length === 0 && rejectedTasks.length === 0 && missedTasks.length === 0 ? (
+          error ? (
+            <div className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">
+              {error}
+            </div>
+          ) : (
           <div className="bg-white rounded-2xl shadow-lg p-12 text-center border border-gray-100">
             <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <FaCalendarAlt className="text-4xl text-blue-600" />
@@ -116,6 +134,7 @@ const TaskHistory = () => {
             <h3 className="text-xl font-bold text-gray-800 mb-2">No History</h3>
             <p className="text-gray-600">You have no completed, rejected, or missed tasks yet.</p>
           </div>
+          )
         ) : (
           <>
             {/* Missed Tasks */}
@@ -133,7 +152,7 @@ const TaskHistory = () => {
 
                 <div className="space-y-4">
                   {missedTasks.map((task) => {
-                    const markedAt = task?.workAttendance?.[user.uid]?.markedAt;
+                    const markedAt = task?.workAttendance?.[getTaskUserId(task)]?.markedAt;
                     const markedAtDate =
                       typeof markedAt?.toDate === 'function'
                         ? markedAt.toDate()

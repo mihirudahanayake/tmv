@@ -912,6 +912,7 @@ const Inventory = () => {
           userId: primaryMember.id,
           userName: primaryMember.name || primaryMember.email || 'Member',
           userEmail: primaryMember.email || '',
+          issuedToUserIds: selectedMembers.map((member) => member.id),
           issuedToMembers: selectedMembers.map((member) => ({
             id: member.id,
             name: member.name || member.email || 'Member',

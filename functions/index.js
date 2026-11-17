@@ -1,11 +1,12 @@
 const { onDocumentCreated } = require('firebase-functions/v2/firestore');
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { onSchedule } = require('firebase-functions/v2/scheduler');
-const { addDoc, collection } = require('firebase-admin/firestore');
+const { addDoc, collection, FieldPath } = require('firebase-admin/firestore');
 const logger = require('firebase-functions/logger');
 const admin = require('firebase-admin');
 const nodemailer = require('nodemailer');
 const axios = require('axios');
+
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -211,6 +212,316 @@ exports.getDepartmentUserCount = onCall(
     ).length;
 
     return { count };
+  }
+);
+
+function serializeCallableValue(value) {
+  if (value instanceof admin.firestore.Timestamp) {
+    return value.toDate().toISOString();
+  }
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+  if (Array.isArray(value)) {
+    return value.map(serializeCallableValue);
+  }
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([, entryValue]) => entryValue !== undefined)
+        .map(([key, entryValue]) => [key, serializeCallableValue(entryValue)])
+    );
+  }
+  return value;
+}
+
+async function getCallerProfileIds(authUser) {
+  const profileIds = new Set([authUser.uid]);
+  const email = String(authUser.token?.email || '').trim();
+
+  if (authUser.token?.email_verified === true && email) {
+    const emailValues = new Set([email, email.toLowerCase()]);
+    const profileSnapshots = await Promise.all(
+      Array.from(emailValues, (emailValue) =>
+        db.collection('users').where('email', '==', emailValue).get()
+      )
+    );
+    profileSnapshots.forEach((snapshot) => {
+      snapshot.docs.forEach((profileDoc) => profileIds.add(profileDoc.id));
+    });
+  }
+
+  return profileIds;
+}
+
+async function getAssignedWorks(profileIds) {
+  const workSnapshots = await Promise.all(
+    Array.from(profileIds, (profileId) =>
+      db.collection('works')
+        .where('assignedUsers', 'array-contains', profileId)
+        .get()
+    )
+  );
+  const worksById = new Map();
+  workSnapshots.forEach((snapshot) => {
+    snapshot.docs.forEach((workDoc) => worksById.set(workDoc.id, workDoc));
+  });
+
+  return Array.from(worksById.values(), (workDoc) => {
+    const work = workDoc.data() || {};
+    const assignedUserIds = Array.isArray(work.assignedUsers) ? work.assignedUsers : [];
+    const assignedDetails = Array.isArray(work.assignedUserDetails)
+      ? work.assignedUserDetails
+      : [];
+    const assignedUserId = assignedUserIds.find((id) => profileIds.has(id))
+      || assignedDetails.find((detail) => profileIds.has(detail.userId))?.userId;
+
+    return {
+      ...serializeCallableValue(work),
+      id: workDoc.id,
+      __viewerUserId: assignedUserId,
+    };
+  });
+}
+
+exports.getUserHomeData = onCall(
+  {
+    cors: [
+      'http://localhost:5173',
+      'http://127.0.0.1:5173',
+      'https://tmv.fotmv.online',
+    ],
+  },
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError('unauthenticated', 'You must be signed in.');
+    }
+
+    try {
+      const profileIds = await getCallerProfileIds(request.auth);
+      const tasks = await getAssignedWorks(profileIds);
+
+      const teammateIds = new Set();
+      tasks.forEach((task) => {
+        const assignedUserIds = Array.isArray(task.assignedUsers)
+          ? task.assignedUsers
+          : (task.assignedUserDetails || []).map((detail) => detail.userId);
+        assignedUserIds.forEach((assignedUserId) => {
+          if (typeof assignedUserId === 'string' && !profileIds.has(assignedUserId)) {
+            teammateIds.add(assignedUserId);
+          }
+        });
+      });
+
+      const teammateSnapshots = await Promise.all(
+        Array.from(teammateIds, (teammateId) =>
+          db.collection('users').doc(teammateId).get()
+        )
+      );
+      const userDetails = {};
+      teammateSnapshots.forEach((teammateSnapshot) => {
+        if (!teammateSnapshot.exists) return;
+        const teammate = teammateSnapshot.data() || {};
+        userDetails[teammateSnapshot.id] = {
+          name: teammate.name || teammate.username || teammate.displayName || 'User',
+          photoURL: teammate.photoURL || null,
+          avatarUrl: teammate.avatarUrl || null,
+        };
+      });
+
+      return { tasks, userDetails };
+    } catch (error) {
+      logger.error('Failed to load user home data.', {
+        userId: request.auth.uid,
+        error: error?.message || String(error),
+      });
+      if (error instanceof HttpsError) throw error;
+      throw new HttpsError('internal', 'Could not load assigned work.');
+    }
+  }
+);
+
+exports.updateUserWorkAction = onCall(
+  {
+    cors: [
+      'http://localhost:5173',
+      'http://127.0.0.1:5173',
+      'https://tmv.fotmv.online',
+    ],
+  },
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError('unauthenticated', 'You must be signed in.');
+    }
+
+    const workId = String(request.data?.workId || '').trim();
+    const action = String(request.data?.action || '');
+    if (!workId || !['accept', 'reject', 'set-role'].includes(action)) {
+      throw new HttpsError('invalid-argument', 'Invalid work action.');
+    }
+
+    const profileIds = await getCallerProfileIds(request.auth);
+    const workRef = db.collection('works').doc(workId);
+    const workSnapshot = await workRef.get();
+    if (!workSnapshot.exists) {
+      throw new HttpsError('not-found', 'Work not found.');
+    }
+
+    const work = workSnapshot.data() || {};
+    const assignedUsers = Array.isArray(work.assignedUsers) ? work.assignedUsers : [];
+    const assignedDetails = Array.isArray(work.assignedUserDetails)
+      ? work.assignedUserDetails
+      : [];
+    const assignedUserId = assignedUsers.find((id) => profileIds.has(id))
+      || assignedDetails.find((detail) => profileIds.has(detail.userId))?.userId;
+    if (typeof assignedUserId !== 'string') {
+      throw new HttpsError('permission-denied', 'You are not assigned to this work.');
+    }
+
+    if (action === 'accept') {
+      await workRef.update(new FieldPath('userAcceptance', assignedUserId), 'accepted');
+      return { userId: assignedUserId, action };
+    }
+
+    if (action === 'reject') {
+      const reason = String(request.data?.reason || '').trim();
+      if (!reason || reason.length > 500) {
+        throw new HttpsError('invalid-argument', 'Provide a rejection reason of 500 characters or fewer.');
+      }
+
+      const rejection = {
+        reason,
+        timestamp: new Date().toISOString(),
+        approved: false,
+      };
+      await workRef.update(
+        new FieldPath('userAcceptance', assignedUserId),
+        'rejected',
+        new FieldPath('rejections', assignedUserId),
+        rejection
+      );
+      return { userId: assignedUserId, action, rejection };
+    }
+
+    const role = String(request.data?.role || '').trim();
+    const done = request.data?.done;
+    if (!role || typeof done !== 'boolean') {
+      throw new HttpsError('invalid-argument', 'A role and completion state are required.');
+    }
+    const roles = Array.isArray(request.data?.roles)
+      ? [...new Set(request.data.roles.filter((value) => typeof value === 'string'))]
+      : [role];
+    if (!roles.length || !roles.includes(role)) {
+      throw new HttpsError('invalid-argument', 'Invalid work roles.');
+    }
+
+    const assignment = assignedDetails.find((detail) => detail.userId === assignedUserId);
+    const assignedRoles = Array.isArray(assignment?.roles)
+      ? assignment.roles.filter((assignedRole) => typeof assignedRole === 'string')
+      : [];
+    const defaultRole = work.department === 'videography'
+      ? 'videography'
+      : work.department === 'photography'
+        ? 'photography'
+        : 'done';
+    const allowedRoles = new Set(assignedRoles.length ? assignedRoles : [defaultRole]);
+    if (roles.some((requestedRole) => !allowedRoles.has(requestedRole))) {
+      throw new HttpsError('permission-denied', 'You are not assigned this work role.');
+    }
+
+    const roleUpdates = [];
+    roles.forEach((requestedRole) => {
+      roleUpdates.push(
+        new FieldPath('roleCompletion', `${assignedUserId}_${requestedRole}`),
+        done ? 'done' : admin.firestore.FieldValue.delete()
+      );
+    });
+    await workRef.update(...roleUpdates);
+    return { userId: assignedUserId, action, roles, done };
+  }
+);
+
+exports.getUserTaskHistory = onCall(
+  {
+    cors: [
+      'http://localhost:5173',
+      'http://127.0.0.1:5173',
+      'https://tmv.fotmv.online',
+    ],
+  },
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError('unauthenticated', 'You must be signed in.');
+    }
+
+    try {
+      const profileIds = await getCallerProfileIds(request.auth);
+      const tasks = await getAssignedWorks(profileIds);
+      const rejectedSnapshots = await Promise.all(
+        Array.from(profileIds, (profileId) =>
+          db.collection('rejectedWorks').where('userId', '==', profileId).get()
+        )
+      );
+      const rejectedById = new Map();
+      rejectedSnapshots.forEach((snapshot) => {
+        snapshot.docs.forEach((rejectedDoc) => rejectedById.set(rejectedDoc.id, rejectedDoc));
+      });
+      const rejectedTasks = Array.from(rejectedById.values(), (rejectedDoc) => ({
+        ...serializeCallableValue(rejectedDoc.data()),
+        id: rejectedDoc.id,
+      }));
+
+      return { tasks, rejectedTasks };
+    } catch (error) {
+      logger.error('Failed to load user task history.', {
+        userId: request.auth.uid,
+        error: error?.message || String(error),
+      });
+      if (error instanceof HttpsError) throw error;
+      throw new HttpsError('internal', 'Could not load your work history.');
+    }
+  }
+);
+
+exports.getUserItemUsage = onCall(
+  {
+    cors: [
+      'http://localhost:5173',
+      'http://127.0.0.1:5173',
+      'https://tmv.fotmv.online',
+    ],
+  },
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError('unauthenticated', 'You must be signed in.');
+    }
+
+    try {
+      const profileIds = await getCallerProfileIds(request.auth);
+      const usageSnapshots = await Promise.all(
+        Array.from(profileIds).flatMap((profileId) => [
+          db.collection('inventoryUsage').where('userId', '==', profileId).get(),
+          db.collection('inventoryUsage').where('issuedToUserIds', 'array-contains', profileId).get(),
+        ])
+      );
+      const usageById = new Map();
+      usageSnapshots.forEach((snapshot) => {
+        snapshot.docs.forEach((usageDoc) => usageById.set(usageDoc.id, usageDoc));
+      });
+      const usageRows = Array.from(usageById.values(), (usageDoc) => ({
+        ...serializeCallableValue(usageDoc.data()),
+        id: usageDoc.id,
+      }));
+
+      return { usageRows };
+    } catch (error) {
+      logger.error('Failed to load user item usage.', {
+        userId: request.auth.uid,
+        error: error?.message || String(error),
+      });
+      if (error instanceof HttpsError) throw error;
+      throw new HttpsError('internal', 'Could not load usage history.');
+    }
   }
 );
 
