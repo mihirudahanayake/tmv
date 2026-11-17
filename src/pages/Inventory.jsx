@@ -17,7 +17,7 @@ import {
 } from 'firebase/firestore';
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { useNavigate } from 'react-router-dom';
-import { FaBox, FaList, FaPlus, FaSpinner, FaTimes, FaCommentDots, FaEdit, FaTrash } from 'react-icons/fa';
+import { FaBox, FaIdCard, FaList, FaPlus, FaSpinner, FaTimes, FaCommentDots, FaEdit, FaTrash } from 'react-icons/fa';
 import Header from '../components/Header';
 import { db, storage } from '../firebase/config';
 import { useUserProfile } from '../hooks/useUserProfile';
@@ -118,6 +118,9 @@ const Inventory = () => {
   const [rfidReturnScanMessageRecordId, setRfidReturnScanMessageRecordId] = useState(null);
   const [rfidReturnScanMessage, setRfidReturnScanMessage] = useState('');
   const rfidSocketRef = useRef(null);
+  const [cupboardNfcScanning, setCupboardNfcScanning] = useState(false);
+  const [cupboardNfcMessage, setCupboardNfcMessage] = useState('');
+  const cupboardNfcScanControllerRef = useRef(null);
   const nfcApiUrl = (
     import.meta.env.VITE_NFC_URL ||
     import.meta.env.NFC_URL ||
@@ -345,6 +348,64 @@ const Inventory = () => {
       }
     };
   }, [showManualCheckout, rfidReturnScanRecordId, nfcApiUrl]);
+
+  useEffect(() => () => {
+    cupboardNfcScanControllerRef.current?.abort();
+  }, []);
+
+  const handleCupboardNfcScan = async () => {
+    if (cupboardNfcScanning) {
+      cupboardNfcScanControllerRef.current?.abort();
+      setCupboardNfcMessage('NFC scan cancelled.');
+      return;
+    }
+
+    if (rfidScanning) {
+      setCupboardNfcMessage('Stop the active inventory RFID scan before scanning for cupboard access.');
+      return;
+    }
+
+    const controller = new AbortController();
+    cupboardNfcScanControllerRef.current = controller;
+    setCupboardNfcScanning(true);
+    setCupboardNfcMessage('Waiting for an NFC card. Hold it near the reader.');
+
+    try {
+      const scanDeadline = Date.now() + 30000;
+      while (Date.now() < scanDeadline) {
+        const response = await fetch(`${nfcApiUrl}/nfc/read`, {
+          cache: 'no-store',
+          signal: controller.signal,
+        });
+        if (!response.ok) {
+          throw new Error(`NFC reader returned ${response.status}`);
+        }
+
+        const data = await response.json();
+        const uid = String(data?.uid ?? '').trim();
+        if (uid) {
+          setCupboardNfcMessage(
+            `NFC card detected: ${uid}. This reads the card only; it does not unlock the cupboard.`
+          );
+          return;
+        }
+
+        await new Promise((resolve) => window.setTimeout(resolve, 1500));
+      }
+
+      setCupboardNfcMessage('No NFC card detected. Try again.');
+    } catch (error) {
+      if (error.name !== 'AbortError') {
+        console.error('Error scanning NFC card for cupboard access:', error);
+        setCupboardNfcMessage('Could not read an NFC card. Check that the NFC reader service is running.');
+      }
+    } finally {
+      if (cupboardNfcScanControllerRef.current === controller) {
+        cupboardNfcScanControllerRef.current = null;
+        setCupboardNfcScanning(false);
+      }
+    }
+  };
 
   const fetchIssueHistory = async () => {
     setIssueHistoryLoading(true);
@@ -721,6 +782,10 @@ const Inventory = () => {
   };
 
   const openIssueModal = () => {
+    if (cupboardNfcScanControllerRef.current) {
+      cupboardNfcScanControllerRef.current.abort();
+      setCupboardNfcMessage('NFC scan cancelled because inventory scanning started.');
+    }
     setRfidReturnScanRecordId(null);
     setShowIssueCloseConfirm(false);
     setRfidScanMessage('');
@@ -1125,7 +1190,7 @@ const Inventory = () => {
             </div>
             <div className="inline-flex items-center gap-2 rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 sm:text-sm">
               <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
-              {items.length} total records
+              {items.length} total items
             </div>
           </div>
         </div>
@@ -1146,6 +1211,43 @@ const Inventory = () => {
               </div>
             </div>
           ))}
+        </div>
+
+        <div className="mb-5 rounded-[22px] border border-violet-200 bg-white/90 p-4 shadow-[0_12px_24px_rgba(15,23,42,0.04)] sm:p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-100 text-violet-700">
+                <FaIdCard className="text-lg" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-slate-800">Cupboard access</h2>
+                <p className="mt-1 text-sm text-slate-600">Scan an NFC card with the connected reader.</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleCupboardNfcScan}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-violet-700"
+            >
+              {cupboardNfcScanning ? (
+                <>
+                  <FaSpinner className="animate-spin" />
+                  Cancel scan
+                </>
+              ) : (
+                <>
+                  <FaIdCard />
+                  Scan NFC card
+                </>
+              )}
+            </button>
+          </div>
+          {cupboardNfcMessage && (
+            <p role="status" aria-live="polite" className="mt-3 rounded-lg bg-violet-50 px-3 py-2 text-sm text-violet-800">
+              {cupboardNfcMessage}
+            </p>
+          )}
+          <p className="mt-2 text-xs text-slate-500">The scan reads the card UID only; cupboard unlocking is not connected.</p>
         </div>
 
         {canManageInventory && (
@@ -1353,6 +1455,10 @@ const Inventory = () => {
                                     setRfidReturnScanMessage('RFID scan cancelled.');
                                     setRfidScanning(false);
                                   } else {
+                                    if (cupboardNfcScanControllerRef.current) {
+                                      cupboardNfcScanControllerRef.current.abort();
+                                      setCupboardNfcMessage('NFC scan cancelled because item return scanning started.');
+                                    }
                                     setRfidReturnScanMessage('Connecting to RFID reader...');
                                     setRfidReturnScanMessageRecordId(record.id);
                                     setRfidReturnScanRecordId(record.id);
