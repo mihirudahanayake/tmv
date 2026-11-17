@@ -50,7 +50,7 @@ const TimePickerAmPm = ({
         </label>
       ) : null}
 
-      <div className="flex items-center gap-2">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_minmax(0,1.15fr)] items-center gap-2 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_minmax(0,1.15fr)_auto]">
         <select
           value={parsed.hour}
           onChange={(e) => {
@@ -63,7 +63,7 @@ const TimePickerAmPm = ({
             });
           }}
           disabled={disabled}
-          className="px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
+          className="w-full min-w-0 rounded border border-gray-300 px-2 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-green-500 lg:text-sm"
         >
           <option value="">HH</option>
           {HOURS.map((h) => (
@@ -87,7 +87,7 @@ const TimePickerAmPm = ({
             });
           }}
           disabled={disabled}
-          className="px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
+          className="w-full min-w-0 rounded border border-gray-300 px-2 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-green-500 lg:text-sm"
         >
           <option value="">MM</option>
           {MINUTES.map((m) => (
@@ -109,7 +109,7 @@ const TimePickerAmPm = ({
             });
           }}
           disabled={disabled}
-          className="px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
+          className="w-full min-w-0 rounded border border-gray-300 px-2 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-green-500 lg:text-sm"
         >
           <option value="">AM/PM</option>
           {MERIDIEMS.map((m) => (
@@ -123,7 +123,7 @@ const TimePickerAmPm = ({
           type="button"
           onClick={() => onChange?.('')}
           disabled={disabled || !value}
-          className="px-3 py-2 rounded bg-gray-200 text-gray-800 text-sm hover:bg-gray-300 disabled:opacity-50"
+          className="col-span-4 justify-self-end rounded bg-gray-200 px-2 py-2 text-xs text-gray-800 hover:bg-gray-300 disabled:opacity-50 lg:col-span-1 lg:justify-self-stretch lg:text-sm"
           title="Clear time"
         >
           Clear

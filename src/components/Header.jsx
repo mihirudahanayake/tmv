@@ -54,7 +54,7 @@ const Header = ({ userType, isTO = false, isDarkMode, toggleDarkMode, isGlobalLa
   const isMemberShell = effectiveUserType === 'user';
   const isTOUser = Boolean(isTO || profile?.isTO || profileRole === 'supervisorTO' || profileRole === 'supervisor' || userType === 'supervisorTO' || userType === 'supervisor');
   const showTOInventory = isTOUser && isMemberShell;
-  const userDisplayName = profile?.name || profile?.displayName || profile?.email || 'Profile';
+  const userDisplayName = profile?.username || profile?.name || profile?.displayName || profile?.email || 'Profile';
   const userAvatarUrl = profile?.photoURL || profile?.avatarUrl || '';
 
   const handleLogout = async () => {
@@ -169,15 +169,16 @@ const Header = ({ userType, isTO = false, isDarkMode, toggleDarkMode, isGlobalLa
 
             <div className="min-w-0">
               <div className="truncate text-base font-semibold text-white">
-                Inventory & Task Management
+                <span className="lg:hidden">Media Manager</span>
+                <span className="hidden lg:inline">Inventory &amp; Task Management</span>
               </div>
-              <div className="truncate text-xs text-blue-100/85">
+              <div className="hidden truncate text-xs text-blue-100/85 lg:block">
                 Inventory System
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             <Link
               to="/profile"
               className="inline-flex items-center gap-2 rounded-full border border-white/15 px-3 py-2 text-sm font-semibold text-white hover:bg-white/10 dark:border-white/10 dark:text-white dark:hover:bg-white/10"
@@ -199,17 +200,17 @@ const Header = ({ userType, isTO = false, isDarkMode, toggleDarkMode, isGlobalLa
             <button
               type="button"
               onClick={() => setShowLogoutConfirm(true)}
-              className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/15 text-white hover:bg-white/10 dark:border-white/10 dark:text-white dark:hover:bg-white/10"
+              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/15 text-white hover:bg-white/10 dark:border-white/10 dark:text-white dark:hover:bg-white/10"
               aria-label="Logout"
               title="Logout"
             >
-              <FaSignOutAlt className="text-sm" />
+              <FaSignOutAlt className="text-xl" />
             </button>
 
             <button
               type="button"
               onClick={toggleTheme}
-              className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/15 text-white hover:bg-white/10 dark:border-white/10 dark:text-white dark:hover:bg-white/10"
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-white/5 text-white transition hover:bg-white/10 dark:border-white/10 dark:text-white dark:hover:bg-white/10"
               aria-label="Toggle dark mode"
             >
               {darkModeOn ? <FaSun /> : <FaMoon />}
@@ -226,7 +227,7 @@ const Header = ({ userType, isTO = false, isDarkMode, toggleDarkMode, isGlobalLa
           >
             <div className="flex items-center justify-between border-b border-blue-800 px-5 py-4 dark:border-slate-800">
               <div>
-                <div className="text-sm font-semibold">Inventory & Task Management</div>
+                <div className="text-sm font-semibold">Media Manager</div>
                 <div className="text-xs text-blue-100/80">FOT Media Unit</div>
               </div>
               <button

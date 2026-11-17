@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { doc, getDoc, updateDoc, deleteDoc, getDocs, collection, query, where } from 'firebase/firestore';
-import { db } from '../firebase/config';
+import { httpsCallable } from 'firebase/functions';
+import { db, functions } from '../firebase/config';
+import { useUserProfile } from '../hooks/useUserProfile';
+import { normalizeRole, Roles } from '../utils/authz';
 import Header from '../components/Header';
 import {
   FaFileAlt,
@@ -20,6 +23,7 @@ import {
 
 const EditOldWork = () => {
   const { id } = useParams();
+  const { profile, loading: loadingProfile } = useUserProfile();
   const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState(null);
   const [users, setUsers] = useState([]);
@@ -58,18 +62,41 @@ const EditOldWork = () => {
     useEffect(() => {
       // fetch users for selectors (filtered by work department)
       const fetchUsers = async () => {
+        if (loadingProfile || !profile || !formData) return;
         setUsersLoading(true);
         setUsersError('');
         try {
           const dept = formData?.department || 'videography';
-          const querySnapshot = await getDocs(
-            query(collection(db, 'users'), where('departments', 'array-contains', dept))
-          );
-          const usersData = querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+          let usersData;
+          if (normalizeRole(profile) === Roles.DEPARTMENT_HEAD) {
+            const getDepartmentUsers = httpsCallable(functions, 'getDepartmentUsers');
+            const result = await getDepartmentUsers();
+            if (!Array.isArray(result.data?.users)) {
+              throw new Error('Invalid department users response from the server.');
+            }
+            usersData = result.data.users.filter((user) => {
+              const departments = Array.isArray(user.departments) && user.departments.length
+                ? user.departments
+                : user.department
+                  ? [user.department]
+                  : [];
+              return departments.includes(dept);
+            });
+          } else {
+            const [departmentsSnapshot, departmentSnapshot] = await Promise.all([
+              getDocs(query(collection(db, 'users'), where('departments', 'array-contains', dept))),
+              getDocs(query(collection(db, 'users'), where('department', '==', dept))),
+            ]);
+            const usersById = new Map();
+            for (const userDoc of [...departmentsSnapshot.docs, ...departmentSnapshot.docs]) {
+              usersById.set(userDoc.id, { id: userDoc.id, ...userDoc.data() });
+            }
+            usersData = [...usersById.values()];
+          }
           usersData.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
           setUsers(usersData);
         } catch (error) {
-          setUsersError('Failed to load users');
+          setUsersError(`Failed to load users: ${error?.code || error?.message || 'Check your department access and try again.'}`);
           setUsers([]);
           console.error('Error fetching users:', error);
         } finally {
@@ -78,7 +105,7 @@ const EditOldWork = () => {
       };
 
       fetchUsers();
-    }, [formData?.department]);
+    }, [formData?.department, loadingProfile, profile]);
     const handleUserSelection = (userId) => {
       setFormData((prev) => {
         const existing = (prev.assignedUserDetails || []).find((u) => u.userId === userId);

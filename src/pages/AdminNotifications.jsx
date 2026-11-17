@@ -13,11 +13,19 @@ import { auth, db } from '../firebase/config';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { fanOutUserNotifications } from '../utils/fanOutUserNotifications';
 import { WORK_DEPARTMENTS, formatWorkDepartmentLabel } from '../constants/workDepartments';
+import { canManageUser, normalizeRole, Roles } from '../utils/authz';
+
+const getUserDepartments = (user) =>
+  Array.isArray(user?.departments)
+    ? user.departments
+    : user?.department
+      ? [user.department]
+      : [];
 
 const AdminNotifications = () => {
   const { profile, loading: loadingProfile } = useUserProfile();
 
-  const [department, setDepartment] = useState('videography');
+  const [department, setDepartment] = useState('');
   const [users, setUsers] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
 
@@ -30,15 +38,32 @@ const AdminNotifications = () => {
   const [successMsg, setSuccessMsg] = useState('');
   const [error, setError] = useState('');
 
+  const role = normalizeRole(profile);
+  const isDepartmentHead = role === Roles.DEPARTMENT_HEAD;
+  const managedDepartments = Array.isArray(profile?.managedDepartments)
+    ? profile.managedDepartments
+    : [];
+  const allowedDepartments = isDepartmentHead ? managedDepartments : WORK_DEPARTMENTS;
+
   useEffect(() => {
-    if (!loadingProfile && profile?.managedDepartments?.length) {
-      setDepartment(profile.managedDepartments[0]);
+    if (!loadingProfile) {
+      setDepartment((current) =>
+        allowedDepartments.includes(current) ? current : allowedDepartments[0] || ''
+      );
     }
-  }, [loadingProfile, profile]);
+  }, [loadingProfile, allowedDepartments]);
 
   useEffect(() => {
     const loadUsers = async () => {
       if (loadingProfile) return;
+      if (!allowedDepartments.includes(department)) {
+        setUsers([]);
+        setLoadingUsers(false);
+        if (isDepartmentHead && !allowedDepartments.length) {
+          setError('No department is assigned to this department head. Contact a site administrator.');
+        }
+        return;
+      }
 
       setLoadingUsers(true);
       try {
@@ -52,7 +77,14 @@ const AdminNotifications = () => {
         snapNew.docs.forEach((d) => usersMap.set(d.id, { id: d.id, ...d.data() }));
         snapLegacy.docs.forEach((d) => usersMap.set(d.id, { id: d.id, ...d.data() }));
 
-        setUsers(Array.from(usersMap.values()));
+        setUsers(
+          Array.from(usersMap.values()).filter(
+            (user) =>
+              getUserDepartments(user).includes(department)
+              && (!isDepartmentHead || canManageUser(profile, user))
+          )
+        );
+        setError('');
       } catch (e) {
         console.error(e);
         setError('Failed to load users.');
@@ -62,12 +94,7 @@ const AdminNotifications = () => {
     };
 
     loadUsers();
-  }, [loadingProfile, department]);
-
-  const allowedDepartments =
-    Array.isArray(profile?.managedDepartments) && profile.managedDepartments.length
-      ? profile.managedDepartments
-      : WORK_DEPARTMENTS;
+  }, [loadingProfile, department, allowedDepartments, isDepartmentHead, profile]);
 
   const toggleUserSelection = (userId) => {
     setSelectedUserIds((prev) =>
@@ -79,6 +106,15 @@ const AdminNotifications = () => {
     e.preventDefault();
     setError('');
     setSuccessMsg('');
+
+    if (!allowedDepartments.includes(department)) {
+      setError('You can only send notifications for a department you manage.');
+      return;
+    }
+    if (loadingUsers) {
+      setError('Wait for the department users to finish loading.');
+      return;
+    }
 
     if (!title.trim() || !message.trim()) {
       setError('Title and message are required.');
@@ -174,12 +210,16 @@ const AdminNotifications = () => {
             <label className="block text-sm font-semibold text-gray-700 mb-1">Department</label>
             <select
               value={department}
+              disabled={!allowedDepartments.length}
               onChange={(e) => {
                 setDepartment(e.target.value);
                 setSelectedUserIds([]);
+                setUsers([]);
+                setLoadingUsers(true);
               }}
               className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
+              {!allowedDepartments.length && <option value="">No managed department assigned</option>}
               {allowedDepartments.map((d) => (
                 <option key={d} value={d}>
                   {formatWorkDepartmentLabel(d)}

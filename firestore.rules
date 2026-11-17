@@ -16,16 +16,17 @@ service cloud.firestore {
     }
 
     function myRole() {
-      if (isSiteAdmin()) return 'siteAdmin';
-      return (myUserDoc().role != null)
-        ? myUserDoc().role
-        : (myUserDoc().userType == 'admin')
-          ? 'departmentHead'
-          : (myUserDoc().userType == 'superAdmin')
-            ? 'superAdmin'
-            : (myUserDoc().userType == 'supervisor')
-              ? 'supervisorTO'
-            : 'member';
+      return isSiteAdmin()
+        ? 'siteAdmin'
+        : (myUserDoc().get('role', null) != null)
+          ? myUserDoc().get('role', null)
+          : (myUserDoc().get('userType', null) == 'admin')
+            ? 'departmentHead'
+            : (myUserDoc().get('userType', null) == 'superAdmin')
+              ? 'superAdmin'
+              : (myUserDoc().get('userType', null) == 'supervisor')
+                ? 'supervisorTO'
+                : 'member';
     }
 
     function isSuperAdmin() {
@@ -57,12 +58,17 @@ service cloud.firestore {
     }
 
     function myManagedDepartments() {
-      if (!isDeptHead()) return [];
-      return (myUserDoc().managedDepartments is list && myUserDoc().managedDepartments.size() > 0)
-        ? myUserDoc().managedDepartments
-        : (myUserDoc().firstPriority != null)
-          ? [myUserDoc().firstPriority]
-          : ['videography'];
+      return isDeptHead()
+        ? (
+            (myUserDoc().managedDepartments is list && myUserDoc().managedDepartments.size() > 0)
+              ? myUserDoc().managedDepartments
+              : (myUserDoc().firstPriority != null)
+                ? [myUserDoc().firstPriority]
+                : (myUserDoc().departments is list && myUserDoc().departments.size() > 0)
+                  ? [myUserDoc().departments[0]]
+                  : []
+          )
+        : [];
     }
 
     function workDept(res) {
@@ -86,35 +92,113 @@ service cloud.firestore {
         && listVal.hasOnly(allowedWorkDepts());
     }
 
+    function isValidUsername(username) {
+      return username is string
+        && username.size() >= 3
+        && username.size() <= 20
+        && username.matches('^[A-Za-z0-9_]+( [A-Za-z0-9_]+)*$');
+    }
+
+    function preservesUsername() {
+      return request.resource.data.get('username', null) == resource.data.get('username', null)
+        && (
+          resource.data.get('username', null) == null
+          || request.resource.data.get('name', null) == resource.data.get('name', null)
+        );
+    }
+
+    function hasValidUsernameAfterChange() {
+      return isValidUsername(request.resource.data.get('username', null))
+        && request.resource.data.get('name', null)
+          == request.resource.data.get('username', null);
+    }
+
+    function changedProfileFields() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    function profileFieldChanged(field) {
+      return changedProfileFields().hasAny([field]);
+    }
+
+    function profileUpdateFieldsAreAllowed() {
+      return changedProfileFields().hasOnly([
+        'username',
+        'name',
+        'fullName',
+        'phoneNo',
+        'birthday',
+        'gender',
+        'registrationNumber',
+        'batch',
+        'studyDepartment',
+        'cardNumber',
+        'NFC_card_id',
+        'departments',
+        'firstPriority',
+        'department',
+        'photoURL',
+        'email',
+        'fcmToken',
+        'fcmTokens'
+      ]);
+    }
+
+    function ownProfileIsDepartmentHead() {
+      return resource.data.get('role', null) == 'departmentHead'
+        || resource.data.get('userType', null) == 'admin';
+    }
+
     function canManageDept(dept) {
       return isDeptHead() && myManagedDepartments().hasAny([dept]);
     }
 
     function canReadUserDoc(targetUserId, targetData) {
-      if (!signedIn()) return false;
-      if (isSiteAdmin()) return true;
-      if (isSuperAdmin()) return true;
-      if (targetUserId == request.auth.uid) return true;
-
-      // Department heads: only users inside their managed department(s)
-      if (isDeptHead()) {
-        return myManagedDepartments().hasAny(departmentsFromUserData(targetData));
-      }
-
-      // Members: users that share at least one work department
-      return myDepartments().hasAny(departmentsFromUserData(targetData));
+      return signedIn() && (
+        isSiteAdmin()
+        || isSuperAdmin()
+        || targetUserId == request.auth.uid
+        || (
+          isDeptHead() && (
+            (targetData.get('departments', null) is list
+              && targetData.get('departments', []).hasAny(myManagedDepartments()))
+            || (
+              !(targetData.get('departments', null) is list)
+              && targetData.get('department', null) != null
+              && myManagedDepartments().hasAny([targetData.get('department', null)])
+            )
+          )
+        )
+        || (
+          !isDeptHead()
+          && myDepartments().hasAny(departmentsFromUserData(targetData))
+        )
+      );
     }
 
     match /users/{userId} {
       allow read: if canReadUserDoc(userId, resource.data);
 
       // Site admin can manage roles/departments.
-      allow update: if isSiteAdmin();
+      allow update: if isSiteAdmin() && preservesUsername();
 
       // Super admin can manage user details across the system, but cannot create/promote site admins.
       allow update: if isSuperAdmin()
         && resource.data.role != 'siteAdmin'
-        && request.resource.data.role != 'siteAdmin';
+        && request.resource.data.role != 'siteAdmin'
+        && preservesUsername();
+
+      // Members can create only their own basic profile.
+      allow create: if signedIn()
+        && userId == request.auth.uid
+        && request.resource.data.role == 'member'
+        && request.resource.data.userType == 'user'
+        && isValidUsername(request.resource.data.username)
+        && request.resource.data.name == request.resource.data.username
+        && request.resource.data.birthday is string
+        && request.resource.data.birthday.size() > 0
+        && request.resource.data.gender in ['male', 'female']
+        && isValidWorkDeptList(request.resource.data.departments);
 
       // Department heads can create member profiles within their managed department.
       allow create: if isDeptHead()
@@ -122,34 +206,68 @@ service cloud.firestore {
         && request.resource.data.userType == 'user'
         && request.resource.data.isTO != true
         && (request.resource.data.departments is list)
-        && myManagedDepartments().hasAny(request.resource.data.departments);
+        && myManagedDepartments().hasAny(request.resource.data.departments)
+        && request.resource.data.departments.hasOnly(myManagedDepartments())
+        && (
+          request.resource.data.firstPriority == null
+          || myManagedDepartments().hasAny([request.resource.data.firstPriority])
+        )
+        && (
+          request.resource.data.department == null
+          || myManagedDepartments().hasAny([request.resource.data.department])
+        );
 
       // Users can update their own profile but cannot change role or departments.
       allow update: if signedIn() && userId == request.auth.uid
-        && request.resource.data.role == resource.data.role
-        && request.resource.data.userType == resource.data.userType
-        && request.resource.data.managedDepartments == resource.data.managedDepartments
-        && request.resource.data.isTO == resource.data.isTO
+        && profileUpdateFieldsAreAllowed()
+        && (preservesUsername() || hasValidUsernameAfterChange())
         && (
-          // Allow updating work departments, but only to known department values.
-          (request.resource.data.departments == resource.data.departments)
-          || isValidWorkDeptList(request.resource.data.departments)
+        !ownProfileIsDepartmentHead()
+          || !changedProfileFields().hasAny(['departments', 'firstPriority', 'department'])
         )
         && (
-          (request.resource.data.firstPriority == resource.data.firstPriority)
-          || request.resource.data.firstPriority == null
-          || isValidWorkDept(request.resource.data.firstPriority)
+          !profileFieldChanged('departments')
+          || isValidWorkDeptList(request.resource.data.get('departments', null))
+        )
+        && (
+          !profileFieldChanged('firstPriority')
+          || request.resource.data.get('firstPriority', null) == null
+          || isValidWorkDept(request.resource.data.get('firstPriority', null))
+        )
+        && (
+          !profileFieldChanged('department')
+          || request.resource.data.get('department', null) == null
+          || isValidWorkDept(request.resource.data.get('department', null))
         );
 
       // Department heads can update users in their managed department, but cannot grant elevated roles.
       allow update: if isDeptHead()
-        && (resource.data.departments is list)
-        && myManagedDepartments().hasAny(resource.data.departments)
+        && preservesUsername()
+        && myManagedDepartments().hasAny(departmentsFromUserData(resource.data))
+        && resource.data.role == 'member'
+        && resource.data.userType == 'user'
         && request.resource.data.role == 'member'
         && request.resource.data.userType == 'user'
+        && request.resource.data.managedDepartments == resource.data.managedDepartments
         && request.resource.data.isTO == resource.data.isTO
         && (request.resource.data.departments is list)
-        && myManagedDepartments().hasAny(request.resource.data.departments);
+        && (
+          request.resource.data.departments == resource.data.departments
+          || (
+            myManagedDepartments().hasAny(request.resource.data.departments)
+            && request.resource.data.departments.hasOnly(myManagedDepartments())
+          )
+        )
+        && (
+          request.resource.data.firstPriority == resource.data.firstPriority
+          || request.resource.data.firstPriority == null
+          || myManagedDepartments().hasAny([request.resource.data.firstPriority])
+        )
+        && (
+          request.resource.data.department == resource.data.department
+          || request.resource.data.department == null
+          || myManagedDepartments().hasAny([request.resource.data.department])
+        );
 
       allow delete: if false;
 
@@ -246,6 +364,32 @@ service cloud.firestore {
       // Created/updated by inventory managers (Supervisor TO / Super Admin).
       allow create, update: if isSupervisorTO() || isSuperAdmin() || isSiteAdmin();
       allow delete: if false;
+    }
+
+    match /cupboardAccessLogs/{recordId} {
+      allow read: if isSupervisorTO() || isSuperAdmin();
+      allow create: if (isSupervisorTO() || isSuperAdmin())
+        && request.resource.data.keys().hasAll([
+          'cardUid',
+          'scannedByUid',
+          'scannedByRole',
+          'createdAt'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'cardUid',
+          'scannedByUid',
+          'scannedByRole',
+          'createdAt'
+        ])
+        && request.resource.data.cardUid is string
+        && request.resource.data.cardUid.size() > 0
+        && request.resource.data.scannedByUid == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && (
+          (isSupervisorTO() && request.resource.data.scannedByRole == 'TO')
+          || (isSuperAdmin() && request.resource.data.scannedByRole == 'superAdmin')
+        );
+      allow update, delete: if false;
     }
 
     match /accessRecords/{recordId} {

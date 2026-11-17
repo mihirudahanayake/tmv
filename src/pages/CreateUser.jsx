@@ -7,14 +7,14 @@ import { useUserProfile } from '../hooks/useUserProfile';
 import { formatWorkDepartmentLabel } from '../constants/workDepartments';
 
 const CreateUser = () => {
-  const { profile } = useUserProfile();
-  const managedDept = (profile?.managedDepartments || [])[0] || 'videography';
+  const { profile, loading: loadingProfile } = useUserProfile();
+  const managedDept = (profile?.managedDepartments || [])[0] || '';
   const [formData, setFormData] = useState({
     name: '',
     batch: '',
     email: '',
     phoneNo: '',
-    departments: ['videography'],
+    departments: [],
     studyDepartment: '',
     gender: '',
     registrationNumber: '',
@@ -31,6 +31,11 @@ const CreateUser = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!managedDept) {
+      setMessage({ type: 'error', text: 'No department is assigned to this department head. Contact a site administrator.' });
+      return;
+    }
+
     setLoading(true);
     setMessage({ type: '', text: '' });
 
@@ -70,6 +75,12 @@ const CreateUser = () => {
           <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-4 sm:mb-6">
             Create New User Account
           </h2>
+
+          {!loadingProfile && !managedDept && (
+            <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">
+              No department is assigned to this department head. Contact a site administrator.
+            </div>
+          )}
 
           {message.text && (
             <div
@@ -237,7 +248,7 @@ const CreateUser = () => {
             </div>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || loadingProfile || !managedDept}
               className="w-full bg-blue-600 text-white py-2 sm:py-3 px-4 rounded font-semibold hover:bg-blue-700 transition disabled:opacity-50 text-sm sm:text-base"
             >
               {loading ? 'Creating user...' : 'Create User'}

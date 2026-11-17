@@ -1,12 +1,31 @@
 import { useEffect, useState } from 'react';
 import { useDarkMode } from '../context/DarkModeContext';
-import { FaSun, FaMoon, FaArrowLeft, FaEye, FaEyeSlash } from 'react-icons/fa';
+import { FaSun, FaMoon, FaArrowLeft, FaEye, FaEyeSlash, FaSignInAlt, FaSpinner } from 'react-icons/fa';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { sendEmailVerification, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase/config';
 import { initPushForUser } from '../hooks/usePushNotifications';
 import { normalizeRole, SITE_ADMIN_EMAIL } from '../utils/authz';
+
+const getLoginErrorMessage = (error) => {
+  switch (error?.code) {
+    case 'auth/invalid-email':
+      return 'Please enter a valid email address.';
+    case 'auth/invalid-credential':
+    case 'auth/wrong-password':
+    case 'auth/user-not-found':
+      return 'The email or password you entered is incorrect.';
+    case 'auth/user-disabled':
+      return 'This account is disabled. Please contact an administrator.';
+    case 'auth/too-many-requests':
+      return 'There have been too many attempts. Please wait a moment and try again.';
+    case 'auth/network-request-failed':
+      return 'We could not connect. Check your internet connection and try again.';
+    default:
+      return error?.message || 'We could not sign you in. Please try again.';
+  }
+};
 
 const Login = () => {
   const navigate = useNavigate();
@@ -18,6 +37,8 @@ const Login = () => {
   });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [resendingVerification, setResendingVerification] = useState(false);
+  const [showResendVerification, setShowResendVerification] = useState(false);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
 
@@ -32,6 +53,9 @@ const Login = () => {
   }, []);
 
   const handleChange = (e) => {
+    setError('');
+    setInfo('');
+    setShowResendVerification(false);
     setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
@@ -39,16 +63,19 @@ const Login = () => {
     e.preventDefault();
     setError('');
     setInfo('');
+    setShowResendVerification(false);
     setLoading(true);
 
     try {
-      const userCredential = await signInWithEmailAndPassword(
-        auth,
-        form.email,
-        form.password
-      );
+      const userCredential = await signInWithEmailAndPassword(auth, form.email.trim(), form.password);
 
       const user = userCredential.user;
+      if (!user.emailVerified) {
+        await signOut(auth);
+        setShowResendVerification(true);
+        setError('Please verify your email address using the link we sent before logging in.');
+        return;
+      }
 
       // Setup push for this user
       await initPushForUser(user.uid);
@@ -82,127 +109,279 @@ const Login = () => {
         navigate('/home');
       }
     } catch (err) {
-      setError(err.message || 'Failed to log in.');
+      setError(getLoginErrorMessage(err));
     } finally {
       setLoading(false);
     }
   };
 
+  const handleResendVerification = async () => {
+    setError('');
+    setInfo('');
+    setResendingVerification(true);
+    let verificationUser = null;
+
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, form.email.trim(), form.password);
+      verificationUser = userCredential.user;
+
+      if (verificationUser.emailVerified) {
+        setShowResendVerification(false);
+        setInfo('Your email is already verified. You can sign in now.');
+        return;
+      }
+
+      await sendEmailVerification(verificationUser);
+      setInfo(`A new verification link was sent to ${verificationUser.email || form.email.trim()}. Check your inbox and spam folder.`);
+    } catch (resendError) {
+      setError(getLoginErrorMessage(resendError));
+    } finally {
+      if (verificationUser && auth.currentUser?.uid === verificationUser.uid) {
+        try {
+          await signOut(auth);
+        } catch (signOutError) {
+          console.error('Failed to sign out after resending a verification email.', signOutError);
+          setInfo('');
+          setError('We could not safely end this sign-in session. Reload the page before continuing.');
+        }
+      }
+      setResendingVerification(false);
+    }
+  };
+
   return (
-    <div className={`min-h-screen flex items-center justify-center px-4 transition-colors duration-300 ${
-      isDarkMode ? 'bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900' : 'bg-gradient-to-br from-blue-50 via-cyan-50 to-blue-100'
+    <div className={`relative flex min-h-screen items-center justify-center overflow-hidden px-3 py-16 transition-colors duration-300 sm:px-6 sm:py-20 ${
+      isDarkMode
+        ? 'bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900 text-slate-100'
+        : 'bg-gradient-to-br from-indigo-50 via-white to-cyan-50 text-slate-900'
     }`}>
-      {/* Dark Mode Toggle Button */}
-      <button
-        onClick={toggleDarkMode}
-        className={`absolute top-8 right-8 z-20 p-3 rounded-full transition-all duration-300 ${
-          isDarkMode
-            ? 'bg-gray-700 hover:bg-gray-600 text-yellow-300'
-            : 'bg-blue-200 hover:bg-blue-300 text-blue-600'
+      <div
+        aria-hidden="true"
+        className={`pointer-events-none absolute -left-24 -top-24 h-72 w-72 rounded-full blur-3xl ${
+          isDarkMode ? 'bg-indigo-700/20' : 'bg-indigo-300/40'
         }`}
-        aria-label="Toggle dark mode"
+      />
+      <div
+        aria-hidden="true"
+        className={`pointer-events-none absolute -bottom-28 -right-20 h-80 w-80 rounded-full blur-3xl ${
+          isDarkMode ? 'bg-cyan-700/20' : 'bg-cyan-200/60'
+        }`}
+      />
+
+      <button
+        type="button"
+        onClick={toggleDarkMode}
+        className={`fixed top-4 right-4 z-20 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition-all duration-300 sm:top-6 sm:right-6 ${
+          isDarkMode
+            ? 'border-slate-600 bg-slate-800 text-amber-300 hover:bg-slate-700'
+            : 'border-white bg-white text-indigo-600 shadow-sm hover:bg-indigo-50'
+        }`}
+        aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+        title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
       >
-        {isDarkMode ? <FaSun size={20} /> : <FaMoon size={20} />}
+        {isDarkMode ? <FaSun /> : <FaMoon />}
       </button>
-      <div className={`w-full max-w-md rounded-lg shadow-md p-4 sm:p-6 transition-colors duration-300 ${
-        isDarkMode ? 'bg-slate-900 border border-slate-700 text-gray-100' : 'bg-white border border-gray-200 text-gray-800'
-      }`}>
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-gray-100">
-            Log In
-          </h1>
+
+      <main className="relative z-10 w-full max-w-md">
+        <section className={`rounded-3xl border p-5 shadow-2xl backdrop-blur-md transition-colors duration-300 sm:p-8 ${
+          isDarkMode
+            ? 'border-slate-700/80 bg-slate-900/95 shadow-black/30'
+            : 'border-white/80 bg-white/95 shadow-slate-900/10'
+        }`}>
           <button
+            type="button"
             onClick={() => navigate('/')}
-            className="text-gray-600 hover:text-gray-800 dark:text-gray-300 dark:hover:text-white text-2xl p-1"
-            title="Go back"
-            aria-label="Go back"
+            className={`mb-7 inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition ${
+              isDarkMode
+                ? 'border-slate-700 text-slate-300 hover:bg-slate-800'
+                : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+            }`}
           >
             <FaArrowLeft />
-          </button>
-        </div>
-
-        {error && (
-          <div className="mb-4 p-3 rounded bg-red-100 text-red-700 text-sm dark:bg-red-900 dark:text-red-200">
-            {error}
-          </div>
-        )}
-
-        {info && (
-          <div className="mb-4 p-3 rounded bg-blue-100 text-blue-700 text-sm dark:bg-blue-900 dark:text-blue-200">
-            {info}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-1">
-              Email
-            </label>
-            <input
-              type="email"
-              name="email"
-              value={form.email}
-              onChange={handleChange}
-              required
-              className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white text-gray-900 dark:bg-slate-800 dark:text-gray-100 dark:border-slate-700"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-1">
-              Password
-            </label>
-            <div className="relative">
-              <input
-                type={showPassword ? 'text' : 'password'}
-                name="password"
-                value={form.password}
-                onChange={handleChange}
-                required
-                className="w-full pr-10 px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white text-gray-900 dark:bg-slate-800 dark:text-gray-100 dark:border-slate-700"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword((v) => !v)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-800 dark:text-gray-300 dark:hover:text-white"
-                aria-label={showPassword ? 'Hide password' : 'Show password'}
-                title={showPassword ? 'Hide password' : 'Show password'}
-              >
-                {showPassword ? <FaEyeSlash /> : <FaEye />}
-              </button>
-            </div>
-
-            <div className="mt-2 text-right">
-              <button
-                type="button"
-                onClick={() => navigate('/forgot-password')}
-                disabled={loading}
-                className="text-xs sm:text-sm text-blue-600 font-semibold hover:underline disabled:opacity-60 dark:text-blue-400 dark:hover:text-blue-300"
-              >
-                Forgot password?
-              </button>
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-blue-600 text-white py-2 rounded font-semibold text-sm hover:bg-blue-700 disabled:opacity-50 dark:bg-blue-700 dark:hover:bg-blue-800"
-          >
-            {loading ? 'Logging in...' : 'Log In'}
+            Back to welcome
           </button>
 
-          <p className="mt-3 text-center text-xs sm:text-sm text-gray-600 dark:text-gray-300">
-            Do not have an account?{' '}
-            <span
-              onClick={() => navigate('/signup')}
-              className="text-blue-600 font-semibold cursor-pointer hover:underline dark:text-blue-400 dark:hover:text-blue-300"
+          <div className="mb-7">
+            <div className={`mb-3 inline-flex h-12 w-12 items-center justify-center rounded-2xl text-lg ${
+              isDarkMode ? 'bg-indigo-400/10 text-indigo-300' : 'bg-indigo-50 text-indigo-700'
+            }`}>
+              <FaSignInAlt />
+            </div>
+            <p className={`mb-2 text-xs font-bold uppercase tracking-[0.2em] ${
+              isDarkMode ? 'text-indigo-300' : 'text-indigo-700'
+            }`}>
+              Welcome back
+            </p>
+            <h1 className={`text-2xl font-bold tracking-tight sm:text-3xl ${
+              isDarkMode ? 'text-white' : 'text-slate-900'
+            }`}>
+              Sign in to your account
+            </h1>
+            <p className={`mt-2 text-sm leading-6 ${
+              isDarkMode ? 'text-slate-400' : 'text-slate-500'
+            }`}>
+              Enter your details to continue to your workspace.
+            </p>
+          </div>
+
+          {error ? (
+            <div
+              role="alert"
+              className={`mb-5 rounded-xl border px-4 py-3 text-sm ${
+                isDarkMode
+                  ? 'border-rose-900/70 bg-rose-950/50 text-rose-200'
+                  : 'border-rose-200 bg-rose-50 text-rose-700'
+              }`}
             >
-              Sign up
-            </span>
+              {error}
+            </div>
+          ) : null}
+
+          {showResendVerification ? (
+            <button
+              type="button"
+              onClick={handleResendVerification}
+              disabled={loading || resendingVerification}
+              className={`mb-5 flex w-full items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                isDarkMode
+                  ? 'border-indigo-700/70 bg-indigo-950/40 text-indigo-200 hover:bg-indigo-900/50'
+                  : 'border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
+              }`}
+            >
+              {resendingVerification ? (
+                <>
+                  <FaSpinner className="animate-spin" />
+                  Sending verification link...
+                </>
+              ) : (
+                'Send verification link again'
+              )}
+            </button>
+          ) : null}
+
+          {info ? (
+            <div
+              role="status"
+              className={`mb-5 rounded-xl border px-4 py-3 text-sm ${
+                isDarkMode
+                  ? 'border-blue-900/70 bg-blue-950/50 text-blue-200'
+                  : 'border-blue-200 bg-blue-50 text-blue-700'
+              }`}
+            >
+              {info}
+            </div>
+          ) : null}
+
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <label className="block">
+              <span className={`mb-1.5 block text-sm font-semibold ${
+                isDarkMode ? 'text-slate-200' : 'text-slate-700'
+              }`}>
+                Email address
+              </span>
+              <input
+                type="email"
+                name="email"
+                value={form.email}
+                onChange={handleChange}
+                autoComplete="email"
+                placeholder="you@example.com"
+                required
+                className={`w-full rounded-xl border px-3.5 py-3 text-sm outline-none transition focus:ring-4 ${
+                  isDarkMode
+                    ? 'border-slate-700 bg-slate-800 text-white placeholder:text-slate-500 focus:border-indigo-400 focus:ring-indigo-500/15'
+                    : 'border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-indigo-500/10'
+                }`}
+              />
+            </label>
+
+            <div>
+              <label htmlFor="login-password" className={`mb-1.5 block text-sm font-semibold ${
+                isDarkMode ? 'text-slate-200' : 'text-slate-700'
+              }`}>
+                Password
+              </label>
+              <span className="relative block">
+                <input
+                  id="login-password"
+                  type={showPassword ? 'text' : 'password'}
+                  name="password"
+                  value={form.password}
+                  onChange={handleChange}
+                  autoComplete="current-password"
+                  placeholder="Enter your password"
+                  required
+                  className={`w-full rounded-xl border px-3.5 py-3 pr-12 text-sm outline-none transition focus:ring-4 ${
+                    isDarkMode
+                      ? 'border-slate-700 bg-slate-800 text-white placeholder:text-slate-500 focus:border-indigo-400 focus:ring-indigo-500/15'
+                      : 'border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-indigo-500/10'
+                  }`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((visible) => !visible)}
+                  className={`absolute right-1.5 top-1/2 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-lg transition ${
+                    isDarkMode
+                      ? 'text-slate-400 hover:bg-slate-700 hover:text-white'
+                      : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'
+                  }`}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  title={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <FaEyeSlash /> : <FaEye />}
+                </button>
+              </span>
+              <div className="mt-2 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => navigate('/forgot-password')}
+                  disabled={loading}
+                  className={`text-sm font-semibold transition hover:underline disabled:opacity-60 ${
+                    isDarkMode
+                      ? 'text-indigo-300 hover:text-indigo-200'
+                      : 'text-indigo-700 hover:text-indigo-800'
+                  }`}
+                >
+                  Forgot password?
+                </button>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 px-5 py-3.5 text-sm font-bold text-white shadow-lg shadow-indigo-600/20 transition hover:-translate-y-0.5 hover:from-indigo-700 hover:to-blue-700 focus:outline-none focus:ring-4 focus:ring-indigo-500/20 disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              {loading ? (
+                <>
+                  <FaSpinner className="animate-spin" />
+                  Signing in...
+                </>
+              ) : (
+                <>
+                  <FaSignInAlt />
+                  Sign in
+                </>
+              )}
+            </button>
+          </form>
+
+          <p className={`mt-6 border-t pt-5 text-center text-sm ${
+            isDarkMode ? 'border-slate-800 text-slate-400' : 'border-slate-200 text-slate-500'
+          }`}>
+            New here?{' '}
+            <button
+              type="button"
+              onClick={() => navigate('/signup')}
+              className={`font-semibold hover:underline ${
+                isDarkMode ? 'text-indigo-300 hover:text-indigo-200' : 'text-indigo-700 hover:text-indigo-800'
+              }`}
+            >
+              Create an account
+            </button>
           </p>
-        </form>
-      </div>
+        </section>
+      </main>
     </div>
   );
 };

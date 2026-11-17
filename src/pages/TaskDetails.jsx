@@ -13,14 +13,16 @@ import {
   addDoc,
   serverTimestamp
 } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
 
-import { db } from '../firebase/config';
+import { db, functions } from '../firebase/config';
 import Header from '../components/Header';
 import { FaCalendarAlt, FaSpinner, FaTrash, FaBox, FaSearch, FaUsers } from 'react-icons/fa';
 import { fanOutUserNotifications } from '../utils/fanOutUserNotifications';
 import TimePickerAmPm from '../components/TimePickerAmPm';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { formatWorkDepartmentLabel } from '../constants/workDepartments';
+import { Roles } from '../utils/authz';
 import {
   getWorkRolesForDepartment,
   getDefaultRolesForDepartment,
@@ -31,7 +33,7 @@ import {
 const TaskDetails = () => {
   const { taskId } = useParams();
   const navigate = useNavigate();
-  const { profile } = useUserProfile();
+  const { profile, loading: loadingProfile } = useUserProfile();
 
   const [task, setTask] = useState(null);
   const [users, setUsers] = useState([]);
@@ -65,10 +67,34 @@ const TaskDetails = () => {
 
           const dept = data.department || 'videography';
 
-          const usersSnap = await getDocs(
-            query(collection(db, 'users'), where('departments', 'array-contains', dept))
-          );
-          const usersData = usersSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          let usersData;
+          if (profile?.role === Roles.DEPARTMENT_HEAD) {
+            const getDepartmentUsers = httpsCallable(functions, 'getDepartmentUsers');
+            const result = await getDepartmentUsers();
+            if (!Array.isArray(result.data?.users)) {
+              throw new Error('Invalid department users response from the server.');
+            }
+            usersData = result.data.users.filter((user) => {
+              const departments = Array.isArray(user.departments)
+                ? user.departments
+                : user.department
+                  ? [user.department]
+                  : [];
+              return departments.includes(dept);
+            });
+          } else {
+            const usersSnaps = await Promise.all([
+              getDocs(query(collection(db, 'users'), where('departments', 'array-contains', dept))),
+              getDocs(query(collection(db, 'users'), where('department', '==', dept))),
+            ]);
+            const usersById = new Map();
+            usersSnaps.forEach((usersSnap) => {
+              usersSnap.docs.forEach((userDoc) => {
+                usersById.set(userDoc.id, { id: userDoc.id, ...userDoc.data() });
+              });
+            });
+            usersData = [...usersById.values()];
+          }
           usersData.sort((a, b) => {
             const nameA = (a.name || '').toLowerCase();
             const nameB = (b.name || '').toLowerCase();
@@ -117,14 +143,14 @@ const TaskDetails = () => {
         }
       } catch (err) {
         console.error(err);
-        setError('Failed to load task.');
+        setError(`Failed to load task: ${err?.code || err?.message || 'Check your department access and try again.'}`);
       } finally {
         setLoading(false);
       }
     };
 
-    load();
-  }, [taskId]);
+    if (!loadingProfile && profile) load();
+  }, [taskId, loadingProfile, profile]);
 
   // Generate a PNG image summarizing the task
   const generateAndDownloadTaskImage = async ({ task, usersMap = {}, itemsMap = {} }) => {

@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 import * as XLSX from 'xlsx';
-import { collection, getDocs, query, where } from 'firebase/firestore';
+import { collection, getDocs } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 import { db, functions } from '../firebase/config';
 import Header from '../components/Header';
 import { FaUser, FaEnvelope, FaSpinner, FaSearch, FaTrash } from 'react-icons/fa';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { httpsCallable } from 'firebase/functions';
-import { canEdit, normalizeRole, Roles } from '../utils/authz';
+import { canEdit, canManageUser, normalizeRole, Roles } from '../utils/authz';
 import { WORK_DEPARTMENTS, formatWorkDepartmentLabel } from '../constants/workDepartments';
 
 const ManageUsers = () => {
@@ -23,35 +23,56 @@ const ManageUsers = () => {
   const [actionSuccess, setActionSuccess] = useState('');
 
   const navigate = useNavigate();
+  const role = normalizeRole(profile);
+  const isDepartmentHead = role === Roles.DEPARTMENT_HEAD;
+  const managedDepartments = Array.isArray(profile?.managedDepartments)
+    ? profile.managedDepartments
+    : [];
+  const availableWorkDepartments = isDepartmentHead ? managedDepartments : WORK_DEPARTMENTS;
 
   useEffect(() => {
     const fetchUsers = async () => {
       try {
         if (loadingProfile || !profile) return;
 
-        const role = normalizeRole(profile);
         const isSuperAdminView = role === Roles.SUPER_ADMIN || role === Roles.SITE_ADMIN;
-
-        let usersQuery = collection(db, 'users');
-
-        if (!isSuperAdminView) {
-          const managed = Array.isArray(profile?.managedDepartments) ? profile.managedDepartments : [];
-          const dept = managed[0] || 'videography';
-          usersQuery = query(usersQuery, where('departments', 'array-contains', dept));
+        if (!isSuperAdminView && !isDepartmentHead) {
+          setUsers([]);
+          return;
         }
 
-        const snap = await getDocs(usersQuery);
-        const data = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        if (isDepartmentHead && !managedDepartments.length) {
+          setUsers([]);
+          setActionError('No department is assigned to this department head. Contact a site administrator.');
+          return;
+        }
+
+        let data;
+        if (isDepartmentHead) {
+          const getDepartmentUsers = httpsCallable(functions, 'getDepartmentUsers');
+          const result = await getDepartmentUsers();
+          if (!Array.isArray(result.data?.users)) {
+            throw new Error('Invalid department users response from the server.');
+          }
+          data = result.data.users;
+        } else {
+          const snap = await getDocs(collection(db, 'users'));
+          data = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        }
+        data = data.filter((user) => !isDepartmentHead || canManageUser(profile, user));
         setUsers(data);
       } catch (err) {
         console.error('Error loading users:', err);
+        setActionError(
+          `Failed to load users: ${err?.code || err?.message || 'Check your department access and try again.'}`
+        );
       } finally {
         setLoading(false);
       }
     };
 
     fetchUsers();
-  }, [loadingProfile, profile]);
+  }, [loadingProfile, profile, role, isDepartmentHead, managedDepartments]);
 
   const normalizedSearch = searchText.trim().toLowerCase();
 
@@ -116,7 +137,8 @@ const ManageUsers = () => {
     .map(([department, count]) => ({ department, count }));
 
   const handleDeleteUser = async (userId, userName) => {
-    if (!canDeleteUsers) return;
+    const targetUser = users.find((user) => user.id === userId);
+    if (!canDeleteUsers || !targetUser || !canManageUser(profile, targetUser)) return;
     setActionError('');
     setActionSuccess('');
 
@@ -213,7 +235,7 @@ const ManageUsers = () => {
               <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
-                placeholder="Search by name or card..."
+                placeholder="Search by Name"
                 value={searchText}
                 onChange={(e) => setSearchText(e.target.value)}
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-sm text-slate-700 shadow-inner outline-none transition focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100"
@@ -238,8 +260,8 @@ const ManageUsers = () => {
                 onChange={(e) => setWorkDepartmentFilter(e.target.value)}
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 shadow-inner outline-none transition focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100"
               >
-                <option value="all">All work departments</option>
-                {WORK_DEPARTMENTS.map((dept) => (
+                <option value="all">{isDepartmentHead ? 'All managed departments' : 'All work departments'}</option>
+                {availableWorkDepartments.map((dept) => (
                   <option key={dept} value={dept}>
                     {formatWorkDepartmentLabel(dept)}
                   </option>
@@ -314,7 +336,7 @@ const ManageUsers = () => {
                       {u.userType || 'user'}
                     </span>
 
-                    {canDeleteUsers && (
+                    {canDeleteUsers && canManageUser(profile, u) && (
                       <button
                         type="button"
                         onClick={(e) => {
@@ -340,10 +362,10 @@ const ManageUsers = () => {
                 </div>
 
                 <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                  <div className="rounded-xl bg-slate-50 px-2.5 py-2 text-xs text-slate-600">
+                  {/* <div className="rounded-xl bg-slate-50 px-2.5 py-2 text-xs text-slate-600">
                     <span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Card</span>
                     <span className="mt-1 block font-semibold text-slate-700">{u.cardNumber || '-'}</span>
-                  </div>
+                  </div> */}
                   <div className="rounded-xl bg-slate-50 px-2.5 py-2 text-xs text-slate-600">
                     <span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Batch</span>
                     <span className="mt-1 block font-semibold text-slate-700">{u.batch || '-'}</span>

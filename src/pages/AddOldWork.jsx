@@ -2,11 +2,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { collection, addDoc, getDocs, query, serverTimestamp, where } from 'firebase/firestore';
-import { db } from '../firebase/config';
+import { httpsCallable } from 'firebase/functions';
+import { db, functions } from '../firebase/config';
 import Header from '../components/Header';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { WORK_DEPARTMENTS, formatWorkDepartmentLabel } from '../constants/workDepartments';
 import { fanOutUserNotifications } from '../utils/fanOutUserNotifications';
+import { normalizeRole, Roles } from '../utils/authz';
 import {
   FaFileAlt,
   FaAlignLeft,
@@ -60,17 +62,37 @@ const AddOldWork = () => {
 
   const fetchUsers = async () => {
     try {
-      const querySnapshot = await getDocs(
-        query(collection(db, 'users'), where('departments', 'array-contains', department))
-      );
-      const usersData = querySnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+      let usersData;
+      if (normalizeRole(profile) === Roles.DEPARTMENT_HEAD) {
+        const getDepartmentUsers = httpsCallable(functions, 'getDepartmentUsers');
+        const result = await getDepartmentUsers();
+        if (!Array.isArray(result.data?.users)) {
+          throw new Error('Invalid department users response from the server.');
+        }
+        usersData = result.data.users.filter((user) => {
+          const departments = Array.isArray(user.departments) && user.departments.length
+            ? user.departments
+            : user.department
+              ? [user.department]
+              : [];
+          return departments.includes(department);
+        });
+      } else {
+        const [departmentsSnapshot, departmentSnapshot] = await Promise.all([
+          getDocs(query(collection(db, 'users'), where('departments', 'array-contains', department))),
+          getDocs(query(collection(db, 'users'), where('department', '==', department))),
+        ]);
+        const usersById = new Map();
+        for (const userDoc of [...departmentsSnapshot.docs, ...departmentSnapshot.docs]) {
+          usersById.set(userDoc.id, { id: userDoc.id, ...userDoc.data() });
+        }
+        usersData = [...usersById.values()];
+      }
       usersData.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
       setUsers(usersData);
     } catch (error) {
       console.error('Error fetching users:', error);
+      setMessage(`Failed to load department users: ${error?.code || error?.message || 'Check your department access and try again.'}`);
     }
   };
 

@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { collection, getDocs, doc, updateDoc, query, where } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
 import { useNavigate } from 'react-router-dom';
-import { db } from '../firebase/config';
+import { db, functions } from '../firebase/config';
 import * as XLSX from 'xlsx';
 import {
   FaCalendarAlt,
@@ -18,7 +19,7 @@ import Header from '../components/Header';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { WORK_DEPARTMENTS, formatWorkDepartmentLabel } from '../constants/workDepartments';
 import { getWorkRolesForDepartment, normalizeRolesForDepartment, formatWorkRoleLabel } from '../constants/workRoles';
-import { Roles } from '../utils/authz';
+import { getManagedDepartments, normalizeRole, Roles } from '../utils/authz';
 import { sortWorksByNearestToNow, getWorkDateTime } from '../utils/workDateTime';
 
 const WorkList = () => {
@@ -27,6 +28,7 @@ const WorkList = () => {
   const [users, setUsers] = useState({});
   const [items, setItems] = useState({});
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [department, setDepartment] = useState('videography');
 
   const [searchText, setSearchText] = useState('');
@@ -47,15 +49,16 @@ const WorkList = () => {
   useEffect(() => {
     if (loadingProfile || !profile) return;
 
-    if (profile.role === Roles.SUPER_ADMIN) {
+    const role = normalizeRole(profile);
+    if (role === Roles.SUPER_ADMIN) {
       setDepartment('all');
       return;
     }
 
     // Department Heads are locked to their department.
-    if (profile.role === Roles.DEPARTMENT_HEAD) {
-      const dept = (profile.managedDepartments || [])[0] || 'videography';
-      setDepartment(dept);
+    if (role === Roles.DEPARTMENT_HEAD) {
+      const managedDepartments = getManagedDepartments(profile);
+      if (managedDepartments.length) setDepartment(managedDepartments[0]);
       return;
     }
 
@@ -66,30 +69,56 @@ const WorkList = () => {
   }, [loadingProfile, profile]);
 
   useEffect(() => {
-    if (loadingProfile) return;
+    if (loadingProfile || !profile) return;
     fetchData();
-  }, [loadingProfile, department]);
+  }, [loadingProfile, department, profile]);
 
   const fetchData = async () => {
     setLoading(true);
+    setLoadError('');
     try {
-      const isSuperAdmin = profile?.role === Roles.SUPER_ADMIN;
+      const role = normalizeRole(profile);
+      const isSuperAdmin = role === Roles.SUPER_ADMIN;
+      const isDepartmentHead = role === Roles.DEPARTMENT_HEAD;
+      const managedDepartments = getManagedDepartments(profile);
       const effectiveDepartment = isSuperAdmin
         ? department === 'all'
           ? null
           : department
-        : profile?.role === Roles.DEPARTMENT_HEAD
-          ? (profile?.managedDepartments || [])[0] || department
+        : isDepartmentHead
+          ? managedDepartments[0]
           : department;
 
-      const usersSnapshot = await getDocs(
-        isSuperAdmin
-          ? collection(db, 'users')
-          : query(collection(db, 'users'), where('departments', 'array-contains', effectiveDepartment))
-      );
+      if (!isSuperAdmin && !effectiveDepartment) {
+        throw new Error('No department is assigned to this department head.');
+      }
+
+      let usersData;
+      if (isDepartmentHead) {
+        const getDepartmentUsers = httpsCallable(functions, 'getDepartmentUsers');
+        const result = await getDepartmentUsers();
+        if (!Array.isArray(result.data?.users)) {
+          throw new Error('Invalid department users response from the server.');
+        }
+        usersData = result.data.users;
+      } else {
+        const usersSnaps = isSuperAdmin
+          ? [await getDocs(collection(db, 'users'))]
+          : await Promise.all([
+              getDocs(query(collection(db, 'users'), where('departments', 'array-contains', effectiveDepartment))),
+              getDocs(query(collection(db, 'users'), where('department', '==', effectiveDepartment))),
+            ]);
+        const usersById = new Map();
+        usersSnaps.forEach((usersSnapshot) => {
+          usersSnapshot.docs.forEach((userDoc) => {
+            usersById.set(userDoc.id, { id: userDoc.id, ...userDoc.data() });
+          });
+        });
+        usersData = [...usersById.values()];
+      }
       const usersMap = {};
-      usersSnapshot.docs.forEach((d) => {
-        usersMap[d.id] = d.data();
+      usersData.forEach((user) => {
+        usersMap[user.id] = user;
       });
       setUsers(usersMap);
 
@@ -118,6 +147,12 @@ const WorkList = () => {
       setTasks(sortWorksByNearestToNow(allTasks));
     } catch (error) {
       console.error('Error fetching data:', error);
+      setTasks([]);
+      setUsers({});
+      setItems({});
+      setLoadError(
+        `Failed to load worklist: ${error?.code || error?.message || 'Check your department access and try again.'}`
+      );
     } finally {
       setLoading(false);
     }
@@ -687,11 +722,11 @@ const WorkList = () => {
 
   const hasAnyTasks = incompleteTasks.length > 0 || completeTasks.length > 0 || oldWorks.length > 0;
   const totalWorkCount = tasks.length || 1;
-  const currentDepartmentLabel = profile?.role === Roles.SUPER_ADMIN
+  const currentDepartmentLabel = normalizeRole(profile) === Roles.SUPER_ADMIN
     ? (department === 'all' ? 'All Departments' : formatWorkDepartmentLabel(department))
     : formatWorkDepartmentLabel(
-        profile?.role === Roles.DEPARTMENT_HEAD
-          ? ((profile?.managedDepartments || [])[0] || department)
+        normalizeRole(profile) === Roles.DEPARTMENT_HEAD
+          ? (getManagedDepartments(profile)[0] || department)
           : department
       );
 
@@ -700,6 +735,12 @@ const WorkList = () => {
       <Header userType="admin" />
 
       <main className="container mx-auto px-4 py-5 sm:py-6">
+        {loadError ? (
+          <div role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700">
+            {loadError}
+          </div>
+        ) : null}
+
         <div className="mb-5 rounded-[28px] border border-white/80 bg-gradient-to-r from-white via-sky-50 to-indigo-50 p-4 shadow-[0_18px_38px_rgba(15,23,42,0.08)] backdrop-blur-sm sm:p-5">
           <div className="mb-4 flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
             <div>

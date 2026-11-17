@@ -18,7 +18,6 @@ const GMAIL_PASS = process.env.GMAIL_PASS;
 const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
 const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
 const WHATSAPP_FROM = process.env.WHATSAPP_FROM; // "whatsapp:+14247049505"
-
 /* ================== AUTHZ HELPERS ================== */
 
 const Roles = {
@@ -58,12 +57,14 @@ function getManagedDepartments(userDoc) {
     : [];
   if (managed.length) return managed;
 
+  if (userDoc?.firstPriority) return [userDoc.firstPriority];
+
   const fromDepartments = Array.isArray(userDoc?.departments)
     ? userDoc.departments.filter(Boolean)
     : [];
   if (fromDepartments.length) return [fromDepartments[0]];
 
-  return ['videography'];
+  return [];
 }
 
 function getUserDepartments(userDoc) {
@@ -72,6 +73,144 @@ function getUserDepartments(userDoc) {
   if (userDoc?.department) return [String(userDoc.department)];
   return [];
 }
+
+const ALLOWED_WORK_DEPARTMENTS = new Set([
+  'videography',
+  'photography',
+  'graphic_design',
+  'announcing',
+  'content_writing',
+  'editing',
+]);
+
+exports.getDepartmentUsers = onCall(
+  {
+    cors: [
+      'http://localhost:5173',
+      'http://127.0.0.1:5173',
+      'https://tmv.fotmv.online',
+    ],
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'You must be signed in.');
+    }
+
+    const callerEmail = String(request.auth.token?.email || '');
+    const callerSnap = await db.collection('users').doc(request.auth.uid).get();
+    const callerDoc = callerSnap.exists ? callerSnap.data() : {};
+    const caller = { ...callerDoc, email: callerDoc?.email || callerEmail };
+    if (normalizeRole(caller) !== Roles.DEPARTMENT_HEAD) {
+      throw new HttpsError('permission-denied', 'Only department heads can use this endpoint.');
+    }
+
+    const managedDepartments = [
+      ...new Set(getManagedDepartments(caller).filter((department) =>
+        ALLOWED_WORK_DEPARTMENTS.has(department)
+      )),
+    ];
+    if (!managedDepartments.length) {
+      throw new HttpsError('failed-precondition', 'No managed department is assigned.');
+    }
+
+    const userSnaps = await Promise.all(
+      managedDepartments.flatMap((department) => [
+        db.collection('users')
+          .where('departments', 'array-contains', department)
+          .get(),
+        db.collection('users')
+          .where('department', '==', department)
+          .get(),
+      ])
+    );
+    const usersById = new Map();
+    for (const userSnap of userSnaps) {
+      for (const userDoc of userSnap.docs) {
+        usersById.set(userDoc.id, userDoc.data());
+      }
+    }
+
+    const users = [...usersById.entries()]
+      .filter(([, user]) =>
+        normalizeRole(user) === Roles.MEMBER &&
+        getUserDepartments(user).some((department) => managedDepartments.includes(department))
+      )
+      .map(([id, user]) => ({
+        id,
+        name: user.name || '',
+        email: user.email || '',
+        role: Roles.MEMBER,
+        userType: user.userType || 'user',
+        photoURL: user.photoURL || null,
+        cardNumber: user.cardNumber || null,
+        batch: user.batch || '',
+        studyDepartment: user.studyDepartment || '',
+        registrationNumber: user.registrationNumber || '',
+        departments: getUserDepartments(user),
+        department: user.department || getUserDepartments(user)[0] || null,
+      }));
+
+    return { users };
+  }
+);
+
+exports.getDepartmentUserCount = onCall(
+  {
+    cors: [
+      'http://localhost:5173',
+      'http://127.0.0.1:5173',
+      'https://tmv.fotmv.online',
+    ],
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'You must be signed in.');
+    }
+
+    const department = String(request.data?.department || '').trim();
+    if (!ALLOWED_WORK_DEPARTMENTS.has(department)) {
+      throw new HttpsError('invalid-argument', 'Invalid department.');
+    }
+
+    const callerEmail = String(request.auth.token?.email || '');
+    const callerSnap = await db.collection('users').doc(request.auth.uid).get();
+    const callerDoc = callerSnap.exists ? callerSnap.data() : {};
+    const caller = { ...callerDoc, email: callerDoc?.email || callerEmail };
+    const callerRole = normalizeRole(caller);
+
+    if (
+      callerRole !== Roles.DEPARTMENT_HEAD &&
+      callerRole !== Roles.SUPER_ADMIN &&
+      callerRole !== Roles.SITE_ADMIN
+    ) {
+      throw new HttpsError('permission-denied', 'Not allowed.');
+    }
+
+    if (
+      callerRole === Roles.DEPARTMENT_HEAD &&
+      !getManagedDepartments(caller).includes(department)
+    ) {
+      throw new HttpsError('permission-denied', 'You cannot view users in this department.');
+    }
+
+    const [departmentsSnap, departmentSnap] = await Promise.all([
+      db.collection('users').where('departments', 'array-contains', department).get(),
+      db.collection('users').where('department', '==', department).get(),
+    ]);
+    const usersById = new Map();
+    for (const userDoc of [...departmentsSnap.docs, ...departmentSnap.docs]) {
+      usersById.set(userDoc.id, userDoc.data());
+    }
+
+    const count = [...usersById.values()].filter(
+      (user) =>
+        normalizeRole(user) === Roles.MEMBER &&
+        getUserDepartments(user).includes(department)
+    ).length;
+
+    return { count };
+  }
+);
 
 /* ================== ADMIN: DELETE USER ACCOUNT ================== */
 
