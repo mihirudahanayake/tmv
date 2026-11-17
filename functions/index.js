@@ -1,5 +1,5 @@
 const { onDocumentCreated } = require('firebase-functions/v2/firestore');
-const { onCall, HttpsError } = require('firebase-functions/v2/https');
+const { onCall, onRequest, HttpsError } = require('firebase-functions/v2/https');
 const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { addDoc, collection, FieldPath } = require('firebase-admin/firestore');
 const logger = require('firebase-functions/logger');
@@ -483,21 +483,42 @@ exports.getUserTaskHistory = onCall(
   }
 );
 
-exports.getUserItemUsage = onCall(
+exports.getUserItemUsageHttp = onRequest(
   {
+    invoker: 'public',
     cors: [
       'http://localhost:5173',
       'http://127.0.0.1:5173',
       'https://tmv.fotmv.online',
     ],
   },
-  async (request) => {
-    if (!request.auth?.uid) {
-      throw new HttpsError('unauthenticated', 'You must be signed in.');
+  async (request, response) => {
+    if (request.method !== 'POST') {
+      response.set('Allow', 'POST').status(405).json({ error: 'Method not allowed.' });
+      return;
+    }
+
+    const authorization = request.get('authorization') || '';
+    const idToken = authorization.startsWith('Bearer ') ? authorization.slice(7).trim() : '';
+    if (!idToken) {
+      response.status(401).json({ error: 'Authentication required.' });
+      return;
+    }
+
+    let authUser;
+    try {
+      const token = await admin.auth().verifyIdToken(idToken);
+      authUser = { uid: token.uid, token };
+    } catch (error) {
+      logger.warn('Unauthenticated item usage request.', {
+        error: error?.message || String(error),
+      });
+      response.status(401).json({ error: 'Authentication required.' });
+      return;
     }
 
     try {
-      const profileIds = await getCallerProfileIds(request.auth);
+      const profileIds = await getCallerProfileIds(authUser);
       const usageSnapshots = await Promise.all(
         Array.from(profileIds).flatMap((profileId) => [
           db.collection('inventoryUsage').where('userId', '==', profileId).get(),
@@ -513,14 +534,13 @@ exports.getUserItemUsage = onCall(
         id: usageDoc.id,
       }));
 
-      return { usageRows };
+      response.json({ usageRows });
     } catch (error) {
       logger.error('Failed to load user item usage.', {
-        userId: request.auth.uid,
+        userId: authUser.uid,
         error: error?.message || String(error),
       });
-      if (error instanceof HttpsError) throw error;
-      throw new HttpsError('internal', 'Could not load usage history.');
+      response.status(500).json({ error: 'Could not load usage history.' });
     }
   }
 );

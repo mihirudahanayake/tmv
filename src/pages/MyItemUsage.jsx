@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { httpsCallable } from 'firebase/functions';
 import Header from '../components/Header';
-import { functions } from '../firebase/config';
+import { app } from '../firebase/config';
 import { useUserProfile } from '../hooks/useUserProfile';
+
+const usageEndpoint = `https://us-central1-${app.options.projectId}.cloudfunctions.net/getUserItemUsageHttp`;
 
 const formatDateTime = (value) => {
   if (!value) return 'Unknown';
@@ -57,16 +58,29 @@ const MyItemUsage = () => {
 
     const loadUsage = async () => {
       try {
-        await user.getIdToken(true);
-        const getUserItemUsage = httpsCallable(functions, 'getUserItemUsage');
-        const result = await getUserItemUsage();
-        if (!Array.isArray(result.data?.usageRows)) {
+        const idToken = await user.getIdToken(true);
+        const response = await fetch(usageEndpoint, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${idToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: '{}',
+        });
+        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(result?.error || `Request failed with status ${response.status}.`);
+        }
+        if (!Array.isArray(result?.usageRows)) {
           throw new Error('Invalid item usage response from the server.');
         }
-        if (!cancelled) setUsageRows(result.data.usageRows);
+        if (!cancelled) setUsageRows(result.usageRows);
       } catch (err) {
         console.error('Failed to load usage history:', err);
-        if (!cancelled) setError('Failed to load usage history.');
+        if (!cancelled) {
+          const details = [err?.code, err?.message].filter(Boolean).join(': ');
+          setError(details ? `Failed to load usage history (${details})` : 'Failed to load usage history.');
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -160,7 +174,7 @@ const MyItemUsage = () => {
 
         {loading ? (
           <div className="rounded-xl bg-white p-6 shadow text-sm text-gray-600">Loading usage history...</div>
-        ) : enrichedRows.length === 0 ? (
+        ) : error ? null : enrichedRows.length === 0 ? (
           <div className="rounded-xl bg-white p-6 shadow text-sm text-gray-600">
             No usage records found for this account.
           </div>
