@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -23,13 +23,82 @@ import { db, storage } from '../firebase/config';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { isUserTO } from '../utils/authz';
 
+const getTimestampMillis = (value) => {
+  const date = typeof value?.toDate === 'function'
+    ? value.toDate()
+    : value instanceof Date
+      ? value
+      : value
+        ? new Date(value)
+        : null;
+
+  return date && !Number.isNaN(date.getTime()) ? date.getTime() : 0;
+};
+
+const buildIssueHistoryFromUsage = (usageRecords, legacyIssueRecords) => usageRecords
+  .filter((usage) => usage.itemId)
+  .map((usage) => {
+    const issuedAt = usage.checkedOutAt || usage.createdAt || null;
+    const issuedAtMillis = getTimestampMillis(issuedAt);
+    const legacyRecord = legacyIssueRecords.find((record) => (
+      Array.isArray(record.itemsIssued) &&
+      getTimestampMillis(record.createdAt) === issuedAtMillis &&
+      record.itemsIssued.some((item) => item.itemId === usage.itemId)
+    ));
+    const legacyItem = legacyRecord?.itemsIssued.find((item) => item.itemId === usage.itemId);
+    const comments = Array.isArray(usage.comments) && usage.comments.length
+      ? usage.comments
+      : Array.isArray(legacyItem?.comments)
+        ? legacyItem.comments
+        : [];
+    const returnedAt = usage.returnedAt || legacyItem?.returnedAt || null;
+    const issuedToMembers = Array.isArray(usage.issuedToMembers) && usage.issuedToMembers.length
+      ? usage.issuedToMembers
+      : Array.isArray(legacyRecord?.issuedToMembers) && legacyRecord.issuedToMembers.length
+        ? legacyRecord.issuedToMembers
+        : [{
+            id: usage.userId || '',
+            name: usage.userName || usage.userEmail || 'Member',
+            email: usage.userEmail || '',
+          }];
+
+    return {
+      ...usage,
+      action: 'issue',
+      sourceCollection: 'inventoryUsage',
+      createdAt: issuedAt || legacyRecord?.createdAt || null,
+      createdByUid: usage.issuedByUid || legacyRecord?.createdByUid || null,
+      createdByName: usage.issuedByName || legacyRecord?.createdByName || null,
+      reason: usage.reason || legacyRecord?.reason || '',
+      description: usage.description || legacyRecord?.description || '',
+      issuedToMembers,
+      itemsIssued: [{
+        itemId: usage.itemId,
+        itemNo: usage.itemNo || legacyItem?.itemNo || '',
+        itemName: usage.itemName || legacyItem?.itemName || 'Item',
+        dueAt: usage.dueAt || legacyItem?.dueAt || null,
+        returnStatus: returnedAt || usage.status === 'returned'
+          ? 'returned'
+          : usage.status === 'overdue' || legacyItem?.returnStatus === 'overdue'
+            ? 'overdue'
+            : 'not returned',
+        returnedAt,
+        returnedByUid: usage.returnedByUid || legacyItem?.returnedByUid || null,
+        returnedByName: usage.returnedByName || legacyItem?.returnedByName || null,
+        comments,
+      }],
+    };
+  })
+  .sort((a, b) => getTimestampMillis(b.createdAt) - getTimestampMillis(a.createdAt));
+
 const Inventory = () => {
   const navigate = useNavigate();
   const { profile } = useUserProfile();
   const [items, setItems] = useState([]);
   const itemsRef = useRef(items);
   const [allMembers, setAllMembers] = useState([]);
-  const [issueHistory, setIssueHistory] = useState([]);
+  const [usageRecords, setUsageRecords] = useState([]);
+  const [legacyIssueRecords, setLegacyIssueRecords] = useState([]);
   const [issueHistoryLoading, setIssueHistoryLoading] = useState(false);
   const [issueHistoryTab, setIssueHistoryTab] = useState('active');
   const [expandedIssueIds, setExpandedIssueIds] = useState([]);
@@ -82,6 +151,10 @@ const Inventory = () => {
   const [commentText, setCommentText] = useState('');
   const [commentEditingIndex, setCommentEditingIndex] = useState(null);
   const [commentSaving, setCommentSaving] = useState(false);
+  const issueHistory = useMemo(
+    () => buildIssueHistoryFromUsage(usageRecords, legacyIssueRecords),
+    [usageRecords, legacyIssueRecords]
+  );
 
   selectedReturnItemsRef.current = selectedReturnItems;
 
@@ -111,25 +184,31 @@ const Inventory = () => {
       console.error('Error listening to users:', error);
     });
 
-    const issueHistoryUnsubscribe = onSnapshot(collection(db, 'accessRecords'), (snapshot) => {
+    const issueHistoryUnsubscribe = onSnapshot(collection(db, 'inventoryUsage'), (snapshot) => {
       const records = snapshot.docs
         .map((entry) => ({ id: entry.id, ...entry.data() }))
-        .filter((record) => record.action === 'issue')
-        .sort((a, b) => {
-          const aTime = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 0;
-          const bTime = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : 0;
-          return bTime - aTime;
-        });
-      setIssueHistory(records);
+        .filter((record) => record.itemId);
+      setUsageRecords(records);
       setIssueHistoryLoading(false);
     }, (error) => {
-      console.error('Error listening to issue history:', error);
+      console.error('Error listening to inventory usage history:', error);
+    });
+
+    const legacyIssueHistoryUnsubscribe = onSnapshot(collection(db, 'accessRecords'), (snapshot) => {
+      const records = snapshot.docs
+        .map((entry) => ({ id: entry.id, ...entry.data() }))
+        .filter((record) => record.action === 'issue');
+      setLegacyIssueRecords(records);
+      setIssueHistoryLoading(false);
+    }, (error) => {
+      console.error('Error listening to legacy issue history:', error);
     });
 
     return () => {
       inventoryUnsubscribe();
       membersUnsubscribe();
       issueHistoryUnsubscribe();
+      legacyIssueHistoryUnsubscribe();
     };
   }, []);
 
@@ -270,16 +349,20 @@ const Inventory = () => {
   const fetchIssueHistory = async () => {
     setIssueHistoryLoading(true);
     try {
-      const snap = await getDocs(collection(db, 'accessRecords'));
-      const records = snap.docs
-        .map((entry) => ({ id: entry.id, ...entry.data() }))
-        .filter((record) => record.action === 'issue')
-        .sort((a, b) => {
-          const aTime = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 0;
-          const bTime = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : 0;
-          return bTime - aTime;
-        });
-      setIssueHistory(records);
+      const [usageSnapshot, accessSnapshot] = await Promise.all([
+        getDocs(collection(db, 'inventoryUsage')),
+        getDocs(collection(db, 'accessRecords')),
+      ]);
+      setUsageRecords(
+        usageSnapshot.docs
+          .map((entry) => ({ id: entry.id, ...entry.data() }))
+          .filter((record) => record.itemId)
+      );
+      setLegacyIssueRecords(
+        accessSnapshot.docs
+          .map((entry) => ({ id: entry.id, ...entry.data() }))
+          .filter((record) => record.action === 'issue')
+      );
     } catch (error) {
       console.error('Error fetching issue history:', error);
     } finally {
@@ -368,7 +451,7 @@ const Inventory = () => {
               : record.userName || record.userId || '',
             'Issued By': record.createdByName || record.createdByUid || '',
             'Return Status': item.returnStatus || (item.returnedAt ? 'returned' : 'not returned'),
-            'Returned Date': item.returnedAt ? (item.returnedAt instanceof Date ? item.returnedAt.toLocaleString() : new Date(item.returnedAt).toLocaleString()) : '',
+            'Returned Date': item.returnedAt ? formatDateTime(item.returnedAt) : '',
             'Returned By': item.returnedByName || item.returnedByUid || '',
             'Comment': Array.isArray(item.comments) ? item.comments.map((comment) => comment.text).join(' | ') : '',
           });
@@ -400,8 +483,36 @@ const Inventory = () => {
     setMessage({ type: '', text: '' });
 
     try {
-      const recordsSnap = await getDocs(collection(db, 'accessRecords'));
-      const records = recordsSnap.docs.map((entry) => ({ id: entry.id, ...entry.data() }));
+      const [usageSnapshot, accessSnapshot] = await Promise.all([
+        getDocs(collection(db, 'inventoryUsage')),
+        getDocs(collection(db, 'accessRecords')),
+      ]);
+      const usageRecords = usageSnapshot.docs
+        .map((entry) => ({ id: entry.id, ...entry.data() }))
+        .filter((record) => record.itemId);
+      const accessRecords = accessSnapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() }));
+      const legacyIssueRecords = accessRecords
+        .filter((record) => record.action === 'issue' && Array.isArray(record.itemsIssued))
+        .map((record) => ({
+          ...record,
+          itemsIssued: record.itemsIssued.filter((item) => !usageRecords.some((usage) => (
+            usage.itemId === item.itemId &&
+            getTimestampMillis(usage.checkedOutAt || usage.createdAt) === getTimestampMillis(record.createdAt)
+          ))),
+        }))
+        .filter((record) => record.itemsIssued.length);
+      const legacyReturnRecords = accessRecords.filter((record) => (
+        record.action === 'return' &&
+        !usageRecords.some((usage) => (
+          usage.itemId === record.itemId &&
+          getTimestampMillis(usage.returnedAt) === getTimestampMillis(record.createdAt)
+        ))
+      ));
+      const records = [
+        ...buildIssueHistoryFromUsage(usageRecords, accessRecords),
+        ...legacyIssueRecords,
+        ...legacyReturnRecords,
+      ];
 
       const start = toReportDate(reportStartDate, false);
       const end = toReportDate(reportEndDate, true);
@@ -654,7 +765,6 @@ const Inventory = () => {
 
     try {
       const batch = writeBatch(db);
-      const usageRecords = [];
 
       for (const itemId of selectedItems) {
         const item = items.find((entry) => entry.id === itemId);
@@ -692,6 +802,8 @@ const Inventory = () => {
           overdueAt: null,
           issuedByUid: profile?.id || null,
           issuedByName: profile?.name || profile?.email || null,
+          reason: issueReason.trim(),
+          description: issueDescription.trim() || '',
           createdAt: serverTimestamp(),
         });
 
@@ -707,28 +819,7 @@ const Inventory = () => {
           updatedAt: serverTimestamp(),
         });
 
-        usageRecords.push({
-          itemId: item.id,
-          itemName: item.itemName,
-          itemNo: item.itemNo,
-        });
       }
-
-      batch.set(doc(collection(db, 'accessRecords')), {
-        authorized: true,
-        action: 'issue',
-        reason: issueReason.trim(),
-        description: issueDescription.trim() || '',
-        itemsIssued: usageRecords,
-        issuedToMembers: selectedMembers.map((member) => ({
-          id: member.id,
-          name: member.name || member.email,
-          email: member.email || '',
-        })),
-        createdByUid: profile?.id || null,
-        createdByName: profile?.name || profile?.email || null,
-        createdAt: serverTimestamp(),
-      });
 
       await batch.commit();
 
@@ -760,24 +851,15 @@ const Inventory = () => {
 
     try {
       const batch = writeBatch(db);
-      const recordRef = doc(db, 'accessRecords', record.id);
-      const updatedItemsIssued = (record.itemList || []).map((item) => {
-        if (!itemIds.includes(item.itemId)) return item;
-        return {
-          ...item,
-          returnStatus: 'returned',
-          returnedAt: new Date().toISOString(),
-          returnedByUid: profile?.id || null,
-          returnedByName: profile?.name || profile?.email || null,
-        };
-      });
 
       for (const itemId of itemIds) {
         const itemRef = doc(db, 'inventory', itemId);
         const itemSnap = items.find((entry) => entry.id === itemId);
         if (!itemSnap) continue;
 
-        let usageId = itemSnap.currentUsageId || null;
+        let usageId = record.sourceCollection === 'inventoryUsage'
+          ? record.id
+          : itemSnap.currentUsageId || null;
         if (!usageId) {
           const usageSnap = await getDocs(
             query(
@@ -799,6 +881,9 @@ const Inventory = () => {
             overdueAlertSent: false,
             updatedAt: serverTimestamp(),
             updatedByUid: profile?.id || null,
+            updatedByName: profile?.name || profile?.email || null,
+            returnedByUid: profile?.id || null,
+            returnedByName: profile?.name || profile?.email || null,
           });
         }
 
@@ -815,10 +900,6 @@ const Inventory = () => {
           updatedAt: serverTimestamp(),
         });
       }
-
-      batch.update(recordRef, {
-        itemsIssued: updatedItemsIssued,
-      });
 
       await batch.commit();
       setMessage({ type: 'success', text: 'Selected items in this issue batch were returned successfully.' });
@@ -852,6 +933,15 @@ const Inventory = () => {
     setCommentText(comment?.text || '');
   };
 
+  const saveIssueComments = async (record, itemsWithComments, itemId) => {
+    const updatedItem = itemsWithComments.find((item) => item.itemId === itemId);
+    await updateDoc(doc(db, 'inventoryUsage', record.id), {
+      comments: Array.isArray(updatedItem?.comments) ? updatedItem.comments : [],
+      updatedAt: serverTimestamp(),
+      updatedByUid: profile?.id || null,
+    });
+  };
+
   const deleteCommentFromHistory = async (record, item, commentIndex) => {
     if (!record?.id || !item?.itemId) return;
 
@@ -869,9 +959,7 @@ const Inventory = () => {
         };
       });
 
-      await updateDoc(doc(db, 'accessRecords', record.id), {
-        itemsIssued: updatedItems,
-      });
+      await saveIssueComments(recordToUpdate, updatedItems, item.itemId);
 
       await fetchIssueHistory();
       if (commentModal.open && commentModal.recordId === record.id && commentModal.itemId === item.itemId) {
@@ -940,9 +1028,7 @@ const Inventory = () => {
         };
       });
 
-      await updateDoc(doc(db, 'accessRecords', commentModal.recordId), {
-        itemsIssued: updatedItems,
-      });
+      await saveIssueComments(record, updatedItems, commentModal.itemId);
 
       await fetchIssueHistory();
       const updatedItem = updatedItems.find((item) => item.itemId === commentModal.itemId);
@@ -981,9 +1067,7 @@ const Inventory = () => {
         };
       });
 
-      await updateDoc(doc(db, 'accessRecords', commentModal.recordId), {
-        itemsIssued: updatedItems,
-      });
+      await saveIssueComments(record, updatedItems, commentModal.itemId);
 
       await fetchIssueHistory();
       const updatedItem = updatedItems.find((item) => item.itemId === commentModal.itemId);

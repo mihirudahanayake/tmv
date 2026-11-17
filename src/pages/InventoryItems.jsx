@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import {
+  arrayUnion,
   collection,
   deleteDoc,
   doc,
@@ -151,13 +152,6 @@ const InventoryItems = () => {
     if (typeof value?.toDate === 'function') return value.toDate().toLocaleString();
     const parsed = new Date(value);
     return Number.isNaN(parsed.getTime()) ? 'Unknown time' : parsed.toLocaleString();
-  };
-
-  const getIssueItemStatus = (item) => {
-    if (!item) return 'not returned';
-    if (item.returnStatus === 'returned' || item.returnedAt) return 'returned';
-    if (item.status === 'returned') return 'returned';
-    return 'not returned';
   };
 
   const handleEdit = (item) => {
@@ -387,9 +381,11 @@ const InventoryItems = () => {
         .map((usage) => ({
           ...usage,
           issuedToMembers: Array.isArray(usage.issuedToMembers) ? usage.issuedToMembers : [],
-          comments: commentsByUsageIndex.get(
-            usage.checkedOutAt?.toDate ? usage.checkedOutAt.toDate().getTime() : 0
-          ) || [],
+          comments: Array.isArray(usage.comments) && usage.comments.length
+            ? usage.comments
+            : commentsByUsageIndex.get(
+                usage.checkedOutAt?.toDate ? usage.checkedOutAt.toDate().getTime() : 0
+              ) || [],
         }));
 
       setItemDetailModal({
@@ -440,11 +436,6 @@ const InventoryItems = () => {
     try {
       const itemRef = doc(db, 'inventory', item.id);
       const batch = writeBatch(db);
-      const issueRecordSnap = await getDocs(collection(db, 'accessRecords'));
-      const issueRecord = issueRecordSnap.docs
-        .map((entry) => ({ id: entry.id, ...entry.data() }))
-        .filter((record) => record.action === 'issue' && Array.isArray(record.itemsIssued))
-        .find((record) => record.itemsIssued.some((entry) => entry.itemId === item.id && getIssueItemStatus(entry) !== 'returned'));
 
       let usageId = item.currentUsageId || null;
       if (!usageId) {
@@ -459,38 +450,8 @@ const InventoryItems = () => {
         if (!usageSnap.empty) usageId = usageSnap.docs[0].id;
       }
 
-      let updatedIssueItems = null;
-      if (issueRecord) {
-        updatedIssueItems = (issueRecord.itemsIssued || []).map((entry) => {
-          if (entry.itemId !== item.id) return entry;
-
-          const comments = Array.isArray(entry.comments) ? entry.comments : [];
-          const nextComments = returnComment
-            ? [
-                ...comments,
-                {
-                  text: returnComment,
-                  createdByUid: profile?.id || null,
-                  createdByName: profile?.name || profile?.email || null,
-                  createdAt: new Date().toISOString(),
-                  type: 'return',
-                },
-              ]
-            : comments;
-
-          return {
-            ...entry,
-            returnStatus: 'returned',
-            returnedAt: new Date().toISOString(),
-            returnedByUid: profile?.id || null,
-            returnedByName: profile?.name || profile?.email || null,
-            comments: nextComments,
-          };
-        });
-      }
-
       if (usageId) {
-        batch.update(doc(db, 'inventoryUsage', usageId), {
+        const usageUpdate = {
           returnedAt: serverTimestamp(),
           dueAt: null,
           status: 'returned',
@@ -500,7 +461,17 @@ const InventoryItems = () => {
           updatedByUid: profile?.id || null,
           returnedByUid: profile?.id || null,
           returnedByName: profile?.name || profile?.email || null,
-        });
+        };
+        if (returnComment) {
+          usageUpdate.comments = arrayUnion({
+            text: returnComment,
+            createdByUid: profile?.id || null,
+            createdByName: profile?.name || profile?.email || null,
+            createdAt: new Date().toISOString(),
+            type: 'return',
+          });
+        }
+        batch.update(doc(db, 'inventoryUsage', usageId), usageUpdate);
       }
 
       batch.update(itemRef, {
@@ -514,27 +485,6 @@ const InventoryItems = () => {
         overdueAlertSent: false,
         currentUsageId: null,
         updatedAt: serverTimestamp(),
-      });
-
-      if (issueRecord && updatedIssueItems) {
-        batch.update(doc(db, 'accessRecords', issueRecord.id), {
-          itemsIssued: updatedIssueItems,
-        });
-      }
-
-      batch.set(doc(collection(db, 'accessRecords')), {
-        authorized: true,
-        action: 'return',
-        rfidCardId: item.checkedOutRfidCardId || null,
-        userId: item.checkedOutToUserId || null,
-        userName: item.checkedOutToName || null,
-        itemId: item.id,
-        itemNo: item.itemNo || null,
-        itemName: item.itemName || null,
-        comment: returnComment || null,
-        createdByUid: profile?.id || null,
-        createdByName: profile?.name || profile?.email || null,
-        createdAt: serverTimestamp(),
       });
 
       await batch.commit();

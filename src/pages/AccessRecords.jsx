@@ -26,7 +26,17 @@ const AccessRecords = () => {
         const snap = await getDocs(
           query(collection(db, 'accessRecords'), orderBy('createdAt', 'desc'), limit(200))
         );
-        setRecords(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+        setRecords(
+          snap.docs
+            .map((d) => ({ id: d.id, ...d.data() }))
+            .filter((record) => !(
+              record.authorized &&
+              (
+                (record.action === 'issue' && Array.isArray(record.itemsIssued)) ||
+                (record.action === 'return' && record.itemId)
+              )
+            ))
+        );
       } catch (e) {
         console.error(e);
         setError('Failed to load access records.');
