@@ -11,6 +11,8 @@ node_modules
 dist
 dist-ssr
 *.local
+NFC_API/.env
+NFC_API/demo.conf.json
 
 # Editor directories and files
 .vscode/*
