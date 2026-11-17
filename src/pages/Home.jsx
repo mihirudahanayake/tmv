@@ -25,20 +25,14 @@ import {
   FaCheckCircle,
   FaHourglassHalf,
   FaUndo,
-  FaSun,
-  FaMoon,
 } from 'react-icons/fa';
 import { useDarkMode } from '../context/DarkModeContext';
-import { useIdleLogout } from '../hooks/useIdleLogout';
-import { useNavigate } from 'react-router-dom';
-import { Link } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import {
   getWorkRolesForDepartment,
   normalizeRolesForDepartment,
   formatWorkRoleLabel,
 } from '../constants/workRoles';
-
-// --- Meetings/Workshops for user ---
 
 const Home = () => {
   const navigate = useNavigate();
@@ -58,22 +52,22 @@ const Home = () => {
 
   useEffect(() => {
     setLoadingEvents(true);
-    // Fetch all events for all users
     const q = query(collection(db, 'events'));
     const unsub = onSnapshot(q, (snap) => {
-      const events = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const events = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       setUserEvents(events);
       setLoadingEvents(false);
     });
     return () => unsub();
   }, []);
+
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   const [selectedTask, setSelectedTask] = useState(null);
   const [showRejectedTasks, setShowRejectedTasks] = useState(true);
 
-  // NEW: popup notification for this user
-  const [popup, setPopup] = useState(null); // { id, title, message, type, workId, createdAt }
+  // Popup notification for this user
+  const [popup, setPopup] = useState(null);
 
   // Set userType based on logged-in user
   const [userType, setUserType] = useState('user');
@@ -187,7 +181,7 @@ const Home = () => {
     setTimeout(() => setToast(''), 4000);
   };
 
-  // Persistent unread notification popup (stays until user marks read)
+  // Persistent unread notification popup
   useEffect(() => {
     if (!user) return;
 
@@ -343,9 +337,6 @@ const Home = () => {
     return mine?.roles || [];
   };
 
-  // Roles to use for completion checks.
-  // For single-role departments, this keeps backward compatibility:
-  // - if legacy tasks stored multiple roles, we still require/toggle all of them.
   const getCompletionRoles = (task) => {
     if (!user) return [];
     const deptRoles = getWorkRolesForDepartment(task.department);
@@ -359,8 +350,6 @@ const Home = () => {
     return normalizeRolesForDepartment(task.department, stored);
   };
 
-  // Roles to show in UI.
-  // For single-role departments, always show just one "Done" button.
   const getUserRoles = (task) => {
     const deptRoles = getWorkRolesForDepartment(task.department);
     if (deptRoles.length === 1 && deptRoles[0] === 'done') return ['done'];
@@ -421,7 +410,6 @@ const Home = () => {
         completionRoles.forEach((r) => {
           nextCompletion[`${workUserId}_${r}`] = 'done';
         });
-        // also set explicit done key for consistency going forward
         nextCompletion[`${workUserId}_done`] = 'done';
       }
     } else {
@@ -495,17 +483,17 @@ const Home = () => {
 
     return (
       <div className="mt-3">
-        <p className="text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-200 mb-1">
+        <p className="text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-200 mb-1.5">
           Assigned items:
         </p>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-1.5 sm:gap-2">
           {assignedItems.map((itemId) => {
             const item = items[itemId];
             if (!item) {
               return (
                 <span
                   key={itemId}
-                  className="px-2 py-1 rounded-full bg-gray-100 dark:bg-slate-800 text-xs text-gray-500 dark:text-gray-300"
+                  className="px-2.5 py-1 rounded-full bg-gray-100 dark:bg-slate-800 text-xs text-gray-500 dark:text-gray-300"
                 >
                   Unknown item
                 </span>
@@ -514,7 +502,7 @@ const Home = () => {
             return (
               <span
                 key={itemId}
-                className="px-2 py-1 rounded-full bg-blue-50 dark:bg-slate-800 text-xs sm:text-sm text-blue-800 dark:text-gray-100 border border-blue-100 dark:border-slate-700"
+                className="px-2.5 py-1 rounded-full bg-blue-50 dark:bg-slate-800 text-xs sm:text-sm text-blue-800 dark:text-gray-100 border border-blue-100 dark:border-slate-700"
               >
                 {item.itemName || 'Item'}
                 {item.itemNo ? ` (${item.itemNo})` : ''}
@@ -527,73 +515,90 @@ const Home = () => {
   };
 
   // render team members
-const renderTeamMembers = (task) => {
-  const assignedUsers = task.assignedUsers || [];
-  const otherMembers = assignedUsers.filter((uid) => uid !== getTaskUserId(task));
+  const renderTeamMembers = (task) => {
+    const assignedUsers = task.assignedUsers || [];
+    const otherMembers = assignedUsers.filter((uid) => uid !== getTaskUserId(task));
 
-  if (otherMembers.length === 0) {
+    if (otherMembers.length === 0) {
+      return (
+        <div className="mt-3">
+          <p className="text-xs text-gray-500 dark:text-gray-400 italic">
+            You are working on this alone
+          </p>
+        </div>
+      );
+    }
+
     return (
       <div className="mt-3">
-        <p className="text-xs text-gray-500 dark:text-gray-400 italic">
-          You are working on this alone
+        <p className="text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-200 mb-1.5">
+          Working with:
         </p>
-      </div>
-    );
-  }
+        <div className="flex flex-wrap gap-1.5 sm:gap-2">
+          {otherMembers.map((uid) => {
+            const member = userDetails[uid];
+            if (!member) {
+              return (
+                <span
+                  key={uid}
+                  className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-gray-100 dark:bg-slate-800 text-xs text-gray-500 dark:text-gray-300"
+                >
+                  <div className="w-6 h-6 rounded-full bg-gray-300 dark:bg-slate-700 flex items-center justify-center text-xs font-bold text-white">
+                    ?
+                  </div>
+                  Unknown User
+                </span>
+              );
+            }
 
-  return (
-    <div className="mt-3">
-      <p className="text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
-        Working with:
-      </p>
-      <div className="flex flex-wrap gap-2">
-        {otherMembers.map((uid) => {
-          const member = userDetails[uid];
-          if (!member) {
+            const avatarUrl = member.photoURL || member.avatarUrl || null;
+
             return (
-              <span
+              <div
                 key={uid}
-                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-100 dark:bg-slate-800 text-xs text-gray-500 dark:text-gray-300"
+                className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-100 dark:from-slate-800 dark:to-slate-800 dark:border-slate-700"
               >
-                <div className="w-6 h-6 rounded-full bg-gray-300 dark:bg-slate-700 flex items-center justify-center text-xs font-bold text-white">
-                  ?
-                </div>
-                Unknown User
-              </span>
-            );
-          }
-
-          const avatarUrl = member.photoURL || member.avatarUrl || null;
-
-          return (
-            <div
-              key={uid}
-              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-100 dark:from-slate-800 dark:to-slate-800 dark:border-slate-700"
-            >
-              {avatarUrl ? (
-                <img
-                  src={avatarUrl}
-                  alt={member.name || 'User'}
-                  className="w-7 h-7 rounded-full object-cover border border-white dark:border-slate-700 shadow-sm"
-                />
-              ) : (
-                <div className="w-7 h-7 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center text-xs font-bold text-white">
-                  {(member.name || 'U').charAt(0).toUpperCase()}
-                </div>
-              )}
-              <div className="flex flex-col">
+                {avatarUrl ? (
+                  <img
+                    src={avatarUrl}
+                    alt={member.name || 'User'}
+                    className="w-6 h-6 sm:w-7 sm:h-7 rounded-full object-cover border border-white dark:border-slate-700 shadow-sm"
+                  />
+                ) : (
+                  <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center text-xs font-bold text-white">
+                    {(member.name || 'U').charAt(0).toUpperCase()}
+                  </div>
+                )}
                 <span className="text-xs sm:text-sm font-semibold text-gray-800 dark:text-gray-100">
                   {member.name || 'User'}
                 </span>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
-    </div>
-  );
-};
+    );
+  };
 
+  const renderTaskDates = (task, extraClass = '') => {
+    if (!task.date && !task.deadline) return null;
+    return (
+      <div className={`flex flex-wrap items-center gap-x-4 gap-y-1 text-xs sm:text-sm text-gray-500 dark:text-gray-300 ${extraClass}`}>
+        {task.date && (
+          <p className="flex items-center gap-1.5">
+            <FaCalendarAlt className="shrink-0 dark:text-yellow-300" />
+            <span>Date: {new Date(task.date).toLocaleDateString()}</span>
+          </p>
+        )}
+        {task.deadline && (
+          <p className="flex items-center gap-1.5">
+            <FaCalendarAlt className="shrink-0 dark:text-yellow-300" />
+            <span>Deadline: {new Date(task.deadline).toLocaleDateString()}</span>
+          </p>
+        )}
+      </div>
+    );
+  };
 
   const visibleTasks = tasks.filter((t) => statusOf(t) !== 'complete');
   const pendingTasks = visibleTasks.filter(
@@ -619,40 +624,40 @@ const renderTeamMembers = (task) => {
     return popup.title || 'New notification';
   };
 
-
-
   return (
-    <div className={`min-h-screen transition-colors duration-300 ${
-      isDarkMode
-        ? 'bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900'
-        : 'bg-gradient-to-br from-blue-50 via-white to-purple-50'
-    }`}>
+    <div
+      className={`min-h-screen transition-colors duration-300 ${
+        isDarkMode
+          ? 'bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900'
+          : 'bg-gradient-to-br from-blue-50 via-white to-purple-50'
+      }`}
+    >
       <Header userType={userType} isTO={isTO} isDarkMode={isDarkMode} toggleDarkMode={toggleDarkMode} />
 
       {/* User popup notification */}
       {popup && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-          <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-slate-700 p-5">
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">New notification</p>
-            <h3 className="text-lg font-bold text-gray-800 dark:text-gray-100 mb-2">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/50">
+          <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-slate-700 p-4 sm:p-5">
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1.5">New notification</p>
+            <h3 className="text-base sm:text-lg font-bold text-gray-800 dark:text-gray-100 mb-2">
               {renderUserPopupText()}
             </h3>
             {popup.message && (
               <p className="text-sm text-gray-700 dark:text-gray-300 mb-4">{popup.message}</p>
             )}
 
-            <div className="flex flex-col sm:flex-row gap-2 sm:justify-end">
+            <div className="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">
               <button
                 type="button"
                 onClick={() => navigate('/user/notifications')}
-                className="px-4 py-2 rounded-lg bg-gray-200 text-gray-800 text-sm font-semibold hover:bg-gray-300 dark:bg-slate-800 dark:text-gray-100 dark:hover:bg-slate-700"
+                className="min-h-[44px] px-4 py-2.5 rounded-xl bg-gray-200 text-gray-800 text-sm font-semibold hover:bg-gray-300 dark:bg-slate-800 dark:text-gray-100 dark:hover:bg-slate-700 active:scale-[0.99]"
               >
                 View all
               </button>
               <button
                 type="button"
                 onClick={markPopupRead}
-                className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700"
+                className="min-h-[44px] px-4 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 active:scale-[0.99]"
               >
                 Mark as read
               </button>
@@ -661,92 +666,105 @@ const renderTeamMembers = (task) => {
         </div>
       )}
 
+      {/* Mobile-friendly full-width toast */}
       {toast && (
-        <div className="fixed top-20 right-4 z-40 bg-gradient-to-r from-blue-600 to-purple-600 text-white text-sm px-5 py-3 rounded-lg shadow-2xl animate-slide-in">
+        <div className="fixed top-16 sm:top-20 left-3 right-3 sm:left-auto sm:right-4 sm:max-w-sm z-40 bg-gradient-to-r from-blue-600 to-purple-600 text-white text-sm px-4 py-3 rounded-xl shadow-2xl animate-slide-in">
           {toast}
         </div>
       )}
 
       {/* Reject Modal */}
       {showRejectModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
-            <h3 className="text-xl font-bold text-gray-800 mb-4">
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-3 sm:p-4">
+          <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-2xl shadow-2xl max-w-md w-full p-4 sm:p-6">
+            <h3 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-gray-100 mb-2">
               Reject Work
             </h3>
-            <p className="text-sm text-gray-600 mb-4">
+            <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">
               Please provide a reason for rejecting this work:
             </p>
             <textarea
               value={rejectReason}
               onChange={(e) => setRejectReason(e.target.value)}
               rows="4"
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 text-sm"
+              className="w-full px-3.5 py-2.5 border border-gray-300 dark:border-slate-700 dark:bg-slate-800 dark:text-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 text-base sm:text-sm"
               placeholder="Enter your reason..."
             />
-            <div className="flex gap-3 mt-4">
-              <button
-                onClick={handleReject}
-                className="flex-1 bg-gradient-to-r from-red-500 to-rose-600 text-white py-2.5 px-4 rounded-xl font-semibold hover:from-red-600 hover:to-rose-700 transition-all"
-              >
-                Submit Rejection
-              </button>
+            <div className="flex flex-col-reverse sm:flex-row gap-2.5 sm:gap-3 mt-4">
               <button
                 onClick={() => {
                   setShowRejectModal(false);
                   setSelectedTask(null);
                 }}
-                className="flex-1 bg-gray-200 text-gray-800 py-2.5 px-4 rounded-xl font-semibold hover:bg-gray-300 transition-all"
+                className="min-h-[44px] flex-1 bg-gray-200 dark:bg-slate-800 text-gray-800 dark:text-gray-100 py-2.5 px-4 rounded-xl font-semibold hover:bg-gray-300 dark:hover:bg-slate-700 transition-all active:scale-[0.99]"
               >
                 Cancel
+              </button>
+              <button
+                onClick={handleReject}
+                className="min-h-[44px] flex-1 bg-gradient-to-r from-red-500 to-rose-600 text-white py-2.5 px-4 rounded-xl font-semibold hover:from-red-600 hover:to-rose-700 transition-all active:scale-[0.99]"
+              >
+                Submit Rejection
               </button>
             </div>
           </div>
         </div>
       )}
 
-      <main className="container mx-auto px-4 py-8 max-w-6xl">
+      <main className="container mx-auto px-3 sm:px-4 py-4 sm:py-8 max-w-6xl">
         {/* Admin: Add event creation button */}
         {userType === 'admin' && (
-          <div className="mb-6 flex justify-end">
-            <Link to="/admin-create-event" className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded shadow">
+          <div className="mb-4 sm:mb-6 flex justify-stretch sm:justify-end">
+            <Link
+              to="/admin-create-event"
+              className="w-full sm:w-auto text-center bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2.5 rounded-xl shadow text-sm"
+            >
               Create Meeting/Workshop
             </Link>
           </div>
         )}
-        <div className="mb-8 rounded-[28px] border border-white/40 bg-white/55 dark:bg-slate-900/60 p-5 sm:p-6 shadow-[0_20px_50px_rgba(59,130,246,0.12)] backdrop-blur-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-600 dark:text-blue-300 mb-2">Overview</p>
+
+        {/* Hero Overview */}
+        <div className="mb-5 sm:mb-8 rounded-2xl sm:rounded-[28px] border border-white/40 dark:border-slate-800 bg-white/60 dark:bg-slate-900/60 p-4 sm:p-6 shadow-[0_20px_50px_rgba(59,130,246,0.12)] backdrop-blur-sm">
+          <p className="text-[11px] sm:text-xs font-semibold uppercase tracking-[0.24em] text-blue-600 dark:text-blue-300 mb-1">
+            Overview
+          </p>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h1 className="text-3xl sm:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-sky-600 to-purple-600 dark:from-yellow-300 dark:via-orange-300 dark:to-pink-400 mb-2">
+              <h1 className="text-2xl sm:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-sky-600 to-purple-600 dark:from-yellow-300 dark:via-orange-300 dark:to-pink-400 mb-1 sm:mb-2">
                 Welcome Back
               </h1>
-              <p className="text-gray-600 dark:text-gray-300 text-sm sm:text-base">
-                Manage your tasks efficiently. Accept new assignments and track your
-                progress.
+              <p className="text-gray-600 dark:text-gray-300 text-xs sm:text-base">
+                Manage your tasks efficiently. Accept new assignments and track your progress.
               </p>
             </div>
-            <div className="flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-50 to-purple-50 dark:from-slate-800 dark:to-slate-900 border border-blue-100 dark:border-slate-700 px-3 py-2 shadow-sm">
-              <div className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-200">{visibleTasks.length} active items</span>
+            <div className="self-start sm:self-auto flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-50 to-purple-50 dark:from-slate-800 dark:to-slate-900 border border-blue-100 dark:border-slate-700 px-3 py-1.5 shadow-sm">
+              <div className="h-2 w-2 sm:h-2.5 sm:w-2.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-200">
+                {visibleTasks.length} active {visibleTasks.length === 1 ? 'item' : 'items'}
+              </span>
             </div>
           </div>
         </div>
 
+        {/* 2x2 Summary Cards on Mobile, 4-col on Desktop */}
         {!loadingUser && !loadingTasks && tasks.length > 0 && (
-          <div className="mb-8 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          <div className="mb-6 sm:mb-8 grid grid-cols-2 xl:grid-cols-4 gap-2.5 sm:gap-4">
             {[
-              { label: 'Pending', value: pendingTasks.length, tone: 'from-yellow-400 to-orange-500', text: 'text-yellow-700' },
-              { label: 'Active', value: acceptedTasks.length, tone: 'from-blue-500 to-cyan-500', text: 'text-blue-700' },
-              { label: 'Completed', value: completedTaskCount, tone: 'from-emerald-500 to-green-500', text: 'text-emerald-700' },
-              { label: 'Rejected', value: rejectedTasks.length, tone: 'from-rose-500 to-red-500', text: 'text-rose-700' },
+              { label: 'Pending', value: pendingTasks.length, tone: 'from-yellow-400 to-orange-500', text: 'text-yellow-700 dark:text-yellow-300' },
+              { label: 'Active', value: acceptedTasks.length, tone: 'from-blue-500 to-cyan-500', text: 'text-blue-700 dark:text-blue-300' },
+              { label: 'Completed', value: completedTaskCount, tone: 'from-emerald-500 to-green-500', text: 'text-emerald-700 dark:text-emerald-300' },
+              { label: 'Rejected', value: rejectedTasks.length, tone: 'from-rose-500 to-red-500', text: 'text-rose-700 dark:text-rose-300' },
             ].map((card) => (
-              <div key={card.label} className="group rounded-2xl border border-white/60 bg-white/60 p-4 shadow-md backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl dark:border-slate-700 dark:bg-slate-900/70">
-                <div className={`mb-3 h-2 w-16 rounded-full bg-gradient-to-r ${card.tone}`} />
-                <p className="text-sm text-gray-500 dark:text-gray-400">{card.label}</p>
-                <div className="mt-2 flex items-end justify-between">
-                  <span className="text-3xl font-bold text-gray-800 dark:text-gray-100">{card.value}</span>
-                  <span className={`text-xs font-semibold ${card.text}`}>{card.label}</span>
+              <div
+                key={card.label}
+                className="group rounded-2xl border border-white/60 bg-white/70 p-3 sm:p-4 shadow-md backdrop-blur-sm transition-all duration-300 sm:hover:-translate-y-1 sm:hover:shadow-xl dark:border-slate-700 dark:bg-slate-900/70"
+              >
+                <div className={`mb-2 sm:mb-3 h-1.5 sm:h-2 w-12 sm:w-16 rounded-full bg-gradient-to-r ${card.tone}`} />
+                <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">{card.label}</p>
+                <div className="mt-1 sm:mt-2 flex items-baseline justify-between gap-1">
+                  <span className="text-2xl sm:text-3xl font-bold text-gray-800 dark:text-gray-100">{card.value}</span>
+                  <span className={`text-[11px] sm:text-xs font-semibold ${card.text}`}>{card.label}</span>
                 </div>
               </div>
             ))}
@@ -754,23 +772,23 @@ const renderTeamMembers = (task) => {
         )}
 
         {loadingUser || loadingTasks ? (
-          <div className="flex flex-col items-center justify-center py-20">
-            <FaSpinner className="animate-spin text-5xl text-blue-600 dark:text-yellow-300 mb-4" />
-            <p className="text-gray-600 dark:text-gray-300">Loading your tasks...</p>
+          <div className="flex flex-col items-center justify-center py-16 sm:py-20">
+            <FaSpinner className="animate-spin text-4xl sm:text-5xl text-blue-600 dark:text-yellow-300 mb-3" />
+            <p className="text-sm sm:text-base text-gray-600 dark:text-gray-300">Loading your tasks...</p>
           </div>
         ) : taskError ? (
-          <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
+          <div className="rounded-2xl border border-red-200 bg-red-50 p-4 sm:p-5 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
             {taskError}
           </div>
         ) : visibleTasks.length === 0 ? (
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-lg p-12 text-center border border-gray-100 dark:border-slate-700">
-            <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-purple-100 dark:from-yellow-300 dark:to-pink-400 rounded-full flex items-center justify-center mx-auto mb-4">
-              <FaCheckCircle className="text-4xl text-blue-600 dark:text-yellow-400" />
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-lg p-8 sm:p-12 text-center border border-gray-100 dark:border-slate-700">
+            <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-blue-100 to-purple-100 dark:from-yellow-300 dark:to-pink-400 rounded-full flex items-center justify-center mx-auto mb-4">
+              <FaCheckCircle className="text-3xl sm:text-4xl text-blue-600 dark:text-yellow-400" />
             </div>
-            <h3 className="text-xl font-bold text-gray-800 dark:text-gray-100 mb-2">
+            <h3 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-gray-100 mb-1.5">
               All Clear!
             </h3>
-            <p className="text-gray-600 dark:text-gray-300">
+            <p className="text-sm sm:text-base text-gray-600 dark:text-gray-300">
               You have no active tasks at the moment.
             </p>
           </div>
@@ -778,53 +796,37 @@ const renderTeamMembers = (task) => {
           <>
             {/* Pending Acceptance */}
             {pendingTasks.length > 0 && (
-              <section className="mb-8">
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="w-1 h-6 bg-gradient-to-b from-yellow-400 to-orange-500 rounded-full"></div>
-                  <h2 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-gray-100">
+              <section className="mb-6 sm:mb-8">
+                <div className="flex items-center gap-2 mb-3 sm:mb-4">
+                  <div className="w-1 h-5 sm:h-6 bg-gradient-to-b from-yellow-400 to-orange-500 rounded-full" />
+                  <h2 className="text-lg sm:text-2xl font-bold text-gray-800 dark:text-gray-100">
                     Pending Acceptance
                   </h2>
-                  <span className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white text-xs font-bold px-3 py-1 rounded-full">
+                  <span className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white text-xs font-bold px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full">
                     {pendingTasks.length}
                   </span>
                 </div>
-                <div className="space-y-4">
+                <div className="space-y-3 sm:space-y-4">
                   {pendingTasks.map((task) => (
                     <div
                       key={task.id}
-                      className="group bg-white dark:bg-slate-900 rounded-2xl shadow-md hover:shadow-xl hover:-translate-y-1 transition-all duration-300 p-5 sm:p-6 border border-yellow-100 dark:border-blue-800"
+                      className="group bg-white dark:bg-slate-900 rounded-2xl shadow-md sm:hover:shadow-xl sm:hover:-translate-y-1 transition-all duration-300 p-4 sm:p-6 border border-yellow-100 dark:border-blue-800"
                     >
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex-1">
-                          <h3 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-gray-100 mb-1">
+                      <div className="flex flex-wrap items-start justify-between gap-2 mb-2.5">
+                        <div className="min-w-0 flex-1">
+                          <h3 className="text-base sm:text-xl font-bold text-gray-800 dark:text-gray-100 mb-1 break-words">
                             {task.title || 'Task'}
                           </h3>
-{(task.date || task.deadline) && (
-  <div className="flex flex-col gap-1 text-xs sm:text-sm text-gray-500 dark:text-gray-300">
-    {task.date && (
-      <p className="flex items-center gap-2">
-        <FaCalendarAlt className="dark:text-yellow-300" />
-        <span>Date: {new Date(task.date).toLocaleDateString()}</span>
-      </p>
-    )}
-    {task.deadline && (
-      <p className="flex items-center gap-2">
-        <FaCalendarAlt className="dark:text-yellow-300" />
-        <span>Deadline: {new Date(task.deadline).toLocaleDateString()}</span>
-      </p>
-    )}
-  </div>
-)}
-
+                          {renderTaskDates(task)}
                         </div>
-                        <span className="bg-yellow-100 dark:bg-yellow-800 text-yellow-800 dark:text-yellow-200 text-xs font-semibold px-3 py-1.5 rounded-full flex items-center gap-1 border border-yellow-200 dark:border-yellow-700">
+                        <span className="shrink-0 bg-yellow-100 dark:bg-yellow-800 text-yellow-800 dark:text-yellow-200 text-xs font-semibold px-2.5 py-1 rounded-full flex items-center gap-1 border border-yellow-200 dark:border-yellow-700">
                           <FaHourglassHalf className="dark:text-yellow-200" />
                           Pending
                         </span>
                       </div>
 
                       {task.description && (
-                        <p className="text-gray-700 dark:text-gray-200 text-sm mb-2">
+                        <p className="text-gray-700 dark:text-gray-200 text-sm mb-2 leading-relaxed">
                           {task.description}
                         </p>
                       )}
@@ -832,17 +834,17 @@ const renderTeamMembers = (task) => {
                       {renderAssignedItems(task)}
                       {renderTeamMembers(task)}
 
-                      <div className="flex gap-3 mt-4">
+                      <div className="grid grid-cols-2 gap-2.5 sm:flex sm:gap-3 mt-4">
                         <button
                           onClick={() => handleAccept(task)}
-                          className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 dark:from-green-700 dark:to-emerald-900 text-white py-2.5 px-4 rounded-xl font-semibold hover:from-green-600 hover:to-emerald-700 dark:hover:from-green-800 dark:hover:to-emerald-800 transition-all shadow-md flex items-center justify-center gap-2"
+                          className="min-h-[44px] sm:flex-1 bg-gradient-to-r from-green-500 to-emerald-600 dark:from-green-700 dark:to-emerald-900 text-white py-2.5 px-3 sm:px-4 rounded-xl text-sm font-semibold hover:from-green-600 hover:to-emerald-700 transition-all shadow-md flex items-center justify-center gap-1.5 sm:gap-2 active:scale-[0.99]"
                         >
                           <FaCheck />
                           Accept
                         </button>
                         <button
                           onClick={() => openRejectModal(task)}
-                          className="flex-1 bg-gradient-to-r from-red-500 to-rose-600 dark:from-red-700 dark:to-rose-900 text-white py-2.5 px-4 rounded-xl font-semibold hover:from-red-600 hover:to-rose-700 dark:hover:from-red-800 dark:hover:to-rose-800 transition-all shadow-md flex items-center justify-center gap-2"
+                          className="min-h-[44px] sm:flex-1 bg-gradient-to-r from-red-500 to-rose-600 dark:from-red-700 dark:to-rose-900 text-white py-2.5 px-3 sm:px-4 rounded-xl text-sm font-semibold hover:from-red-600 hover:to-rose-700 transition-all shadow-md flex items-center justify-center gap-1.5 sm:gap-2 active:scale-[0.99]"
                         >
                           <FaTimes />
                           Reject
@@ -856,29 +858,27 @@ const renderTeamMembers = (task) => {
 
             {/* Pending Rejection with Hide/Show */}
             {rejectedTasks.length > 0 && (
-              <section className="mb-8">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <div className="w-1 h-6 bg-gradient-to-b from-orange-500 to-red-500 rounded-full"></div>
-                    <h2 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-gray-100">
-                      Pending Rejection Approval
+              <section className="mb-6 sm:mb-8">
+                <div className="flex items-center justify-between gap-2 mb-3 sm:mb-4">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="w-1 h-5 sm:h-6 shrink-0 bg-gradient-to-b from-orange-500 to-red-500 rounded-full" />
+                    <h2 className="text-lg sm:text-2xl font-bold text-gray-800 dark:text-gray-100 truncate">
+                      Pending Rejection
                     </h2>
-                    <span className="bg-gradient-to-r from-orange-500 to-red-500 text-white text-xs font-bold px-3 py-1 rounded-full">
+                    <span className="shrink-0 bg-gradient-to-r from-orange-500 to-red-500 text-white text-xs font-bold px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full">
                       {rejectedTasks.length}
                     </span>
                   </div>
                   <button
-                    onClick={() =>
-                      setShowRejectedTasks((prev) => !prev)
-                    }
-                    className="text-sm font-semibold text-gray-600 hover:text-gray-800 transition px-3 py-1.5 rounded-lg hover:bg-gray-100"
+                    onClick={() => setShowRejectedTasks((prev) => !prev)}
+                    className="shrink-0 text-xs sm:text-sm font-semibold text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white transition px-3 py-1.5 rounded-lg bg-white/70 dark:bg-slate-800 hover:bg-gray-100 dark:hover:bg-slate-700"
                   >
                     {showRejectedTasks ? 'Hide' : 'Show'}
                   </button>
                 </div>
 
                 {showRejectedTasks && (
-                  <div className="space-y-4">
+                  <div className="space-y-3 sm:space-y-4">
                     {rejectedTasks.map((task) => {
                       const rejection =
                         (task.rejections || {})[getTaskUserId(task)] || {};
@@ -886,32 +886,16 @@ const renderTeamMembers = (task) => {
                       return (
                         <div
                           key={task.id}
-                          className="group bg-white rounded-2xl shadow-md hover:shadow-xl hover:-translate-y-1 transition-all duration-300 p-5 sm:p-6 border border-orange-100"
+                          className="group bg-white dark:bg-slate-900 rounded-2xl shadow-md sm:hover:shadow-xl sm:hover:-translate-y-1 transition-all duration-300 p-4 sm:p-6 border border-orange-100 dark:border-slate-700"
                         >
-                          <div className="flex items-start justify-between mb-3">
-                            <div>
-                              <h3 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-gray-100 mb-1">
+                          <div className="flex flex-wrap items-start justify-between gap-2 mb-2.5">
+                            <div className="min-w-0 flex-1">
+                              <h3 className="text-base sm:text-xl font-bold text-gray-800 dark:text-gray-100 mb-1 break-words">
                                 {task.title || 'Task'}
                               </h3>
-{(task.date || task.deadline) && (
-  <div className="flex flex-col gap-1 text-xs sm:text-sm text-gray-500">
-    {task.date && (
-      <p className="flex items-center gap-2">
-        <FaCalendarAlt />
-        <span>Date: {new Date(task.date).toLocaleDateString()}</span>
-      </p>
-    )}
-    {task.deadline && (
-      <p className="flex items-center gap-2">
-        <FaCalendarAlt />
-        <span>Deadline: {new Date(task.deadline).toLocaleDateString()}</span>
-      </p>
-    )}
-  </div>
-)}
-
+                              {renderTaskDates(task)}
                             </div>
-                            <span className="bg-orange-100 text-orange-800 text-xs font-semibold px-3 py-1.5 rounded-full flex items-center gap-1">
+                            <span className="shrink-0 bg-orange-100 dark:bg-orange-950/70 text-orange-800 dark:text-orange-200 text-xs font-semibold px-2.5 py-1 rounded-full flex items-center gap-1 border border-orange-200 dark:border-orange-800">
                               <FaHourglassHalf />
                               Pending Approval
                             </span>
@@ -920,16 +904,15 @@ const renderTeamMembers = (task) => {
                           {renderAssignedItems(task)}
                           {renderTeamMembers(task)}
 
-                          <div className="bg-orange-50 rounded-xl p-4 mt-3">
-                            <p className="text-xs font-semibold text-orange-800 mb-1">
+                          <div className="bg-orange-50 dark:bg-slate-800/80 rounded-xl p-3.5 sm:p-4 mt-3">
+                            <p className="text-xs font-semibold text-orange-800 dark:text-orange-300 mb-1">
                               Your Rejection Reason:
                             </p>
-                            <p className="text-sm text-gray-700 dark:text-gray-300">
+                            <p className="text-sm text-gray-700 dark:text-gray-200">
                               {rejection.reason || '-'}
                             </p>
                             <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                              Waiting for admin to approve your rejection
-                              request
+                              Waiting for admin to approve your rejection request
                             </p>
                           </div>
                         </div>
@@ -942,47 +925,32 @@ const renderTeamMembers = (task) => {
 
             {/* Active Tasks */}
             {acceptedTasks.length > 0 && (
-              <section className="mb-8">
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="w-1 h-6 bg-gradient-to-b from-blue-500 to-purple-600 rounded-full"></div>
-                  <h2 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-gray-100">
+              <section className="mb-6 sm:mb-8">
+                <div className="flex items-center gap-2 mb-3 sm:mb-4">
+                  <div className="w-1 h-5 sm:h-6 bg-gradient-to-b from-blue-500 to-purple-600 rounded-full" />
+                  <h2 className="text-lg sm:text-2xl font-bold text-gray-800 dark:text-gray-100">
                     Active Tasks
                   </h2>
-                  <span className="bg-gradient-to-r from-blue-500 to-purple-600 text-white text-xs font-bold px-3 py-1 rounded-full">
+                  <span className="bg-gradient-to-r from-blue-500 to-purple-600 text-white text-xs font-bold px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full">
                     {acceptedTasks.length}
                   </span>
                 </div>
-                <div className="space-y-4">
+                <div className="space-y-3 sm:space-y-4">
                   {acceptedTasks.map((task) => {
                     const roles = getUserRoles(task);
 
                     return (
                       <div
                         key={task.id}
-                        className="group bg-white dark:bg-slate-900 rounded-2xl shadow-md hover:shadow-xl hover:-translate-y-1 transition-all duration-300 p-5 sm:p-6 border border-blue-100 dark:border-slate-700"
+                        className="group bg-white dark:bg-slate-900 rounded-2xl shadow-md sm:hover:shadow-xl sm:hover:-translate-y-1 transition-all duration-300 p-4 sm:p-6 border border-blue-100 dark:border-slate-700"
                       >
-                        <h3 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-gray-100 mb-1">
+                        <h3 className="text-base sm:text-xl font-bold text-gray-800 dark:text-gray-100 mb-1 break-words">
                           {task.title || 'Task'}
                         </h3>
-{(task.date || task.deadline) && (
-  <div className="flex flex-col gap-1 text-xs sm:text-sm text-gray-500 dark:text-gray-300 mb-3">
-    {task.date && (
-      <p className="flex items-center gap-2">
-        <FaCalendarAlt className="dark:text-yellow-300" />
-        <span>Date: {new Date(task.date).toLocaleDateString()}</span>
-      </p>
-    )}
-    {task.deadline && (
-      <p className="flex items-center gap-2">
-        <FaCalendarAlt className="dark:text-yellow-300" />
-        <span>Deadline: {new Date(task.deadline).toLocaleDateString()}</span>
-      </p>
-    )}
-  </div>
-)}
+                        {renderTaskDates(task, 'mb-2.5')}
 
                         {task.description && (
-                          <p className="text-gray-700 dark:text-gray-300 text-sm mb-2">
+                          <p className="text-gray-700 dark:text-gray-300 text-sm mb-2 leading-relaxed">
                             {task.description}
                           </p>
                         )}
@@ -990,11 +958,11 @@ const renderTeamMembers = (task) => {
                         {renderAssignedItems(task)}
                         {renderTeamMembers(task)}
 
-                        <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-slate-800 dark:to-slate-900 rounded-xl p-4 mt-3">
-                          <p className="text-sm font-semibold text-gray-700 dark:text-gray-100 mb-3">
+                        <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-slate-800 dark:to-slate-900 rounded-xl p-3.5 sm:p-4 mt-3.5">
+                          <p className="text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-100 mb-2.5">
                             Your Work Types:
                           </p>
-                          <div className="flex flex-wrap gap-2">
+                          <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2">
                             {roles.map((role) => {
                               const done = isRoleDone(task, role);
                               const label = formatWorkRoleLabel(role);
@@ -1002,10 +970,8 @@ const renderTeamMembers = (task) => {
                                 <button
                                   key={role}
                                   type="button"
-                                  onClick={() =>
-                                    handleToggleRole(task, role)
-                                  }
-                                  className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all shadow-sm ${
+                                  onClick={() => handleToggleRole(task, role)}
+                                  className={`min-h-[44px] w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all shadow-sm active:scale-[0.99] ${
                                     done
                                       ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700'
                                       : 'bg-white dark:bg-slate-900 text-gray-700 dark:text-gray-100 border-2 border-gray-200 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-400'
@@ -1037,52 +1003,36 @@ const renderTeamMembers = (task) => {
             {/* Completed Tasks */}
             {completedTasks.length > 0 && (
               <section>
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="w-1 h-6 bg-gradient-to-b from-green-500 to-emerald-600 rounded-full"></div>
-                  <h2 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-gray-100">
+                <div className="flex items-center gap-2 mb-3 sm:mb-4">
+                  <div className="w-1 h-5 sm:h-6 bg-gradient-to-b from-green-500 to-emerald-600 rounded-full" />
+                  <h2 className="text-lg sm:text-2xl font-bold text-gray-800 dark:text-gray-100">
                     Completed
                   </h2>
-                  <span className="bg-gradient-to-r from-green-500 to-emerald-600 text-white text-xs font-bold px-3 py-1 rounded-full">
+                  <span className="bg-gradient-to-r from-green-500 to-emerald-600 text-white text-xs font-bold px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full">
                     {completedTasks.length}
                   </span>
                 </div>
-                <div className="space-y-4">
+                <div className="space-y-3 sm:space-y-4">
                   {completedTasks.map((task) => {
                     const roles = getUserRoles(task);
 
                     return (
                       <div
                         key={task.id}
-                        className="group bg-white dark:bg-slate-900 rounded-2xl shadow-md hover:shadow-xl hover:-translate-y-1 transition-all duration-300 p-5 sm:p-6 border border-green-100 dark:border-slate-700"
+                        className="group bg-white dark:bg-slate-900 rounded-2xl shadow-md sm:hover:shadow-xl sm:hover:-translate-y-1 transition-all duration-300 p-4 sm:p-6 border border-green-100 dark:border-slate-700"
                       >
-                        <div className="flex items-start justify-between mb-3">
-                          <div>
-                            <h3 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-gray-100 mb-1">
+                        <div className="flex items-start justify-between gap-2 mb-2.5">
+                          <div className="min-w-0 flex-1">
+                            <h3 className="text-base sm:text-xl font-bold text-gray-800 dark:text-gray-100 mb-1 break-words">
                               {task.title || 'Task'}
                             </h3>
-{(task.date || task.deadline) && (
-  <div className="flex flex-col gap-1 text-xs sm:text-sm text-gray-500 dark:text-gray-300">
-    {task.date && (
-      <p className="flex items-center gap-2">
-        <FaCalendarAlt className="dark:text-yellow-300" />
-        <span>Date: {new Date(task.date).toLocaleDateString()}</span>
-      </p>
-    )}
-    {task.deadline && (
-      <p className="flex items-center gap-2">
-        <FaCalendarAlt className="dark:text-yellow-300" />
-        <span>Deadline: {new Date(task.deadline).toLocaleDateString()}</span>
-      </p>
-    )}
-  </div>
-)}
-
+                            {renderTaskDates(task)}
                           </div>
-                          <FaCheckCircle className="text-3xl text-green-500" />
+                          <FaCheckCircle className="shrink-0 text-2xl sm:text-3xl text-green-500" />
                         </div>
 
                         {task.description && (
-                          <p className="text-gray-700 dark:text-gray-300 text-sm mb-2">
+                          <p className="text-gray-700 dark:text-gray-300 text-sm mb-2 leading-relaxed">
                             {task.description}
                           </p>
                         )}
@@ -1094,10 +1044,8 @@ const renderTeamMembers = (task) => {
                           {roles.map((role) => (
                             <button
                               key={role}
-                              onClick={() =>
-                                handleToggleRole(task, role)
-                              }
-                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold bg-green-100 text-green-800 hover:bg-green-200 transition dark:bg-slate-800 dark:text-gray-100 dark:hover:bg-slate-700"
+                              onClick={() => handleToggleRole(task, role)}
+                              className="min-h-[38px] inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-green-100 text-green-800 hover:bg-green-200 transition dark:bg-slate-800 dark:text-gray-100 dark:hover:bg-slate-700 active:scale-[0.98]"
                             >
                               <FaUndo className="text-xs" />
                               Undo {formatWorkRoleLabel(role)}
@@ -1105,7 +1053,7 @@ const renderTeamMembers = (task) => {
                           ))}
                         </div>
 
-                        <p className="text-sm text-green-700 dark:text-green-300 font-semibold bg-green-50 dark:bg-slate-800 px-4 py-2 rounded-lg">
+                        <p className="text-xs sm:text-sm text-green-700 dark:text-green-300 font-semibold bg-green-50 dark:bg-slate-800 px-3.5 py-2.5 rounded-xl">
                           ✓ All work completed. Waiting for admin review.
                         </p>
                       </div>
@@ -1116,8 +1064,12 @@ const renderTeamMembers = (task) => {
             )}
           </>
         )}
+
         {itemsError && !taskError && (
-          <p role="status" className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <p
+            role="status"
+            className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs sm:text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/50 dark:text-amber-200"
+          >
             {itemsError}
           </p>
         )}
