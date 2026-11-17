@@ -609,6 +609,11 @@ const renderTeamMembers = (task) => {
   const completedTasks = visibleTasks.filter(
     (t) => getUserAcceptance(t) === 'accepted' && allRolesDone(t)
   );
+  const completedTaskCount = tasks.filter(
+    (t) =>
+      statusOf(t) === 'complete' ||
+      (getUserAcceptance(t) === 'accepted' && allRolesDone(t))
+  ).length;
 
   const renderUserPopupText = () => {
     if (!popup) return '';
@@ -729,12 +734,12 @@ const renderTeamMembers = (task) => {
           </div>
         </div>
 
-        {!loadingUser && !loadingTasks && visibleTasks.length > 0 && (
+        {!loadingUser && !loadingTasks && tasks.length > 0 && (
           <div className="mb-8 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
             {[
               { label: 'Pending', value: pendingTasks.length, tone: 'from-yellow-400 to-orange-500', text: 'text-yellow-700' },
               { label: 'Active', value: acceptedTasks.length, tone: 'from-blue-500 to-cyan-500', text: 'text-blue-700' },
-              { label: 'Completed', value: completedTasks.length, tone: 'from-emerald-500 to-green-500', text: 'text-emerald-700' },
+              { label: 'Completed', value: completedTaskCount, tone: 'from-emerald-500 to-green-500', text: 'text-emerald-700' },
               { label: 'Rejected', value: rejectedTasks.length, tone: 'from-rose-500 to-red-500', text: 'text-rose-700' },
             ].map((card) => (
               <div key={card.label} className="group rounded-2xl border border-white/60 bg-white/60 p-4 shadow-md backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl dark:border-slate-700 dark:bg-slate-900/70">
