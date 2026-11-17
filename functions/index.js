@@ -157,6 +157,96 @@ exports.getDepartmentUsers = onCall(
   }
 );
 
+exports.getAdminNotificationUsersHttp = onRequest(
+  {
+    invoker: 'public',
+    cors: [
+      'http://localhost:5173',
+      'http://127.0.0.1:5173',
+      'https://tmv.fotmv.online',
+    ],
+  },
+  async (request, response) => {
+    if (request.method !== 'POST') {
+      response.set('Allow', 'POST').status(405).json({ error: 'Method not allowed.' });
+      return;
+    }
+
+    const authorization = request.get('authorization') || '';
+    const idToken = authorization.startsWith('Bearer ') ? authorization.slice(7).trim() : '';
+    if (!idToken) {
+      response.status(401).json({ error: 'Authentication required.' });
+      return;
+    }
+
+    let token;
+    try {
+      token = await admin.auth().verifyIdToken(idToken);
+    } catch (error) {
+      logger.warn('Unauthenticated admin notification user request.', {
+        error: error?.message || String(error),
+      });
+      response.status(401).json({ error: 'Authentication required.' });
+      return;
+    }
+
+    const department = String(request.body?.department || '').trim();
+    if (!ALLOWED_WORK_DEPARTMENTS.has(department)) {
+      response.status(400).json({ error: 'Invalid department.' });
+      return;
+    }
+
+    try {
+      const callerSnapshot = await db.collection('users').doc(token.uid).get();
+      const callerData = callerSnapshot.exists ? callerSnapshot.data() : {};
+      const caller = { ...callerData, email: callerData?.email || token.email || '' };
+      const callerRole = normalizeRole(caller);
+      if (![Roles.DEPARTMENT_HEAD, Roles.SUPER_ADMIN, Roles.SITE_ADMIN].includes(callerRole)) {
+        response.status(403).json({ error: 'You are not allowed to load notification recipients.' });
+        return;
+      }
+
+      const allowedDepartments = callerRole === Roles.DEPARTMENT_HEAD
+        ? getManagedDepartments(caller).filter((value) => ALLOWED_WORK_DEPARTMENTS.has(value))
+        : [...ALLOWED_WORK_DEPARTMENTS];
+      if (!allowedDepartments.includes(department)) {
+        response.status(403).json({ error: 'You cannot load users for this department.' });
+        return;
+      }
+
+      const [departmentsSnapshot, departmentSnapshot] = await Promise.all([
+        db.collection('users').where('departments', 'array-contains', department).get(),
+        db.collection('users').where('department', '==', department).get(),
+      ]);
+      const usersById = new Map();
+      [...departmentsSnapshot.docs, ...departmentSnapshot.docs].forEach((userDoc) => {
+        usersById.set(userDoc.id, userDoc.data());
+      });
+      const users = [...usersById.entries()]
+        .filter(([, userData]) =>
+          normalizeRole(userData) === Roles.MEMBER
+          && getUserDepartments(userData).includes(department)
+        )
+        .map(([id, userData]) => ({
+          id,
+          name: userData.name || '',
+          email: userData.email || '',
+          departments: getUserDepartments(userData),
+          department: userData.department || getUserDepartments(userData)[0] || null,
+        }));
+
+      response.json({ users });
+    } catch (error) {
+      logger.error('Failed to load admin notification recipients.', {
+        userId: token.uid,
+        department,
+        error: error?.message || String(error),
+      });
+      response.status(500).json({ error: 'Failed to load users.' });
+    }
+  }
+);
+
 exports.getDepartmentUserCount = onCall(
   {
     cors: [

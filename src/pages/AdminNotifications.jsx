@@ -1,19 +1,18 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   addDoc,
   collection,
-  getDocs,
-  query,
   serverTimestamp,
-  where,
 } from 'firebase/firestore';
 import { FaSpinner } from 'react-icons/fa';
 import Header from '../components/Header';
-import { auth, db } from '../firebase/config';
+import { app, auth, db } from '../firebase/config';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { fanOutUserNotifications } from '../utils/fanOutUserNotifications';
 import { WORK_DEPARTMENTS, formatWorkDepartmentLabel } from '../constants/workDepartments';
-import { canManageUser, normalizeRole, Roles } from '../utils/authz';
+import { canManageUser, getManagedDepartments, normalizeRole, Roles } from '../utils/authz';
+
+const notificationUsersEndpoint = `https://us-central1-${app.options.projectId}.cloudfunctions.net/getAdminNotificationUsersHttp`;
 
 const getUserDepartments = (user) =>
   Array.isArray(user?.departments)
@@ -40,10 +39,11 @@ const AdminNotifications = () => {
 
   const role = normalizeRole(profile);
   const isDepartmentHead = role === Roles.DEPARTMENT_HEAD;
-  const managedDepartments = Array.isArray(profile?.managedDepartments)
-    ? profile.managedDepartments
-    : [];
-  const allowedDepartments = isDepartmentHead ? managedDepartments : WORK_DEPARTMENTS;
+  const managedDepartments = useMemo(() => getManagedDepartments(profile), [profile]);
+  const allowedDepartments = useMemo(
+    () => isDepartmentHead ? managedDepartments : WORK_DEPARTMENTS,
+    [isDepartmentHead, managedDepartments]
+  );
 
   useEffect(() => {
     if (!loadingProfile) {
@@ -67,18 +67,27 @@ const AdminNotifications = () => {
 
       setLoadingUsers(true);
       try {
-        // Support both new RBAC field (`departments: []`) and legacy (`department: string`).
-        const [snapNew, snapLegacy] = await Promise.all([
-          getDocs(query(collection(db, 'users'), where('departments', 'array-contains', department))),
-          getDocs(query(collection(db, 'users'), where('department', '==', department))),
-        ]);
-
-        const usersMap = new Map();
-        snapNew.docs.forEach((d) => usersMap.set(d.id, { id: d.id, ...d.data() }));
-        snapLegacy.docs.forEach((d) => usersMap.set(d.id, { id: d.id, ...d.data() }));
+        const currentUser = auth.currentUser;
+        if (!currentUser) throw new Error('You must be signed in.');
+        const idToken = await currentUser.getIdToken();
+        const response = await fetch(notificationUsersEndpoint, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${idToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ department }),
+        });
+        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(result?.error || `Request failed with status ${response.status}.`);
+        }
+        if (!Array.isArray(result?.users)) {
+          throw new Error('Invalid department users response from the server.');
+        }
 
         setUsers(
-          Array.from(usersMap.values()).filter(
+          result.users.filter(
             (user) =>
               getUserDepartments(user).includes(department)
               && (!isDepartmentHead || canManageUser(profile, user))
@@ -87,7 +96,7 @@ const AdminNotifications = () => {
         setError('');
       } catch (e) {
         console.error(e);
-        setError('Failed to load users.');
+        setError(`Failed to load users: ${e?.message || 'Check your department access and try again.'}`);
       } finally {
         setLoadingUsers(false);
       }
