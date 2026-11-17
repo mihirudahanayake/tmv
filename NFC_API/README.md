@@ -33,6 +33,14 @@ array whose entries contain a `name`, such as the sample ESP response. Polling
 is disabled when `ESP_JSON_URL` is empty. Restart the backend after changing
 these settings.
 
+If logs report that the ESP hostname cannot be resolved, verify that the
+computer running this API can reach the ESP and resolve the hostname. For a
+local device, use its current LAN IP in `ESP_JSON_URL` if its hostname is not
+resolvable (for example, `http://192.168.1.100/<device-json-path>`), and keep
+the device's actual JSON endpoint path. You can check hostname resolution on
+Linux with `getent hosts <esp-hostname>`. The poller retries with backoff while
+the device is unavailable or the address is being corrected.
+
 Each photo filename is treated as one door-unlock record. The backend stores
 `imageName`, `authorized`, `action`, and the detection time in `accessRecords`.
 It uses a deterministic Firestore document ID derived from the filename, so

@@ -4,9 +4,11 @@ import hmac
 import json
 import logging
 import os
+import socket
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.error import URLError
 from urllib.request import Request, urlopen
 
 import firebase_admin
@@ -115,6 +117,23 @@ async def poll_esp_json(url: str, interval_seconds: float) -> None:
             failure_delay = interval_seconds
         except asyncio.CancelledError:
             raise
+        except URLError as exc:
+            if isinstance(exc.reason, socket.gaierror):
+                logger.warning(
+                    "Cannot resolve the ESP_JSON_URL hostname. Check that the "
+                    "device is reachable and the URL uses its current IP or a "
+                    "hostname this computer can resolve. Retrying in %s seconds.",
+                    failure_delay,
+                )
+            else:
+                logger.warning(
+                    "ESP JSON request failed (%s). Retrying in %s seconds.",
+                    type(exc.reason).__name__,
+                    failure_delay,
+                )
+            await asyncio.sleep(failure_delay)
+            failure_delay = min(failure_delay * 2, 60)
+            continue
         except Exception:
             logger.exception("ESP JSON poll failed.")
             await asyncio.sleep(failure_delay)
