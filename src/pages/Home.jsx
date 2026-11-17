@@ -39,7 +39,6 @@ import {
 } from '../constants/workRoles';
 
 // --- Meetings/Workshops for user ---
-// (Place this inside the Home component, after all imports)
 
 const Home = () => {
   const navigate = useNavigate();

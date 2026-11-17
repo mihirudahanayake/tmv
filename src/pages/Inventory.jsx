@@ -145,9 +145,13 @@ const Inventory = () => {
     itemName: '',
     category: '',
     description: '',
+    rfidCardId: '',
   });
-  const [addImageFile, setAddImageFile] = useState(null);
-  const [addImagePreview, setAddImagePreview] = useState('');
+  const [addRfidScanning, setAddRfidScanning] = useState(false);
+  const [addRfidMessage, setAddRfidMessage] = useState('');
+  const addRfidControllerRef = useRef(null);
+  const [addImageFiles, setAddImageFiles] = useState([]);
+  const [addImagePreviews, setAddImagePreviews] = useState([]);
   const [addImageError, setAddImageError] = useState('');
   const [addImageUploading, setAddImageUploading] = useState(false);
   const [commentModal, setCommentModal] = useState({
@@ -169,7 +173,7 @@ const Inventory = () => {
 
   useEffect(() => {
     if (!message.text) return undefined;
-    const timeoutId = setTimeout(() => setMessage({ type: '', text: '' }), 5000);
+    const timeoutId = setTimeout(() => setMessage({ type: '', text: '' }), 6000);
     return () => clearTimeout(timeoutId);
   }, [message.text]);
 
@@ -357,6 +361,7 @@ const Inventory = () => {
 
   useEffect(() => () => {
     cupboardNfcScanControllerRef.current?.abort();
+    addRfidControllerRef.current?.abort();
   }, []);
 
   useEffect(() => {
@@ -697,54 +702,189 @@ const Inventory = () => {
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
+  const handleScanAddRfid = async () => {
+    if (addRfidScanning) {
+      addRfidControllerRef.current?.abort();
+      setAddRfidMessage('RFID scan cancelled.');
+      return;
+    }
+
+    const controller = new AbortController();
+    addRfidControllerRef.current = controller;
+    setAddRfidScanning(true);
+    setAddRfidMessage('Tap an RFID card on the reader...');
+
+    try {
+      const scanDeadline = Date.now() + 25000;
+      while (Date.now() < scanDeadline) {
+        const response = await fetch(`${nfcApiUrl}/nfc/read`, {
+          cache: 'no-store',
+          signal: controller.signal,
+        });
+        if (!response.ok) {
+          throw new Error(`Reader returned ${response.status}`);
+        }
+
+        const data = await response.json();
+        const uid = String(data?.uid ?? '').trim().toUpperCase();
+        if (uid) {
+          const existingItem = itemsRef.current.find(
+            (entry) => String(entry.rfidCardId || '').trim().toUpperCase() === uid
+          );
+          if (existingItem) {
+            setAddRfidMessage(`Card ${uid} is already assigned to "${existingItem.itemName}".`);
+          } else {
+            setFormData((prev) => ({ ...prev, rfidCardId: uid }));
+            setAddRfidMessage(`RFID card ${uid} attached.`);
+          }
+          return;
+        }
+
+        await new Promise((resolve) => window.setTimeout(resolve, 1000));
+      }
+
+      setAddRfidMessage('No RFID card detected. You can try again or add the item without RFID.');
+    } catch (error) {
+      if (error.name !== 'AbortError') {
+        console.error('Error scanning RFID for new item:', error);
+        setAddRfidMessage('Reader offline. You can enter the RFID manually or leave it empty.');
+      }
+    } finally {
+      if (addRfidControllerRef.current === controller) {
+        addRfidControllerRef.current = null;
+        setAddRfidScanning(false);
+      }
+    }
+  };
+
   const handleAddImageChange = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const selectedFiles = Array.from(e.target.files || []);
+    if (!selectedFiles.length) return;
+
     setAddImageError('');
-    setAddImageFile(file);
-    setAddImagePreview(URL.createObjectURL(file));
+
+    if (addImageFiles.length + selectedFiles.length > 3) {
+      setAddImageError('You can upload a maximum of 3 images per item.');
+      e.target.value = '';
+      return;
+    }
+
+    const newPreviews = selectedFiles.map((file) => URL.createObjectURL(file));
+    setAddImageFiles((prev) => [...prev, ...selectedFiles]);
+    setAddImagePreviews((prev) => [...prev, ...newPreviews]);
+    e.target.value = '';
+  };
+
+  const handleRemoveAddImage = (indexToRemove) => {
+    URL.revokeObjectURL(addImagePreviews[indexToRemove]);
+    setAddImageFiles((prev) => prev.filter((_, idx) => idx !== indexToRemove));
+    setAddImagePreviews((prev) => prev.filter((_, idx) => idx !== indexToRemove));
+    setAddImageError('');
   };
 
   const handleCloseAddModal = () => {
+    addRfidControllerRef.current?.abort();
+    addImagePreviews.forEach((url) => URL.revokeObjectURL(url));
     setShowAddForm(false);
-    setFormData({ itemNo: '', itemName: '', category: '', description: '' });
-    setAddImageFile(null);
-    setAddImagePreview('');
+    setFormData({ itemNo: '', itemName: '', category: '', description: '', rfidCardId: '' });
+    setAddRfidScanning(false);
+    setAddRfidMessage('');
+    setAddImageFiles([]);
+    setAddImagePreviews([]);
     setAddImageError('');
     setAddImageUploading(false);
-    setMessage({ type: '', text: '' });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!canManageInventory) {
+      setMessage({ type: 'error', text: 'You do not have permission to add items.' });
+      return;
+    }
+
+    const trimmedItemNo = formData.itemNo.trim();
+    const trimmedItemName = formData.itemName.trim();
+    const trimmedRfid = formData.rfidCardId.trim().toUpperCase();
+
+    if (!trimmedItemNo || !trimmedItemName || !formData.category) {
+      setMessage({ type: 'error', text: 'Item No, Item Name, and Category are required.' });
+      return;
+    }
+
+    if (trimmedRfid) {
+      const duplicateRfid = itemsRef.current.find(
+        (entry) => String(entry.rfidCardId || '').trim().toUpperCase() === trimmedRfid
+      );
+      if (duplicateRfid) {
+        setMessage({
+          type: 'error',
+          text: `RFID card ${trimmedRfid} is already assigned to "${duplicateRfid.itemName}".`,
+        });
+        return;
+      }
+    }
+
     setSaving(true);
     setMessage({ type: '', text: '' });
 
     try {
-      const itemRef = await addDoc(collection(db, 'inventory'), {
-        ...formData,
+      const newItemPayload = {
+        itemNo: trimmedItemNo,
+        itemName: trimmedItemName,
+        category: formData.category,
+        description: formData.description.trim(),
+        rfidCardId: trimmedRfid || null,
         imageUrl: '',
+        imageUrls: [],
         status: 'available',
+        createdByUid: profile?.id || null,
+        createdByName: profile?.name || profile?.email || null,
         createdAt: serverTimestamp(),
-      });
+        updatedAt: serverTimestamp(),
+      };
 
-      if (addImageFile) {
+      const itemRef = await addDoc(collection(db, 'inventory'), newItemPayload);
+
+      if (addImageFiles.length > 0) {
         setAddImageUploading(true);
-        const path = `inventoryImages/${itemRef.id}/${Date.now()}-${addImageFile.name}`;
-        const storageRef = ref(storage, path);
-        const snapshot = await uploadBytes(storageRef, addImageFile);
-        const nextImageUrl = await getDownloadURL(snapshot.ref);
-        await updateDoc(itemRef, {
-          imageUrl: nextImageUrl,
-          updatedAt: serverTimestamp(),
-        });
+        try {
+          const uploadedUrls = await Promise.all(
+            addImageFiles.map(async (file, index) => {
+              const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+              const path = `inventoryImages/${itemRef.id}/${Date.now()}-${index}-${safeName}`;
+              const storageRef = ref(storage, path);
+              const snapshot = await uploadBytes(storageRef, file);
+              return getDownloadURL(snapshot.ref);
+            })
+          );
+
+          await updateDoc(itemRef, {
+            imageUrl: uploadedUrls[0] || '',
+            imageUrls: uploadedUrls,
+            updatedAt: serverTimestamp(),
+          });
+        } catch (uploadError) {
+          console.error('Item saved, but image upload failed:', uploadError);
+          handleCloseAddModal();
+          setMessage({
+            type: 'error',
+            text: `Item added, but image upload failed: ${uploadError?.message || 'Storage error'}`,
+          });
+          return;
+        }
       }
 
-      setMessage({ type: 'success', text: 'Item added successfully!' });
       handleCloseAddModal();
+      setMessage({
+        type: 'success',
+        text: `Item "${trimmedItemName}" added successfully${trimmedRfid ? ` (RFID: ${trimmedRfid})` : ''}!`,
+      });
     } catch (error) {
       console.error('Error saving item:', error);
-      setMessage({ type: 'error', text: 'Failed to add item.' });
+      setMessage({
+        type: 'error',
+        text: `Failed to add item: ${error?.message || 'Unknown Firestore error'}`,
+      });
     } finally {
       setAddImageUploading(false);
       setSaving(false);
@@ -943,7 +1083,6 @@ const Inventory = () => {
           currentUsageId: usageRef.id,
           updatedAt: serverTimestamp(),
         });
-
       }
 
       await batch.commit();
@@ -1476,7 +1615,6 @@ const Inventory = () => {
                     .filter(Boolean);
                   const allSelected = selectableIds.length > 0 && selectableIds.every((itemId) => selectedIds.includes(itemId));
                   const someSelected = selectableIds.some((itemId) => selectedIds.includes(itemId));
-                  const returnedByNames = Array.from(new Set(itemList.map((item) => item.returnedByName).filter(Boolean)));
 
                   return (
                     <div key={record.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/70 shadow-sm transition-all duration-200 hover:border-slate-300">
@@ -1709,22 +1847,27 @@ const Inventory = () => {
                 </div>
                 <div className="mt-2 flex flex-wrap gap-2 text-xs text-emerald-800">
                   <span className="rounded-full bg-white px-2 py-1 ring-1 ring-emerald-200">{formData.category || 'Category pending'}</span>
-                  <span className="rounded-full bg-white px-2 py-1 ring-1 ring-emerald-200">{addImagePreview ? 'Image ready' : 'No image yet'}</span>
+                  <span className="rounded-full bg-white px-2 py-1 ring-1 ring-emerald-200">
+                    {addImagePreviews.length > 0 ? `${addImagePreviews.length}/3 images ready` : 'No images (optional)'}
+                  </span>
+                  <span className="rounded-full bg-white px-2 py-1 ring-1 ring-emerald-200">
+                    {formData.rfidCardId.trim() ? `RFID: ${formData.rfidCardId.trim().toUpperCase()}` : 'No RFID (optional)'}
+                  </span>
                 </div>
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-3">
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
-                    <label className="mb-1 block text-sm font-semibold text-gray-700">Item No</label>
+                    <label className="mb-1 block text-sm font-semibold text-gray-700">Item No *</label>
                     <input type="text" name="itemNo" value={formData.itemNo} onChange={handleChange} required className="w-full rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
                   </div>
                   <div>
-                    <label className="mb-1 block text-sm font-semibold text-gray-700">Item Name</label>
+                    <label className="mb-1 block text-sm font-semibold text-gray-700">Item Name *</label>
                     <input type="text" name="itemName" value={formData.itemName} onChange={handleChange} required className="w-full rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
                   </div>
                   <div>
-                    <label className="mb-1 block text-sm font-semibold text-gray-700">Category</label>
+                    <label className="mb-1 block text-sm font-semibold text-gray-700">Category *</label>
                     <select name="category" value={formData.category} onChange={handleChange} required className="w-full rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
                       <option value="">Select a category</option>
                       <option value="Photography">Photography</option>
@@ -1736,14 +1879,74 @@ const Inventory = () => {
                     </select>
                   </div>
                   <div>
-                    <label className="mb-1 block text-sm font-semibold text-gray-700">Item Image</label>
-                    <input type="file" accept="image/*" onChange={handleAddImageChange} className="w-full text-sm" />
+                    <label className="mb-1 block text-sm font-semibold text-gray-700">
+                      Item Images <span className="font-normal text-gray-500">(Optional, max 3)</span>
+                    </label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      disabled={addImageFiles.length >= 3}
+                      onChange={handleAddImageChange}
+                      className="w-full text-sm disabled:opacity-50"
+                    />
                   </div>
                 </div>
 
-                {(addImagePreview || addImageError) && (
+                <div>
+                  <label className="mb-1 block text-sm font-semibold text-gray-700">
+                    RFID Card UID <span className="font-normal text-gray-500">(Optional — scan or leave blank)</span>
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      name="rfidCardId"
+                      value={formData.rfidCardId}
+                      onChange={handleChange}
+                      placeholder="e.g. A1B2C3D4"
+                      className="flex-1 rounded border border-slate-200 px-3 py-2 text-sm uppercase focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    {formData.rfidCardId && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFormData((prev) => ({ ...prev, rfidCardId: '' }));
+                          setAddRfidMessage('');
+                        }}
+                        className="rounded border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                  {addRfidMessage && (
+                    <p className="mt-1 text-xs font-medium text-blue-700">{addRfidMessage}</p>
+                  )}
+                </div>
+
+                {(addImagePreviews.length > 0 || addImageError) && (
                   <div className="rounded border border-slate-200 bg-slate-50 p-3">
-                    {addImagePreview && <img src={addImagePreview} alt="Item preview" className="h-32 w-full rounded object-contain bg-white" />}
+                    {addImagePreviews.length > 0 && (
+                      <div className="grid grid-cols-3 gap-2">
+                        {addImagePreviews.map((previewUrl, index) => (
+                          <div key={previewUrl} className="relative rounded border border-slate-200 bg-white p-1">
+                            <img
+                              src={previewUrl}
+                              alt={`Item preview ${index + 1}`}
+                              className="h-24 w-full rounded object-contain"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveAddImage(index)}
+                              className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-xs text-white shadow hover:bg-red-700"
+                              title="Remove image"
+                            >
+                              <FaTimes className="text-[10px]" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     {addImageError && <p className="mt-2 text-sm text-red-600">{addImageError}</p>}
                   </div>
                 )}
@@ -1759,10 +1962,11 @@ const Inventory = () => {
                   </button>
                   <button
                     type="button"
-                    onClick={() => {}}
-                    className="inline-flex items-center justify-center rounded border border-blue-600 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-100"
+                    onClick={handleScanAddRfid}
+                    className="inline-flex items-center justify-center gap-1.5 rounded border border-blue-600 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-100"
                   >
-                    Add RFID
+                    {addRfidScanning && <FaSpinner className="animate-spin" />}
+                    {addRfidScanning ? 'Cancel Scan' : 'Add RFID'}
                   </button>
                   <button type="button" onClick={handleCloseAddModal} className="rounded border border-slate-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100">
                     Cancel

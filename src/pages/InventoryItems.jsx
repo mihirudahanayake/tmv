@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -18,11 +18,27 @@ import {
 } from 'firebase/firestore';
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { useNavigate } from 'react-router-dom';
-import { FaArrowLeft, FaBox, FaEdit, FaSearch, FaSpinner, FaTimes, FaTrash } from 'react-icons/fa';
+import { FaArrowLeft, FaBox, FaEdit, FaLayerGroup, FaSearch, FaSpinner, FaTimes, FaTrash } from 'react-icons/fa';
 import Header from '../components/Header';
 import { db, storage } from '../firebase/config';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { isUserTO } from '../utils/authz';
+
+const CATEGORY_ORDER = [
+  'Photography',
+  'Videography',
+  'Live Streaming',
+  'Drones & Accessories',
+  'Announcing',
+  'Storages',
+];
+
+const getItemImages = (item) => {
+  if (Array.isArray(item?.imageUrls) && item.imageUrls.length > 0) {
+    return item.imageUrls.filter(Boolean);
+  }
+  return item?.imageUrl ? [item.imageUrl] : [];
+};
 
 const InventoryItems = () => {
   const navigate = useNavigate();
@@ -30,6 +46,7 @@ const InventoryItems = () => {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchText, setSearchText] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('All');
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
   const [editingItem, setEditingItem] = useState(null);
@@ -49,8 +66,9 @@ const InventoryItems = () => {
     imageUrl: '',
     rfidCardId: '',
   });
-  const [editImageFile, setEditImageFile] = useState(null);
-  const [editImagePreview, setEditImagePreview] = useState('');
+  const [editExistingImages, setEditExistingImages] = useState([]);
+  const [editNewImageFiles, setEditNewImageFiles] = useState([]);
+  const [editNewImagePreviews, setEditNewImagePreviews] = useState([]);
   const [editImageError, setEditImageError] = useState('');
   const [editImageUploading, setEditImageUploading] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -107,12 +125,62 @@ const InventoryItems = () => {
         ? 'siteAdmin'
         : 'user';
 
+  const normalizedSearch = searchText.trim().toLowerCase();
+
+  const availableCategories = useMemo(() => {
+    const present = new Set(items.map((item) => (item.category || '').trim() || 'Uncategorized'));
+    const ordered = CATEGORY_ORDER.filter((cat) => present.has(cat));
+    const extras = Array.from(present)
+      .filter((cat) => !CATEGORY_ORDER.includes(cat))
+      .sort((a, b) => a.localeCompare(b));
+    return ['All', ...ordered, ...extras];
+  }, [items]);
+
+  const filteredItems = useMemo(() => {
+    return items.filter((item) => {
+      const itemCategory = (item.category || '').trim() || 'Uncategorized';
+      if (selectedCategory !== 'All' && itemCategory !== selectedCategory) {
+        return false;
+      }
+      if (!normalizedSearch) return true;
+      const name = (item.itemName || '').toLowerCase();
+      const no = (item.itemNo || '').toLowerCase();
+      const cat = itemCategory.toLowerCase();
+      return name.includes(normalizedSearch) || no.includes(normalizedSearch) || cat.includes(normalizedSearch);
+    });
+  }, [items, selectedCategory, normalizedSearch]);
+
+  const groupedItemsByCategory = useMemo(() => {
+    const groups = new Map();
+
+    filteredItems.forEach((item) => {
+      const categoryName = (item.category || '').trim() || 'Uncategorized';
+      if (!groups.has(categoryName)) {
+        groups.set(categoryName, []);
+      }
+      groups.get(categoryName).push(item);
+    });
+
+    const orderedKeys = [
+      ...CATEGORY_ORDER.filter((cat) => groups.has(cat)),
+      ...Array.from(groups.keys())
+        .filter((cat) => !CATEGORY_ORDER.includes(cat) && cat !== 'Uncategorized')
+        .sort((a, b) => a.localeCompare(b)),
+      ...(groups.has('Uncategorized') ? ['Uncategorized'] : []),
+    ];
+
+    return orderedKeys.map((category) => ({
+      category,
+      items: groups.get(category),
+    }));
+  }, [filteredItems]);
+
   const handleDownloadInventoryExcel = () => {
     const rows = filteredItems.map((item, index) => ({
       No: index + 1,
+      Category: item.category || 'Uncategorized',
       'Item No': item.itemNo || '',
       'Item Name': item.itemName || '',
-      Category: item.category || '',
       Status: item.status || 'available',
       Description: item.description || '',
     }));
@@ -126,18 +194,18 @@ const InventoryItems = () => {
   const handleDownloadInventoryPdf = () => {
     const doc = new jsPDF();
     doc.setFontSize(16);
-    doc.text('Inventory Items', 14, 16);
+    doc.text('Inventory Items by Category', 14, 16);
 
     const rows = filteredItems.map((item, index) => [
       index + 1,
+      item.category || 'Uncategorized',
       item.itemNo || '-',
       item.itemName || '-',
-      item.category || '-',
       item.status || 'available',
     ]);
 
     autoTable(doc, {
-      head: [['#', 'Item No', 'Item Name', 'Category', 'Status']],
+      head: [['#', 'Category', 'Item No', 'Item Name', 'Status']],
       body: rows,
       startY: 22,
       styles: { fontSize: 9 },
@@ -155,17 +223,19 @@ const InventoryItems = () => {
   };
 
   const handleEdit = (item) => {
+    const existingImgs = getItemImages(item);
     setEditingItem(item);
     setEditFormData({
       itemNo: item.itemNo || '',
       itemName: item.itemName || '',
       category: item.category || '',
       description: item.description || '',
-      imageUrl: item.imageUrl || '',
+      imageUrl: existingImgs[0] || '',
       rfidCardId: item.rfidCardId || '',
     });
-    setEditImageFile(null);
-    setEditImagePreview(item.imageUrl || '');
+    setEditExistingImages(existingImgs);
+    setEditNewImageFiles([]);
+    setEditNewImagePreviews([]);
     setEditImageError('');
     setShowEditModal(true);
     setMessage({ type: '', text: '' });
@@ -180,12 +250,33 @@ const InventoryItems = () => {
   };
 
   const handleEditImageChange = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const selectedFiles = Array.from(e.target.files || []);
+    if (!selectedFiles.length) return;
 
     setEditImageError('');
-    setEditImageFile(file);
-    setEditImagePreview(URL.createObjectURL(file));
+    const totalCount = editExistingImages.length + editNewImageFiles.length + selectedFiles.length;
+    if (totalCount > 3) {
+      setEditImageError('You can have a maximum of 3 images per item.');
+      e.target.value = '';
+      return;
+    }
+
+    const newPreviews = selectedFiles.map((file) => URL.createObjectURL(file));
+    setEditNewImageFiles((prev) => [...prev, ...selectedFiles]);
+    setEditNewImagePreviews((prev) => [...prev, ...newPreviews]);
+    e.target.value = '';
+  };
+
+  const handleRemoveExistingEditImage = (indexToRemove) => {
+    setEditExistingImages((prev) => prev.filter((_, idx) => idx !== indexToRemove));
+    setEditImageError('');
+  };
+
+  const handleRemoveNewEditImage = (indexToRemove) => {
+    URL.revokeObjectURL(editNewImagePreviews[indexToRemove]);
+    setEditNewImageFiles((prev) => prev.filter((_, idx) => idx !== indexToRemove));
+    setEditNewImagePreviews((prev) => prev.filter((_, idx) => idx !== indexToRemove));
+    setEditImageError('');
   };
 
   const handleScanRfid = async () => {
@@ -253,6 +344,7 @@ const InventoryItems = () => {
   const handleCloseEditModal = () => {
     scanControllerRef.current?.abort();
     scanControllerRef.current = null;
+    editNewImagePreviews.forEach((url) => URL.revokeObjectURL(url));
     setRfidScanning(false);
     setRfidMessage('');
     setShowEditModal(false);
@@ -265,8 +357,9 @@ const InventoryItems = () => {
       imageUrl: '',
       rfidCardId: '',
     });
-    setEditImageFile(null);
-    setEditImagePreview('');
+    setEditExistingImages([]);
+    setEditNewImageFiles([]);
+    setEditNewImagePreviews([]);
     setEditImageError('');
     setEditImageUploading(false);
   };
@@ -292,20 +385,27 @@ const InventoryItems = () => {
         }
       }
 
-      let nextImageUrl = editFormData.imageUrl || '';
-
-      if (editImageFile) {
+      let uploadedNewUrls = [];
+      if (editNewImageFiles.length > 0) {
         setEditImageUploading(true);
-        const path = `inventoryImages/${editingItem.id}/${Date.now()}-${editImageFile.name}`;
-        const storageRef = ref(storage, path);
-        const snapshot = await uploadBytes(storageRef, editImageFile);
-        nextImageUrl = await getDownloadURL(snapshot.ref);
+        uploadedNewUrls = await Promise.all(
+          editNewImageFiles.map(async (file, index) => {
+            const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+            const path = `inventoryImages/${editingItem.id}/${Date.now()}-${index}-${safeName}`;
+            const storageRef = ref(storage, path);
+            const snapshot = await uploadBytes(storageRef, file);
+            return getDownloadURL(snapshot.ref);
+          })
+        );
       }
+
+      const finalImageUrls = [...editExistingImages, ...uploadedNewUrls].slice(0, 3);
 
       await updateDoc(doc(db, 'inventory', editingItem.id), {
         ...editFormData,
-        rfidCardId,
-        imageUrl: nextImageUrl,
+        rfidCardId: rfidCardId || null,
+        imageUrl: finalImageUrls[0] || '',
+        imageUrls: finalImageUrls,
         updatedAt: serverTimestamp(),
       });
 
@@ -313,7 +413,7 @@ const InventoryItems = () => {
       handleCloseEditModal();
     } catch (error) {
       console.error('Error updating item:', error);
-      setEditImageError('Failed to update item.');
+      setEditImageError(`Failed to update item: ${error?.message || 'Unknown error'}`);
       setMessage({ type: 'error', text: 'Failed to update item.' });
     } finally {
       setEditImageUploading(false);
@@ -498,13 +598,7 @@ const InventoryItems = () => {
     }
   };
 
-  const normalizedSearch = searchText.trim().toLowerCase();
-  const filteredItems = items.filter((item) => {
-    if (!normalizedSearch) return true;
-    const name = (item.itemName || '').toLowerCase();
-    const no = (item.itemNo || '').toLowerCase();
-    return name.includes(normalizedSearch) || no.includes(normalizedSearch);
-  });
+  const totalEditImagesCount = editExistingImages.length + editNewImageFiles.length;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-100 via-white to-blue-50">
@@ -525,7 +619,7 @@ const InventoryItems = () => {
 
               <div className="text-center">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-blue-600">Inventory items</p>
-                <h1 className="mt-2 text-2xl font-bold text-slate-800 sm:text-3xl">Item cards</h1>
+                <h1 className="mt-2 text-2xl font-bold text-slate-800 sm:text-3xl">Item cards by category</h1>
               </div>
 
               <div className="flex flex-wrap items-center justify-end gap-2">
@@ -544,12 +638,6 @@ const InventoryItems = () => {
                   Download Item List (.pdf)
                 </button>
               </div>
-            </div>
-
-            {/* Removed duplicate title block to keep the row layout clean */}
-            <div className="hidden">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-blue-600">Inventory items</p>
-              <h1 className="mt-2 text-2xl font-bold text-slate-800 sm:text-3xl">Item cards</h1>
             </div>
           </div>
         </div>
@@ -587,15 +675,50 @@ const InventoryItems = () => {
           </div>
         )}
 
-        <div className="relative mb-4">
-          <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm" />
-          <input
-            type="text"
-            placeholder="Search by item name or number..."
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-sm shadow-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-          />
+        <div className="mb-4 space-y-3">
+          <div className="relative">
+            <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm" />
+            <input
+              type="text"
+              placeholder="Search by item name, number, or category..."
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-sm shadow-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+            />
+          </div>
+
+          {availableCategories.length > 1 && (
+            <div className="flex flex-wrap items-center gap-2">
+              {availableCategories.map((category) => {
+                const count = category === 'All'
+                  ? items.length
+                  : items.filter((item) => ((item.category || '').trim() || 'Uncategorized') === category).length;
+                const isActive = selectedCategory === category;
+
+                return (
+                  <button
+                    key={category}
+                    type="button"
+                    onClick={() => setSelectedCategory(category)}
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                      isActive
+                        ? 'border-blue-600 bg-blue-600 text-white shadow-sm'
+                        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span>{category}</span>
+                    <span
+                      className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                        isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+                      }`}
+                    >
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {loading ? (
@@ -603,120 +726,159 @@ const InventoryItems = () => {
             <FaSpinner className="animate-spin text-xl text-blue-600" />
             <span>Loading inventory items...</span>
           </div>
-        ) : filteredItems.length === 0 ? (
+        ) : groupedItemsByCategory.length === 0 ? (
           <div className="bg-white rounded-lg shadow-md p-6 text-center">
             <FaBox className="mx-auto text-4xl text-gray-400 mb-2" />
             <p className="text-gray-600 text-sm">
-              {searchText ? 'No items match your search.' : 'No items in inventory.'}
+              {searchText || selectedCategory !== 'All'
+                ? 'No items match your current filter.'
+                : 'No items in inventory.'}
             </p>
           </div>
         ) : (
-          <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {filteredItems.map((item) => (
-              <div
-                key={item.id}
-                onClick={() => openItemDetailModal(item)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    openItemDetailModal(item);
-                  }
-                }}
-                className="cursor-pointer rounded-[22px] border border-slate-200 bg-white/90 p-3 shadow-[0_10px_24px_rgba(15,23,42,0.04)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_16px_28px_rgba(59,130,246,0.08)]"
-              >
-                {item.imageUrl && (
-                  <div className="mb-3 overflow-hidden rounded-xl bg-slate-50">
-                    <img
-                      src={item.imageUrl}
-                      alt={item.itemName || 'Item'}
-                      className="h-32 w-full object-contain"
-                    />
-                  </div>
-                )}
-
-                <div className="mb-2 flex items-start justify-between gap-2">
-                  <h3 className="flex-1 text-sm font-bold text-slate-800 sm:text-base">{item.itemName}</h3>
-                  <span className="rounded-full bg-blue-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-blue-800">{item.itemNo}</span>
-                </div>
-
-                {item.category && (
-                  <p className="mb-2 inline-flex rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-700">
-                    {item.category}
-                  </p>
-                )}
-
-                {item.description && (
-                  <p className="mb-3 line-clamp-2 text-xs text-slate-600 sm:text-sm">{item.description}</p>
-                )}
-
-                <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span
-                      className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wide ${
-                        (item.status || 'available') === 'overdue'
-                          ? 'bg-red-100 text-red-700'
-                          : (item.status || 'available') === 'checkedOut'
-                            ? 'bg-yellow-100 text-yellow-800'
-                            : 'bg-emerald-100 text-emerald-700'
-                      }`}
-                    >
-                      {(item.status || 'available') === 'overdue'
-                        ? 'Overdue'
-                        : (item.status || 'available') === 'checkedOut'
-                          ? 'Checked out'
-                          : 'Available'}
+          <div className="mb-8 space-y-8">
+            {groupedItemsByCategory.map(({ category, items: categoryItems }) => (
+              <section key={category} className="space-y-3">
+                <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white/90 px-4 py-3 shadow-sm">
+                  <div className="flex items-center gap-2.5">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                      <FaLayerGroup className="text-sm" />
                     </span>
-
-                    {((item.status || 'available') === 'checkedOut' || (item.status || 'available') === 'overdue') && item.dueAt && (
-                      <span className="text-[10px] text-slate-500">
-                        Due: {item.dueAt?.toDate ? item.dueAt.toDate().toLocaleDateString() : ''}
-                      </span>
-                    )}
-                  </div>
-
-                  {canManageInventory && (
-                    <div className="flex flex-wrap justify-end gap-1.5">
-                      {(item.status || 'available') === 'checkedOut' || (item.status || 'available') === 'overdue' ? (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openReturnConfirmModal(item);
-                          }}
-                          className="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-2.5 py-1.5 text-[10px] font-semibold text-white hover:bg-emerald-700"
-                        >
-                          Return
-                        </button>
-                      ) : null}
-
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleEdit(item);
-                        }}
-                        className="inline-flex items-center justify-center rounded-lg bg-slate-700 px-2.5 py-1.5 text-[10px] font-semibold text-white hover:bg-slate-800"
-                      >
-                        <FaEdit className="mr-1" />
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDelete(item.id, item.itemName);
-                        }}
-                        className="inline-flex items-center justify-center rounded-lg bg-red-600 px-2.5 py-1.5 text-[10px] font-semibold text-white hover:bg-red-700"
-                      >
-                        <FaTrash className="mr-1" />
-                        Delete
-                      </button>
+                    <div>
+                      <h2 className="text-base font-bold text-slate-800 sm:text-lg">{category}</h2>
                     </div>
-                  )}
+                  </div>
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
+                    {categoryItems.length} {categoryItems.length === 1 ? 'item' : 'items'}
+                  </span>
                 </div>
-              </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                  {categoryItems.map((item) => {
+                    const itemImages = getItemImages(item);
+                    const coverImage = itemImages[0] || '';
+
+                    return (
+                      <div
+                        key={item.id}
+                        onClick={() => openItemDetailModal(item)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            openItemDetailModal(item);
+                          }
+                        }}
+                        className="cursor-pointer rounded-[22px] border border-slate-200 bg-white/90 p-3 shadow-[0_10px_24px_rgba(15,23,42,0.04)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_16px_28px_rgba(59,130,246,0.08)]"
+                      >
+                        {coverImage && (
+                          <div className="relative mb-3 overflow-hidden rounded-xl bg-slate-50">
+                            <img
+                              src={coverImage}
+                              alt={item.itemName || 'Item'}
+                              className="h-32 w-full object-contain"
+                            />
+                            {itemImages.length > 1 && (
+                              <span className="absolute bottom-2 right-2 rounded-full bg-slate-900/75 px-2 py-0.5 text-[10px] font-semibold text-white">
+                                +{itemImages.length - 1} more
+                              </span>
+                            )}
+                          </div>
+                        )}
+
+                        <div className="mb-2 flex items-start justify-between gap-2">
+                          <h3 className="flex-1 text-sm font-bold text-slate-800 sm:text-base">{item.itemName}</h3>
+                          <span className="rounded-full bg-blue-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-blue-800">
+                            {item.itemNo}
+                          </span>
+                        </div>
+
+                        <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                          <span className="inline-flex rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-700">
+                            {category}
+                          </span>
+                          {item.rfidCardId && (
+                            <span className="inline-flex rounded-full bg-indigo-50 px-2 py-1 text-[10px] font-semibold text-indigo-700">
+                              RFID: {item.rfidCardId}
+                            </span>
+                          )}
+                        </div>
+
+                        {item.description && (
+                          <p className="mb-3 line-clamp-2 text-xs text-slate-600 sm:text-sm">{item.description}</p>
+                        )}
+
+                        <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-3">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span
+                              className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wide ${
+                                (item.status || 'available') === 'overdue'
+                                  ? 'bg-red-100 text-red-700'
+                                  : (item.status || 'available') === 'checkedOut'
+                                    ? 'bg-yellow-100 text-yellow-800'
+                                    : 'bg-emerald-100 text-emerald-700'
+                              }`}
+                            >
+                              {(item.status || 'available') === 'overdue'
+                                ? 'Overdue'
+                                : (item.status || 'available') === 'checkedOut'
+                                  ? 'Checked out'
+                                  : 'Available'}
+                            </span>
+
+                            {((item.status || 'available') === 'checkedOut' || (item.status || 'available') === 'overdue') && item.dueAt && (
+                              <span className="text-[10px] text-slate-500">
+                                Due: {item.dueAt?.toDate ? item.dueAt.toDate().toLocaleDateString() : ''}
+                              </span>
+                            )}
+                          </div>
+
+                          {canManageInventory && (
+                            <div className="flex flex-wrap justify-end gap-1.5">
+                              {(item.status || 'available') === 'checkedOut' || (item.status || 'available') === 'overdue' ? (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openReturnConfirmModal(item);
+                                  }}
+                                  className="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-2.5 py-1.5 text-[10px] font-semibold text-white hover:bg-emerald-700"
+                                >
+                                  Return
+                                </button>
+                              ) : null}
+
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEdit(item);
+                                }}
+                                className="inline-flex items-center justify-center rounded-lg bg-slate-700 px-2.5 py-1.5 text-[10px] font-semibold text-white hover:bg-slate-800"
+                              >
+                                <FaEdit className="mr-1" />
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDelete(item.id, item.itemName);
+                                }}
+                                className="inline-flex items-center justify-center rounded-lg bg-red-600 px-2.5 py-1.5 text-[10px] font-semibold text-white hover:bg-red-700"
+                              >
+                                <FaTrash className="mr-1" />
+                                Delete
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
             ))}
           </div>
         )}
@@ -739,6 +901,7 @@ const InventoryItems = () => {
                 <div className="mt-2 flex flex-wrap gap-2 text-xs text-sky-800">
                   <span className="rounded-full bg-white px-2 py-1 ring-1 ring-sky-200">{editFormData.category || 'Category pending'}</span>
                   <span className="rounded-full bg-white px-2 py-1 ring-1 ring-sky-200">{editFormData.rfidCardId ? 'RFID linked' : 'No RFID'}</span>
+                  <span className="rounded-full bg-white px-2 py-1 ring-1 ring-sky-200">{totalEditImagesCount}/3 images</span>
                 </div>
               </div>
 
@@ -788,15 +951,51 @@ const InventoryItems = () => {
                   </div>
 
                   <div>
-                    <label className="mb-1 block text-sm font-semibold text-gray-700">Item Image</label>
-                    <input type="file" accept="image/*" onChange={handleEditImageChange} className="w-full text-sm" />
+                    <label className="mb-1 block text-sm font-semibold text-gray-700">
+                      Item Images <span className="font-normal text-gray-500">(Max 3)</span>
+                    </label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      disabled={totalEditImagesCount >= 3}
+                      onChange={handleEditImageChange}
+                      className="w-full text-sm disabled:opacity-50"
+                    />
                   </div>
                 </div>
 
-                {(editImagePreview || editImageError) && (
+                {(totalEditImagesCount > 0 || editImageError) && (
                   <div className="rounded border border-slate-200 bg-slate-50 p-3">
-                    {editImagePreview && (
-                      <img src={editImagePreview} alt="Item preview" className="h-32 w-full rounded object-contain bg-white" />
+                    {totalEditImagesCount > 0 && (
+                      <div className="grid grid-cols-3 gap-2">
+                        {editExistingImages.map((url, index) => (
+                          <div key={`existing-${url}-${index}`} className="relative rounded border border-slate-200 bg-white p-1">
+                            <img src={url} alt={`Existing item ${index + 1}`} className="h-24 w-full rounded object-contain" />
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveExistingEditImage(index)}
+                              className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-xs text-white shadow hover:bg-red-700"
+                              title="Remove image"
+                            >
+                              <FaTimes className="text-[10px]" />
+                            </button>
+                          </div>
+                        ))}
+                        {editNewImagePreviews.map((previewUrl, index) => (
+                          <div key={`new-${previewUrl}`} className="relative rounded border border-blue-200 bg-white p-1">
+                            <img src={previewUrl} alt={`New preview ${index + 1}`} className="h-24 w-full rounded object-contain" />
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveNewEditImage(index)}
+                              className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-xs text-white shadow hover:bg-red-700"
+                              title="Remove image"
+                            >
+                              <FaTimes className="text-[10px]" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
                     )}
                     {editImageError && <p className="mt-2 text-sm text-red-600">{editImageError}</p>}
                   </div>
@@ -915,14 +1114,21 @@ const InventoryItems = () => {
                       </div>
                     )}
 
-                    {itemDetailModal.item.imageUrl && (
+                    {getItemImages(itemDetailModal.item).length > 0 && (
                       <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">
-                        <p className="mb-2 text-gray-500">Item Image</p>
-                        <img
-                          src={itemDetailModal.item.imageUrl}
-                          alt={itemDetailModal.item.itemName || 'Item'}
-                          className="w-full max-h-72 rounded object-contain bg-white"
-                        />
+                        <p className="mb-2 text-gray-500">
+                          Item {getItemImages(itemDetailModal.item).length > 1 ? 'Images' : 'Image'}
+                        </p>
+                        <div className={`grid gap-3 ${getItemImages(itemDetailModal.item).length > 1 ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-1'}`}>
+                          {getItemImages(itemDetailModal.item).map((url, idx) => (
+                            <img
+                              key={`${url}-${idx}`}
+                              src={url}
+                              alt={`${itemDetailModal.item.itemName || 'Item'} ${idx + 1}`}
+                              className="w-full max-h-60 rounded border border-slate-200 object-contain bg-white p-1"
+                            />
+                          ))}
+                        </div>
                       </div>
                     )}
 
