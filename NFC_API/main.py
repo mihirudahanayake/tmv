@@ -26,7 +26,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from firebase_admin import firestore
 from google.api_core.exceptions import AlreadyExists
 from google.auth.exceptions import DefaultCredentialsError
-from pydantic import AliasChoices, BaseModel, Field, field_validator, model_validator
+from pydantic import AliasChoices, BaseModel, Field, field_validator
 from nfc_reader import nfc
 
 
@@ -42,6 +42,39 @@ def fetch_esp_json(url: str) -> dict:
     if not isinstance(payload, dict):
         raise ValueError("ESP response must be a JSON object.")
     return payload
+
+
+def _as_utc_datetime(value: object) -> datetime | None:
+    if not isinstance(value, datetime):
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _get_active_door_authorization(client, event_time: datetime) -> dict | None:
+    snapshot = (
+        client.collection("doorAccessState")
+        .document("current")
+        .get(timeout=20)
+    )
+    if not snapshot.exists:
+        return None
+
+    state = snapshot.to_dict() or {}
+    authorized_at = _as_utc_datetime(state.get("authorizedAt"))
+    expires_at = _as_utc_datetime(state.get("expiresAt"))
+    event_time = _as_utc_datetime(event_time)
+    if (
+        state.get("authorized") is not True
+        or authorized_at is None
+        or expires_at is None
+        or event_time is None
+        or event_time < authorized_at
+        or event_time >= expires_at
+    ):
+        return None
+    return state
 
 
 def save_new_esp_photos(payload: dict) -> int:
@@ -65,6 +98,7 @@ def save_new_esp_photos(payload: dict) -> int:
 
     record_collection = client.collection("accessRecords")
     items = list(unique_photos.items())
+    event_fields = None
     for offset in range(0, len(items), 400):
         chunk = items[offset : offset + 400]
         document_refs = {
@@ -76,20 +110,60 @@ def save_new_esp_photos(payload: dict) -> int:
             for snapshot in client.get_all(list(document_refs.values()), timeout=20)
             if snapshot.exists
         }
+        new_photos = [
+            (document_id, image_name)
+            for document_id, image_name in chunk
+            if document_id not in existing_ids
+        ]
+        if not new_photos:
+            continue
+
+        if event_fields is None:
+            detected_at = datetime.now(timezone.utc)
+            verification_failed = False
+            try:
+                authorization = _get_active_door_authorization(client, detected_at)
+            except Exception:
+                logger.exception(
+                    "Could not verify the current cupboard authorization window."
+                )
+                authorization = None
+                verification_failed = True
+
+            event_fields = {
+                "authorized": authorization is not None,
+                "action": "door_open",
+                "doorSensorTriggered": True,
+                "createdAt": detected_at,
+                "source": "esp32-cam",
+            }
+            if authorization:
+                event_fields.update(
+                    {
+                        "rfidCardId": authorization.get("cardUid"),
+                        "userId": authorization.get("userId"),
+                        "userName": authorization.get("userName"),
+                        "userEmail": authorization.get("userEmail"),
+                        "userRole": authorization.get("userRole"),
+                        "accessWindowExpiresAt": authorization.get("expiresAt"),
+                    }
+                )
+            else:
+                event_fields["reason"] = (
+                    "Authorization state could not be verified; access is denied."
+                    if verification_failed
+                    else "Door opened without an active authorized NFC scan."
+                )
+
         batch = client.batch()
         batch_count = 0
 
-        for document_id, image_name in chunk:
-            if document_id in existing_ids:
-                continue
+        for document_id, image_name in new_photos:
             batch.create(
                 document_refs[document_id],
                 {
-                    "authorized": True,
-                    "action": "door_unlock",
                     "imageName": image_name,
-                    "createdAt": datetime.now(timezone.utc),
-                    "source": "esp32-cam",
+                    **event_fields,
                 },
             )
             batch_count += 1
@@ -185,7 +259,7 @@ app.add_middleware(
 
 
 class DoorAccessRecord(BaseModel):
-    authorized: bool = True
+    authorized: bool = False
     imagePath: str | None = Field(
         default=None,
         min_length=1,
@@ -199,15 +273,10 @@ class DoorAccessRecord(BaseModel):
     )
     userName: str | None = Field(default=None, max_length=200)
     userEmail: str | None = Field(default=None, max_length=320)
+    userId: str | None = Field(default=None, max_length=200)
     rfidCardId: str | None = Field(default=None, max_length=200)
     action: str | None = Field(default=None, max_length=200)
     reason: str | None = Field(default=None, max_length=1000)
-
-    @model_validator(mode="after")
-    def require_image_path(self) -> "DoorAccessRecord":
-        if not self.imagePath and not self.photoUrl:
-            raise ValueError("Provide imagePath or photoUrl.")
-        return self
 
     @field_validator("timestamp")
     @classmethod
@@ -319,23 +388,72 @@ def create_door_access_record(
     payload: DoorAccessRecord,
     _: None = Depends(verify_door_api_key),
 ):
-    created_at = payload.timestamp or datetime.now(timezone.utc)
+    received_at = datetime.now(timezone.utc)
     photo_url = payload.photoUrl or payload.imagePath
+    try:
+        client = get_firestore_client()
+    except DefaultCredentialsError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Firebase Admin credentials are not configured.",
+        ) from exc
+    verification_failed = False
+    try:
+        authorization = _get_active_door_authorization(client, received_at)
+    except Exception:
+        logger.exception("Could not verify the current cupboard authorization window.")
+        authorization = None
+        verification_failed = True
+
     record = payload.model_dump(
-        exclude={"timestamp", "imagePath", "photoUrl"},
+        exclude={
+            "timestamp",
+            "imagePath",
+            "photoUrl",
+            "authorized",
+            "userName",
+            "userEmail",
+            "userId",
+            "rfidCardId",
+            "action",
+            "reason",
+        },
         exclude_none=True,
     )
     record.update(
         {
+            "authorized": authorization is not None,
+            "action": "door_open",
+            "doorSensorTriggered": True,
+            "source": "door-api",
             "imagePath": payload.imagePath or photo_url,
             "photoUrl": photo_url,
-            "createdAt": created_at,
+            "createdAt": received_at,
         }
     )
+    if payload.timestamp:
+        record["sensorTimestamp"] = payload.timestamp
+    if authorization:
+        record.update(
+            {
+                "rfidCardId": authorization.get("cardUid"),
+                "userId": authorization.get("userId"),
+                "userName": authorization.get("userName"),
+                "userEmail": authorization.get("userEmail"),
+                "userRole": authorization.get("userRole"),
+                "accessWindowExpiresAt": authorization.get("expiresAt"),
+            }
+        )
+    else:
+        record["reason"] = (
+            "Authorization state could not be verified; access is denied."
+            if verification_failed
+            else "Door opened without an active authorized NFC scan."
+        )
 
     try:
         _, document_ref = (
-            get_firestore_client().collection("accessRecords").add(record)
+            client.collection("accessRecords").add(record)
         )
     except DefaultCredentialsError as exc:
         raise HTTPException(
@@ -345,8 +463,9 @@ def create_door_access_record(
 
     return {
         "id": document_ref.id,
-        "createdAt": created_at.isoformat(),
+        "createdAt": received_at.isoformat(),
         "photoUrl": photo_url,
+        "authorized": record["authorized"],
     }
 
 

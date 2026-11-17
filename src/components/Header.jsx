@@ -88,6 +88,7 @@ const Header = ({ userType, isTO = false, isDarkMode, toggleDarkMode, isGlobalLa
           { path: '/my-item-usage', label: 'My Item Usage', icon: <FaHistory /> },
           { path: '/user-reject-details', label: 'My Rejections', icon: <FaBan /> },
           ...(showTOInventory ? [{ path: '/inventory', label: 'Inventory', icon: <FaBox /> }] : []),
+          ...(showTOInventory ? [{ path: '/access-records', label: 'Access Records', icon: <FaIdCard /> }] : []),
           { path: '/profile', label: 'Profile', icon: <FaUser /> },
           { path: '/user/notifications', label: 'Notifications', icon: <FaBell /> },
         ]

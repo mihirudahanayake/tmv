@@ -15,11 +15,12 @@ import {
   writeBatch,
   serverTimestamp,
 } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { useNavigate } from 'react-router-dom';
 import { FaBox, FaIdCard, FaList, FaPlus, FaSpinner, FaTimes, FaCommentDots, FaEdit, FaTrash } from 'react-icons/fa';
 import Header from '../components/Header';
-import { db, storage } from '../firebase/config';
+import { db, functions, storage } from '../firebase/config';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { isUserTO } from '../utils/authz';
 
@@ -34,6 +35,9 @@ const getTimestampMillis = (value) => {
 
   return date && !Number.isNaN(date.getTime()) ? date.getTime() : 0;
 };
+
+const formatCountdown = (seconds) =>
+  `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 
 const buildIssueHistoryFromUsage = (usageRecords, legacyIssueRecords) => usageRecords
   .filter((usage) => usage.itemId)
@@ -120,6 +124,8 @@ const Inventory = () => {
   const rfidSocketRef = useRef(null);
   const [cupboardNfcScanning, setCupboardNfcScanning] = useState(false);
   const [cupboardNfcMessage, setCupboardNfcMessage] = useState('');
+  const [cupboardAuthorizationExpiresAt, setCupboardAuthorizationExpiresAt] = useState(null);
+  const [cupboardAuthorizationSeconds, setCupboardAuthorizationSeconds] = useState(0);
   const cupboardNfcScanControllerRef = useRef(null);
   const nfcApiUrl = (
     import.meta.env.VITE_NFC_URL ||
@@ -353,8 +359,29 @@ const Inventory = () => {
     cupboardNfcScanControllerRef.current?.abort();
   }, []);
 
+  useEffect(() => {
+    if (!cupboardAuthorizationExpiresAt) return undefined;
+
+    const updateRemainingTime = () => {
+      const remaining = Math.max(
+        0,
+        Math.ceil((cupboardAuthorizationExpiresAt - Date.now()) / 1000)
+      );
+      setCupboardAuthorizationSeconds(remaining);
+      if (remaining === 0) {
+        setCupboardAuthorizationExpiresAt(null);
+        setCupboardNfcMessage('Authorization expired. Scan again before opening the cupboard.');
+      }
+    };
+
+    updateRemainingTime();
+    const intervalId = window.setInterval(updateRemainingTime, 1000);
+    return () => window.clearInterval(intervalId);
+  }, [cupboardAuthorizationExpiresAt]);
+
   const handleCupboardNfcScan = async () => {
-    if (!isUserTO(profile) && profile?.role !== 'superAdmin') {
+    const isSuperAdmin = profile?.role === 'superAdmin' || profile?.userType === 'superAdmin';
+    if (!isUserTO(profile) && !isSuperAdmin) {
       setCupboardNfcMessage('Only TO or Super Admin users can scan for cupboard access.');
       return;
     }
@@ -372,6 +399,8 @@ const Inventory = () => {
 
     const controller = new AbortController();
     cupboardNfcScanControllerRef.current = controller;
+    setCupboardAuthorizationExpiresAt(null);
+    setCupboardAuthorizationSeconds(0);
     setCupboardNfcScanning(true);
     setCupboardNfcMessage('Waiting for an NFC card. Hold it near the reader.');
 
@@ -390,18 +419,30 @@ const Inventory = () => {
         const uid = String(data?.uid ?? '').trim();
         if (uid) {
           try {
-            await addDoc(collection(db, 'cupboardAccessLogs'), {
-              cardUid: uid,
-              scannedByUid: profile.id,
-              scannedByRole: isUserTO(profile) ? 'TO' : 'superAdmin',
-              createdAt: serverTimestamp(),
-            });
-            setCupboardNfcMessage(
-              `NFC card detected and scan saved: ${uid}. This records the scan only; it does not unlock the cupboard.`
-            );
+            const authorizeCupboardAccess = httpsCallable(functions, 'authorizeCupboardAccess');
+            const result = await authorizeCupboardAccess({ cardUid: uid });
+            const authorization = result.data || {};
+
+            if (authorization.authorized) {
+              const expiresAt = Date.parse(authorization.expiresAt || '');
+              if (!Number.isFinite(expiresAt)) {
+                throw new Error('Authorization response did not include a valid expiry time.');
+              }
+              setCupboardAuthorizationExpiresAt(expiresAt);
+              setCupboardAuthorizationSeconds(
+                Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000))
+              );
+              setCupboardNfcMessage(
+                `Authorized${authorization.userName ? ` for ${authorization.userName}` : ''}.`
+              );
+            } else {
+              setCupboardNfcMessage(
+                `Unauthorized card${authorization.reason ? `: ${authorization.reason}` : '.'}`
+              );
+            }
           } catch (error) {
-            console.error('Error saving cupboard NFC scan:', error);
-            setCupboardNfcMessage('NFC card detected, but the scan could not be saved to Firebase.');
+            console.error('Error authorizing cupboard NFC card:', error);
+            setCupboardNfcMessage('NFC card detected, but authorization could not be verified.');
           }
           return;
         }
@@ -455,7 +496,8 @@ const Inventory = () => {
     role === 'siteAdmin' ||
     role === 'departmentHead' ||
     role === 'supervisorTO';
-  const canAccessCupboard = toEnabled || role === 'superAdmin';
+  const canAccessCupboard =
+    toEnabled || role === 'superAdmin' || profile?.userType === 'superAdmin';
   const headerUserType = role === 'departmentHead'
     ? 'admin'
     : role === 'superAdmin'
@@ -1265,7 +1307,14 @@ const Inventory = () => {
                 {cupboardNfcMessage}
               </p>
             )}
-            <p className="mt-2 text-xs text-slate-500">The scan reads the card UID only; cupboard unlocking is not connected.</p>
+            {cupboardAuthorizationSeconds > 0 && (
+              <p role="status" aria-live="polite" className="mt-2 text-sm font-semibold text-emerald-700">
+                Access authorized for {formatCountdown(cupboardAuthorizationSeconds)}.
+              </p>
+            )}
+            <p className="mt-2 text-xs text-slate-500">
+              Authorization lasts two minutes and is used to classify door events. Physical cupboard unlocking is not connected.
+            </p>
           </div>
         )}
 

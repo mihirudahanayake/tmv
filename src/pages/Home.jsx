@@ -201,8 +201,11 @@ const Home = () => {
 
       const docs = snap.docs
         .map((d) => ({ id: d.id, ...d.data() }))
-        // Only show admin-sent notifications in the popup
-        .filter((n) => n.source === 'admin' || n.type === 'admin-message');
+        .filter((n) => (
+          n.source === 'admin' ||
+          n.type === 'admin-message' ||
+          (n.source === 'system' && n.type === 'unauthorized-access')
+        ));
 
       setPopup(docs[0] || null);
     });

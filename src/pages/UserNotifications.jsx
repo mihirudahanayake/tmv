@@ -25,8 +25,11 @@ const UserNotifications = () => {
     const unsub = onSnapshot(q, (snap) => {
       const list = snap.docs
         .map((d) => ({ id: d.id, ...d.data() }))
-        // Only show admin-sent notifications to users
-        .filter((n) => n.source === 'admin' || n.type === 'admin-message');
+        .filter((n) => (
+          n.source === 'admin' ||
+          n.type === 'admin-message' ||
+          (n.source === 'system' && n.type === 'unauthorized-access')
+        ));
       setNotifs(list);
       setLoading(false);
     });

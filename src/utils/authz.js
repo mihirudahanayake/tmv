@@ -22,7 +22,9 @@ export const normalizeRole = (userDoc) => {
   // Backward compatibility with old field
   if (userDoc?.userType === 'admin') return Roles.DEPARTMENT_HEAD;
   if (userDoc?.userType === 'superAdmin') return Roles.SUPER_ADMIN;
-  if (userDoc?.userType === 'supervisor') return Roles.SUPERVISOR_TO;
+  if (userDoc?.userType === 'supervisor' || userDoc?.userType === 'supervisorTO') {
+    return Roles.SUPERVISOR_TO;
+  }
   return Roles.MEMBER;
 };
 

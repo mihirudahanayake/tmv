@@ -24,7 +24,8 @@ service cloud.firestore {
             ? 'departmentHead'
             : (myUserDoc().get('userType', null) == 'superAdmin')
               ? 'superAdmin'
-              : (myUserDoc().get('userType', null) == 'supervisor')
+            : (myUserDoc().get('userType', null) == 'supervisor'
+              || myUserDoc().get('userType', null) == 'supervisorTO')
                 ? 'supervisorTO'
                 : 'member';
     }
@@ -393,7 +394,7 @@ service cloud.firestore {
     }
 
     match /accessRecords/{recordId} {
-      allow read: if isDeptHead() || isSuperAdmin() || isSiteAdmin();
+      allow read: if isDeptHead() || isSuperAdmin() || isSiteAdmin() || isSupervisorTO();
       allow create: if isSupervisorTO() || isSuperAdmin() || isSiteAdmin();
       allow update, delete: if false;
     }

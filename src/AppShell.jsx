@@ -174,9 +174,9 @@ const AppShell = () => {
       <Route
         path="/access-records"
         element={
-          <DeptHeadRoute>
+          <RoleRoute allowRoles={['departmentHead', 'superAdmin', 'siteAdmin', 'supervisorTO']} redirectTo="/home">
             <AccessRecords />
-          </DeptHeadRoute>
+          </RoleRoute>
         }
       />
       <Route

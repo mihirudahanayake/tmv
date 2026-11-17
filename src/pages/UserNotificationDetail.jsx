@@ -1,6 +1,6 @@
 // src/pages/UserNotificationDetail.jsx
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import Header from '../components/Header';
@@ -67,6 +67,14 @@ const UserNotificationDetail = () => {
               <p className="text-sm sm:text-base text-gray-700 mb-4">
                 {notif.message}
               </p>
+            )}
+            {notif.type === 'unauthorized-access' && (
+              <Link
+                to="/access-records"
+                className="inline-flex rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+              >
+                View access records
+              </Link>
             )}
             {notif.type && (
               <p className="text-xs text-gray-500">

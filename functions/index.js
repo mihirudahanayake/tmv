@@ -44,7 +44,9 @@ function normalizeRole(userDoc) {
   // Backward compatibility
   if (userDoc?.userType === 'admin') return Roles.DEPARTMENT_HEAD;
   if (userDoc?.userType === 'superAdmin') return Roles.SUPER_ADMIN;
-  if (userDoc?.userType === 'supervisor') return Roles.SUPERVISOR_TO;
+  if (userDoc?.userType === 'supervisor' || userDoc?.userType === 'supervisorTO') {
+    return Roles.SUPERVISOR_TO;
+  }
   return Roles.MEMBER;
 }
 
@@ -362,6 +364,233 @@ async function sendToUser(userId, title, body, link) {
 
   await sendToTokens(tokens, title, body, link);
 }
+
+function isCupboardTO(userDoc) {
+  return userDoc?.isTO === true || normalizeRole(userDoc) === Roles.SUPERVISOR_TO;
+}
+
+function isCupboardAuthorizedUser(userDoc) {
+  const role = normalizeRole(userDoc);
+  return role === Roles.SUPER_ADMIN || isCupboardTO(userDoc);
+}
+
+function getCupboardRole(userDoc) {
+  const role = normalizeRole(userDoc);
+  if (role === Roles.SUPER_ADMIN) return role;
+  return isCupboardTO(userDoc) ? Roles.SUPERVISOR_TO : role;
+}
+
+exports.authorizeCupboardAccess = onCall(async (request) => {
+  const callerUid = request.auth?.uid;
+  if (!callerUid) {
+    throw new HttpsError('unauthenticated', 'Sign in before scanning an access card.');
+  }
+
+  const cardUid = typeof request.data?.cardUid === 'string'
+    ? request.data.cardUid.trim()
+    : '';
+  if (!cardUid || cardUid.length > 200) {
+    throw new HttpsError('invalid-argument', 'A valid NFC card UID is required.');
+  }
+
+  const callerSnap = await db.collection('users').doc(callerUid).get();
+  const callerDoc = callerSnap.exists ? callerSnap.data() || {} : {};
+  const callerRole = getCupboardRole({
+    ...callerDoc,
+    email: callerDoc.email || request.auth.token?.email,
+  });
+  if (!isCupboardAuthorizedUser(callerDoc)) {
+    throw new HttpsError('permission-denied', 'Only TO and Super Admin users can scan cupboard cards.');
+  }
+
+  const cardSnapshot = await db
+    .collection('users')
+    .where('NFC_card_id', '==', cardUid)
+    .limit(2)
+    .get();
+  const cardOwnerSnap = cardSnapshot.docs.length === 1 ? cardSnapshot.docs[0] : null;
+  const cardOwner = cardOwnerSnap ? cardOwnerSnap.data() || {} : {};
+  const ownerRole = cardOwnerSnap ? getCupboardRole(cardOwner) : null;
+  const authorized = cardOwnerSnap !== null && isCupboardAuthorizedUser(cardOwner);
+  const now = admin.firestore.Timestamp.now();
+  const expiresAt = authorized
+    ? admin.firestore.Timestamp.fromMillis(now.toMillis() + 2 * 60 * 1000)
+    : now;
+  const reason = authorized
+    ? null
+    : cardSnapshot.docs.length > 1
+      ? 'This NFC card is assigned to multiple users.'
+      : cardOwnerSnap
+        ? 'Only TO and Super Admin cards are authorized.'
+        : 'This NFC card is not assigned to a user.';
+  const userName = cardOwner.username || cardOwner.name || cardOwner.displayName || null;
+  const recordRef = db.collection('accessRecords').doc();
+  const stateRef = db.collection('doorAccessState').doc('current');
+
+  await db.runTransaction(async (transaction) => {
+    transaction.create(recordRef, {
+      authorized,
+      action: 'nfc_scan',
+      doorSensorTriggered: false,
+      source: 'nfc-reader',
+      rfidCardId: cardUid,
+      userId: cardOwnerSnap?.id || null,
+      userName,
+      userEmail: cardOwner.email || null,
+      userRole: ownerRole,
+      scannedByUid: callerUid,
+      scannedByRole: callerRole,
+      reason,
+      createdAt: now,
+      accessWindowExpiresAt: authorized ? expiresAt : null,
+    });
+    transaction.set(stateRef, {
+      authorized,
+      status: authorized ? 'authorized' : 'denied',
+      cardUid,
+      userId: cardOwnerSnap?.id || null,
+      userName,
+      userEmail: cardOwner.email || null,
+      userRole: ownerRole,
+      scannedByUid: callerUid,
+      authorizedAt: authorized ? now : null,
+      scannedAt: now,
+      expiresAt,
+      reason,
+      updatedAt: now,
+    });
+  });
+
+  return {
+    authorized,
+    userName,
+    userRole: ownerRole,
+    reason,
+    expiresAt: authorized ? expiresAt.toDate().toISOString() : null,
+  };
+});
+
+exports.onAccessRecordCreated = onDocumentCreated(
+  'accessRecords/{recordId}',
+  async (event) => {
+    if (!event.data) return;
+    const record = event.data.data();
+    if (record?.doorSensorTriggered !== true || record.authorized !== false) return;
+
+    const users = db.collection('users');
+    const recipientSnapshots = await Promise.all([
+      users.where('role', 'in', [Roles.SUPER_ADMIN, Roles.SUPERVISOR_TO, 'supervisor']).get(),
+      users.where('userType', 'in', ['superAdmin', 'supervisor', 'supervisorTO']).get(),
+      users.where('isTO', '==', true).get(),
+    ]);
+    const recipientDocs = new Map();
+    recipientSnapshots.forEach((snapshot) => {
+      snapshot.docs.forEach((userSnap) => recipientDocs.set(userSnap.id, userSnap));
+    });
+    const recipients = Array.from(recipientDocs.values())
+      .map((userSnap) => ({ uid: userSnap.id, data: userSnap.data() || {} }))
+      .filter(({ data }) => {
+        const role = normalizeRole(data);
+        return role === Roles.SUPER_ADMIN || isCupboardTO(data);
+      });
+
+    if (!recipients.length) {
+      logger.error('No TO or Super Admin recipients found for unauthorized door event.', {
+        recordId: event.params.recordId,
+      });
+      return;
+    }
+
+    const title = 'Unauthorized cupboard door opening';
+    const imageName = isNonEmptyString(record.imageName) ? record.imageName : null;
+    const eventDate = record.createdAt?.toDate
+      ? record.createdAt.toDate()
+      : new Date();
+    const eventTime = eventDate.toLocaleString();
+    const reason = isNonEmptyString(record.reason)
+      ? record.reason
+      : 'No active authorized NFC scan was found.';
+    const message = `The cupboard door opened without a valid NFC authorization at ${eventTime}. ${reason}${imageName ? ` Image: ${imageName}.` : ''}`;
+    const accessRecordsUrl = `${(process.env.APP_URL || 'https://tmv.fotmv.online').replace(/\/+$/, '')}/access-records`;
+    const notificationWrites = recipients.map(({ uid }) =>
+      users.doc(uid).collection('notifications').doc(`access-${event.params.recordId}`).set({
+        title,
+        message,
+        type: 'unauthorized-access',
+        source: 'system',
+        accessRecordId: event.params.recordId,
+        link: '/access-records',
+        imageName,
+        imagePath: record.imagePath || null,
+        photoUrl: record.photoUrl || null,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        read: false,
+      })
+    );
+
+    try {
+      await Promise.all(notificationWrites);
+    } catch (error) {
+      logger.error('Failed to create unauthorized-access notifications.', {
+        recordId: event.params.recordId,
+        error: error?.message || String(error),
+      });
+    }
+
+    try {
+      const tokens = recipients.flatMap(({ data }) => extractTokens(data));
+      await sendToTokens(tokens, title, message, accessRecordsUrl);
+    } catch (error) {
+      logger.error('Failed to send unauthorized-access push notifications.', {
+        recordId: event.params.recordId,
+        error: error?.message || String(error),
+      });
+    }
+
+    const emails = Array.from(new Set(
+      recipients.map(({ data }) => data.email).filter(isNonEmptyString)
+    ));
+    if (!emails.length) {
+      logger.error('No TO or Super Admin email addresses are available.', {
+        recordId: event.params.recordId,
+      });
+      return;
+    }
+    if (!GMAIL_USER || !GMAIL_PASS) {
+      logger.error('Cannot email unauthorized door alert: GMAIL_USER/GMAIL_PASS are not configured.', {
+        recordId: event.params.recordId,
+      });
+      return;
+    }
+
+    const recordUrl = record.imagePath || record.photoUrl || imageName;
+    const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (character) => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;',
+    })[character]);
+    const imageDetails = recordUrl
+      ? `<p>Image: ${escapeHtml(recordUrl)}</p>`
+      : '<p>No image was attached to this event.</p>';
+
+    try {
+      await transporter.sendMail({
+        from: GMAIL_USER,
+        to: emails.join(','),
+        subject: title,
+        text: `${message}\nAccess record: ${event.params.recordId}${recordUrl ? `\nImage: ${recordUrl}` : ''}`,
+        html: `<p>${escapeHtml(message)}</p><p>Access record: ${escapeHtml(event.params.recordId)}</p>${imageDetails}`,
+      });
+    } catch (error) {
+      logger.error('Failed to email unauthorized door alert.', {
+        recordId: event.params.recordId,
+        error: error?.message || String(error),
+      });
+    }
+  }
+);
 
 /* ================== NOTIFICATION HANDLER ================== */
 

@@ -41,9 +41,14 @@ the device's actual JSON endpoint path. You can check hostname resolution on
 Linux with `getent hosts <esp-hostname>`. The poller retries with backoff while
 the device is unavailable or the address is being corrected.
 
-Each photo filename is treated as one door-unlock record. The backend stores
-`imageName`, `authorized`, `action`, and the detection time in `accessRecords`.
-It uses a deterministic Firestore document ID derived from the filename, so
+Each photo filename is treated as one door-opening record. The backend stores
+`imageName`, the door-sensor event, authorization result, and detection time in
+`accessRecords`. Authorization is granted only when the server-side
+`doorAccessState/current` window is active for the event time. The window is
+created by the `authorizeCupboardAccess` callable after it verifies that the
+scanned card is assigned to a TO or Super Admin, and expires after two minutes.
+Missing or unverifiable authorization is recorded as unauthorized. The API
+uses a deterministic Firestore document ID derived from the filename, so
 polling the same photo repeatedly or restarting the backend does not create
 duplicates. This assumes photo filenames are unique for each entry.
 
@@ -70,17 +75,26 @@ Send a JSON request to `POST /door/access-records` with the API key in the
 }
 ```
 
-`imagePath` (also accepted as `imgPath` or `image_path`) or `photoUrl` is
-required. The value must be an absolute URL or a path served by the configured
-server URL; the API records the path but does not upload or serve local image
-files. `timestamp` or `time` is optional and defaults to the API server's current
-UTC time. Timestamps without a timezone are treated as UTC. `authorized`
-defaults to `true`.
+`imagePath` (also accepted as `imgPath` or `image_path`) and `photoUrl` are
+optional, allowing a door-sensor event to be recorded even when the camera
+doesn't provide an image. If supplied, the image value must be an absolute URL
+or a path served by the configured server URL; the API stores the reference but
+does not upload or serve local image files. `timestamp` or `time` is optional
+and defaults to the API server's current UTC time. Timestamps without a
+timezone are treated as UTC. The API does not trust the request's `authorized`,
+user, or action fields: it determines authorization from the current Firestore
+window and records door openings as authorized only while that window is
+active.
 
-The API responds with HTTP 201 and the new Firestore document ID. It stores
-`createdAt` as a Firestore timestamp, plus `imagePath` and `photoUrl` for the
-existing React view. The React app continues to read Firebase directly; its
-Firestore client rules control who can view the records.
+The API responds with HTTP 201, the new Firestore document ID, and the
+server-computed authorization result. It stores the server receipt time as
+`createdAt` and preserves any supplied sensor time as `sensorTimestamp`, plus
+`imagePath` and `photoUrl` for the existing React view. An
+unauthorized door-sensor event creates in-app/push notifications and email
+alerts for TOs and Super Admins through the Firebase Functions deployment.
+Deploy the default `functions/` codebase and restart the NFC API after
+updating it. The API records image paths/names; the camera still needs to
+serve the image at the configured URL for it to be viewable.
 
 Requests are rejected with HTTP 503 when `DOOR_API_KEY` is not configured and
 HTTP 401 when the key is missing or invalid. Firebase Admin uses application
