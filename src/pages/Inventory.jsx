@@ -354,6 +354,11 @@ const Inventory = () => {
   }, []);
 
   const handleCupboardNfcScan = async () => {
+    if (!isUserTO(profile) && profile?.role !== 'superAdmin') {
+      setCupboardNfcMessage('Only TO or Super Admin users can scan for cupboard access.');
+      return;
+    }
+
     if (cupboardNfcScanning) {
       cupboardNfcScanControllerRef.current?.abort();
       setCupboardNfcMessage('NFC scan cancelled.');
@@ -384,9 +389,20 @@ const Inventory = () => {
         const data = await response.json();
         const uid = String(data?.uid ?? '').trim();
         if (uid) {
-          setCupboardNfcMessage(
-            `NFC card detected: ${uid}. This reads the card only; it does not unlock the cupboard.`
-          );
+          try {
+            await addDoc(collection(db, 'cupboardAccessLogs'), {
+              cardUid: uid,
+              scannedByUid: profile.id,
+              scannedByRole: isUserTO(profile) ? 'TO' : 'superAdmin',
+              createdAt: serverTimestamp(),
+            });
+            setCupboardNfcMessage(
+              `NFC card detected and scan saved: ${uid}. This records the scan only; it does not unlock the cupboard.`
+            );
+          } catch (error) {
+            console.error('Error saving cupboard NFC scan:', error);
+            setCupboardNfcMessage('NFC card detected, but the scan could not be saved to Firebase.');
+          }
           return;
         }
 
@@ -439,6 +455,7 @@ const Inventory = () => {
     role === 'siteAdmin' ||
     role === 'departmentHead' ||
     role === 'supervisorTO';
+  const canAccessCupboard = toEnabled || role === 'superAdmin';
   const headerUserType = role === 'departmentHead'
     ? 'admin'
     : role === 'superAdmin'
@@ -1213,42 +1230,44 @@ const Inventory = () => {
           ))}
         </div>
 
-        <div className="mb-5 rounded-[22px] border border-violet-200 bg-white/90 p-4 shadow-[0_12px_24px_rgba(15,23,42,0.04)] sm:p-5">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-start gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-100 text-violet-700">
-                <FaIdCard className="text-lg" />
+        {canAccessCupboard && (
+          <div className="mb-5 rounded-[22px] border border-violet-200 bg-white/90 p-4 shadow-[0_12px_24px_rgba(15,23,42,0.04)] sm:p-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-100 text-violet-700">
+                  <FaIdCard className="text-lg" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-slate-800">Cupboard access</h2>
+                  <p className="mt-1 text-sm text-slate-600">Scan an NFC card with the connected reader.</p>
+                </div>
               </div>
-              <div>
-                <h2 className="text-lg font-bold text-slate-800">Cupboard access</h2>
-                <p className="mt-1 text-sm text-slate-600">Scan an NFC card with the connected reader.</p>
-              </div>
+              <button
+                type="button"
+                onClick={handleCupboardNfcScan}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-violet-700"
+              >
+                {cupboardNfcScanning ? (
+                  <>
+                    <FaSpinner className="animate-spin" />
+                    Cancel scan
+                  </>
+                ) : (
+                  <>
+                    <FaIdCard />
+                    Scan NFC card
+                  </>
+                )}
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={handleCupboardNfcScan}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-violet-700"
-            >
-              {cupboardNfcScanning ? (
-                <>
-                  <FaSpinner className="animate-spin" />
-                  Cancel scan
-                </>
-              ) : (
-                <>
-                  <FaIdCard />
-                  Scan NFC card
-                </>
-              )}
-            </button>
+            {cupboardNfcMessage && (
+              <p role="status" aria-live="polite" className="mt-3 rounded-lg bg-violet-50 px-3 py-2 text-sm text-violet-800">
+                {cupboardNfcMessage}
+              </p>
+            )}
+            <p className="mt-2 text-xs text-slate-500">The scan reads the card UID only; cupboard unlocking is not connected.</p>
           </div>
-          {cupboardNfcMessage && (
-            <p role="status" aria-live="polite" className="mt-3 rounded-lg bg-violet-50 px-3 py-2 text-sm text-violet-800">
-              {cupboardNfcMessage}
-            </p>
-          )}
-          <p className="mt-2 text-xs text-slate-500">The scan reads the card UID only; cupboard unlocking is not connected.</p>
-        </div>
+        )}
 
         {canManageInventory && (
           <div className="mb-6 rounded-[28px] border border-slate-200 bg-white/90 p-4 shadow-[0_15px_30px_rgba(15,23,42,0.05)] sm:p-6">

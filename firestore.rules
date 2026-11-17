@@ -366,6 +366,32 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    match /cupboardAccessLogs/{recordId} {
+      allow read: if isSupervisorTO() || isSuperAdmin();
+      allow create: if (isSupervisorTO() || isSuperAdmin())
+        && request.resource.data.keys().hasAll([
+          'cardUid',
+          'scannedByUid',
+          'scannedByRole',
+          'createdAt'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'cardUid',
+          'scannedByUid',
+          'scannedByRole',
+          'createdAt'
+        ])
+        && request.resource.data.cardUid is string
+        && request.resource.data.cardUid.size() > 0
+        && request.resource.data.scannedByUid == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && (
+          (isSupervisorTO() && request.resource.data.scannedByRole == 'TO')
+          || (isSuperAdmin() && request.resource.data.scannedByRole == 'superAdmin')
+        );
+      allow update, delete: if false;
+    }
+
     match /accessRecords/{recordId} {
       allow read: if isDeptHead() || isSuperAdmin() || isSiteAdmin();
       allow create: if isSupervisorTO() || isSuperAdmin() || isSiteAdmin();
