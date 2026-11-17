@@ -211,7 +211,10 @@ const UserDetails = () => {
   const canEditUser = canEdit(profile) && canManageUser(profile, user);
   const canDeleteUsers = canEditUser;
   const targetRole = normalizeRole(user);
-  const canAssignTO = profileRole === Roles.SUPER_ADMIN;
+  const canAssignOfferId = Boolean(user?.isTO)
+    || [Roles.SUPER_ADMIN, Roles.DEPARTMENT_HEAD].includes(targetRole);
+  const canAssignTO = profileRole === Roles.SUPER_ADMIN
+    && ![Roles.SITE_ADMIN, Roles.SUPER_ADMIN, Roles.DEPARTMENT_HEAD].includes(targetRole);
   const canManageDepartmentHead = profileRole === Roles.SUPER_ADMIN
     && targetRole !== Roles.SITE_ADMIN
     && [Roles.MEMBER, Roles.DEPARTMENT_HEAD].includes(targetRole);
@@ -592,7 +595,7 @@ const UserDetails = () => {
                       Cancel
                     </button>
                   ) : null}
-                  {user.isTO ? (
+                  {canAssignOfferId ? (
                     <button
                       type="button"
                       onClick={handleOfferIdClick}
