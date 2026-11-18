@@ -306,6 +306,8 @@ service cloud.firestore {
 
         // Users can update their own (e.g., mark read).
         allow update: if signedIn() && userId == request.auth.uid;
+        // Users can clear notifications from their own inbox.
+        allow delete: if signedIn() && userId == request.auth.uid;
 
         // Admins can edit the content of admin-sent notifications, but cannot change a user's read state.
         allow update: if (isDeptHead() || isSiteAdmin())
