@@ -10,6 +10,20 @@ const formatDate = (ts) => {
   return d.toLocaleString();
 };
 
+const getRecordDate = (record) => {
+  const value = record.createdAt || record.timestamp || record.time;
+  if (!value) return null;
+  const date = typeof value?.toDate === 'function' ? value.toDate() : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const getLocalDateKey = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 const resolvePhotoUrl = (path) => {
   if (!path) return null;
   if (/^(?:[a-z][a-z\d+.-]*:)?\/\//i.test(path) || /^(data|blob):/i.test(path)) {
@@ -44,6 +58,13 @@ const AccessRecords = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedRecord, setSelectedRecord] = useState(null);
+  const [filters, setFilters] = useState({
+    fromDate: '',
+    toDate: '',
+    authorization: 'all',
+    action: 'all',
+    user: '',
+  });
 
   const headerUserType = profile?.userType || (profile?.role === 'superAdmin' ? 'superAdmin' : profile?.role === 'siteAdmin' ? 'siteAdmin' : profile?.role === 'departmentHead' ? 'admin' : profile?.role === 'supervisorTO' ? 'supervisor' : 'user');
 
@@ -85,6 +106,36 @@ const AccessRecords = () => {
     );
   }, []);
 
+  const actionOptions = [...new Set(records.map((record) => record.action).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b));
+  const normalizedUserFilter = filters.user.trim().toLocaleLowerCase();
+  const filteredRecords = records.filter((record) => {
+    const recordDate = getRecordDate(record);
+    const recordDateKey = recordDate ? getLocalDateKey(recordDate) : '';
+    const matchesFromDate = !filters.fromDate || (recordDateKey && recordDateKey >= filters.fromDate);
+    const matchesToDate = !filters.toDate || (recordDateKey && recordDateKey <= filters.toDate);
+    const matchesAuthorization = filters.authorization === 'all' ||
+      (filters.authorization === 'authorized' && record.authorized === true) ||
+      (filters.authorization === 'unauthorized' && record.authorized !== true);
+    const matchesAction = filters.action === 'all' || record.action === filters.action;
+    const matchesUser = !normalizedUserFilter || [
+      record.userName,
+      record.userEmail,
+      record.userId,
+      record.scannedByUid,
+    ].some((value) => String(value || '').toLocaleLowerCase().includes(normalizedUserFilter));
+
+    return matchesFromDate && matchesToDate && matchesAuthorization && matchesAction && matchesUser;
+  });
+
+  const clearFilters = () => setFilters({
+    fromDate: '',
+    toDate: '',
+    authorization: 'all',
+    action: 'all',
+    user: '',
+  });
+
   return (
     <div className="min-h-screen bg-gray-100">
       <Header userType={headerUserType} isTO={!!profile?.isTO} />
@@ -95,13 +146,93 @@ const AccessRecords = () => {
 
         {error && <div className="mb-4 p-3 rounded bg-red-100 text-red-700 text-sm">{error}</div>}
 
+        <section
+          aria-label="Filter access records"
+          className="mb-6 rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5"
+        >
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="font-semibold text-gray-900">Filter records</h2>
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="rounded-lg px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              Clear filters
+            </button>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <label className="text-sm font-medium text-gray-700">
+              From date
+              <input
+                type="date"
+                value={filters.fromDate}
+                max={filters.toDate || undefined}
+                onChange={(event) => setFilters((current) => ({ ...current, fromDate: event.target.value }))}
+                className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-normal text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+              />
+            </label>
+            <label className="text-sm font-medium text-gray-700">
+              To date
+              <input
+                type="date"
+                value={filters.toDate}
+                min={filters.fromDate || undefined}
+                onChange={(event) => setFilters((current) => ({ ...current, toDate: event.target.value }))}
+                className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-normal text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+              />
+            </label>
+            <label className="text-sm font-medium text-gray-700">
+              Authorization
+              <select
+                value={filters.authorization}
+                onChange={(event) => setFilters((current) => ({ ...current, authorization: event.target.value }))}
+                className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-normal text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+              >
+                <option value="all">All statuses</option>
+                <option value="authorized">Authorized</option>
+                <option value="unauthorized">Unauthorized</option>
+              </select>
+            </label>
+            <label className="text-sm font-medium text-gray-700">
+              Action
+              <select
+                value={filters.action}
+                onChange={(event) => setFilters((current) => ({ ...current, action: event.target.value }))}
+                className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-normal text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+              >
+                <option value="all">All actions</option>
+                {actionOptions.map((action) => <option key={action} value={action}>{action}</option>)}
+              </select>
+            </label>
+            <label className="text-sm font-medium text-gray-700">
+              User
+              <input
+                type="search"
+                value={filters.user}
+                onChange={(event) => setFilters((current) => ({ ...current, user: event.target.value }))}
+                placeholder="Name, email, or ID"
+                className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-normal text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+              />
+            </label>
+          </div>
+          {!loading && (
+            <p className="mt-3 text-xs text-gray-500" aria-live="polite">
+              Showing {filteredRecords.length} of {records.length} records
+            </p>
+          )}
+        </section>
+
         {loading ? (
           <div className="text-sm text-gray-600">Loading…</div>
-        ) : records.length === 0 ? (
-          <div className="bg-white rounded-lg shadow p-6 text-sm text-gray-600">No access records found.</div>
+        ) : filteredRecords.length === 0 ? (
+          <div className="rounded-lg bg-white p-6 text-sm text-gray-600 shadow">
+            {records.length === 0
+              ? 'No access records found.'
+              : 'No records match the selected filters.'}
+          </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {records.map((r) => {
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {filteredRecords.map((r) => {
               const authorized = !!r.authorized;
               const photoUrl = getPhotoUrl(r);
               return (
