@@ -24,6 +24,7 @@ import { sortWorksByNearestToNow, getWorkDateTime } from '../utils/workDateTime'
 
 const WorkList = () => {
   const { profile, loading: loadingProfile } = useUserProfile();
+  const canManageWork = normalizeRole(profile) === Roles.DEPARTMENT_HEAD;
   const [tasks, setTasks] = useState([]);
   const [users, setUsers] = useState({});
   const [items, setItems] = useState({});
@@ -159,6 +160,7 @@ const WorkList = () => {
   };
 
   const handleMarkComplete = async (taskId) => {
+    if (!canManageWork) return;
     try {
       const taskRef = doc(db, 'works', taskId);
       await updateDoc(taskRef, { status: 'complete' });
@@ -171,6 +173,7 @@ const WorkList = () => {
   };
 
   const handleUndoComplete = async (taskId) => {
+    if (!canManageWork) return;
     try {
       const taskRef = doc(db, 'works', taskId);
       // Revert to non-complete so derived status logic applies again.
@@ -686,7 +689,7 @@ const WorkList = () => {
           </div>
         )}
 
-        {!isCompleteSection && (
+        {canManageWork && !isCompleteSection && (
           <button
             type="button"
             onClick={(e) => {
@@ -700,7 +703,7 @@ const WorkList = () => {
           </button>
         )}
 
-        {isCompleteSection && (
+        {canManageWork && isCompleteSection && (
           <div className="mt-3 flex items-center justify-between gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-2.5 py-2">
             <p className="text-xs font-semibold text-emerald-700">Completed</p>
             <button
