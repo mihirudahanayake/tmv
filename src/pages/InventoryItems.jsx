@@ -18,7 +18,17 @@ import {
 } from 'firebase/firestore';
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { useNavigate } from 'react-router-dom';
-import { FaArrowLeft, FaBox, FaEdit, FaLayerGroup, FaSearch, FaSpinner, FaTimes, FaTrash } from 'react-icons/fa';
+import {
+  FaArrowLeft,
+  FaBox,
+  FaEdit,
+  FaExclamationTriangle,
+  FaLayerGroup,
+  FaSearch,
+  FaSpinner,
+  FaTimes,
+  FaTrash,
+} from 'react-icons/fa';
 import Header from '../components/Header';
 import { db, storage } from '../firebase/config';
 import { useUserProfile } from '../hooks/useUserProfile';
@@ -82,6 +92,8 @@ const InventoryItems = () => {
     open: false,
     item: null,
     comment: '',
+    isDamaged: false,
+    damageNote: '',
   });
 
   useEffect(() => {
@@ -182,6 +194,7 @@ const InventoryItems = () => {
       'Item No': item.itemNo || '',
       'Item Name': item.itemName || '',
       Status: item.status || 'available',
+      Damaged: item.isDamaged ? `Yes${item.damageNote ? ` (${item.damageNote})` : ''}` : 'No',
       Description: item.description || '',
     }));
 
@@ -202,10 +215,11 @@ const InventoryItems = () => {
       item.itemNo || '-',
       item.itemName || '-',
       item.status || 'available',
+      item.isDamaged ? 'Damaged' : 'Good',
     ]);
 
     autoTable(doc, {
-      head: [['#', 'Category', 'Item No', 'Item Name', 'Status']],
+      head: [['#', 'Category', 'Item No', 'Item Name', 'Status', 'Condition']],
       body: rows,
       startY: 22,
       styles: { fontSize: 9 },
@@ -511,6 +525,8 @@ const InventoryItems = () => {
       open: true,
       item,
       comment: '',
+      isDamaged: Boolean(item?.isDamaged),
+      damageNote: item?.damageNote || '',
     });
   };
 
@@ -519,16 +535,25 @@ const InventoryItems = () => {
       open: false,
       item: null,
       comment: '',
+      isDamaged: false,
+      damageNote: '',
     });
   };
 
   const handleConfirmReturn = async () => {
     const item = returnConfirmModal.item;
     const returnComment = returnConfirmModal.comment.trim();
+    const markDamaged = Boolean(returnConfirmModal.isDamaged);
+    const trimmedDamageNote = returnConfirmModal.damageNote.trim();
 
     if (!canManageInventory) return;
     if (!item) return;
     if ((item.status || 'available') !== 'checkedOut' && (item.status || 'available') !== 'overdue') return;
+
+    if (markDamaged && !trimmedDamageNote) {
+      setMessage({ type: 'error', text: 'Please enter a damage description when marking an item as damaged.' });
+      return;
+    }
 
     setSaving(true);
     setMessage({ type: '', text: '' });
@@ -536,6 +561,7 @@ const InventoryItems = () => {
     try {
       const itemRef = doc(db, 'inventory', item.id);
       const batch = writeBatch(db);
+      const damagedTimestamp = new Date().toISOString();
 
       let usageId = item.currentUsageId || null;
       if (!usageId) {
@@ -557,6 +583,11 @@ const InventoryItems = () => {
           status: 'returned',
           overdueAt: null,
           overdueAlertSent: false,
+          isDamaged: markDamaged,
+          damageNote: markDamaged ? trimmedDamageNote : '',
+          damagedByUid: markDamaged ? (profile?.id || null) : null,
+          damagedByName: markDamaged ? (profile?.name || profile?.email || null) : null,
+          damagedAt: markDamaged ? damagedTimestamp : null,
           updatedAt: serverTimestamp(),
           updatedByUid: profile?.id || null,
           returnedByUid: profile?.id || null,
@@ -567,7 +598,7 @@ const InventoryItems = () => {
             text: returnComment,
             createdByUid: profile?.id || null,
             createdByName: profile?.name || profile?.email || null,
-            createdAt: new Date().toISOString(),
+            createdAt: damagedTimestamp,
             type: 'return',
           });
         }
@@ -576,6 +607,11 @@ const InventoryItems = () => {
 
       batch.update(itemRef, {
         status: 'available',
+        isDamaged: markDamaged,
+        damageNote: markDamaged ? trimmedDamageNote : '',
+        damagedByUid: markDamaged ? (profile?.id || null) : null,
+        damagedByName: markDamaged ? (profile?.name || profile?.email || null) : null,
+        damagedAt: markDamaged ? damagedTimestamp : null,
         checkedOutToUserId: null,
         checkedOutToName: null,
         checkedOutRfidCardId: null,
@@ -588,11 +624,131 @@ const InventoryItems = () => {
       });
 
       await batch.commit();
-      setMessage({ type: 'success', text: 'Item returned successfully.' });
+      setMessage({
+        type: 'success',
+        text: markDamaged
+          ? 'Item returned and marked as damaged.'
+          : 'Item returned successfully.',
+      });
       closeReturnConfirmModal();
     } catch (error) {
       console.error(error);
       setMessage({ type: 'error', text: 'Failed to return item.' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleClearItemDamage = async (item) => {
+    if (!canManageInventory || !item?.id) return;
+    if (!window.confirm(`Mark "${item.itemName}" as repaired and clear damaged status?`)) return;
+
+    setSaving(true);
+    try {
+      const repairedAtIso = new Date().toISOString();
+      const formattedTime = formatDateTime(repairedAtIso);
+      const repairedByUid = profile?.id || null;
+      const repairedByName = profile?.name || profile?.email || 'Super admin';
+      const repairMessage = `${repairedByName} is Mark as Repaired on ${formattedTime}`;
+
+      const batch = writeBatch(db);
+
+      // 1. Clear current damage flag on the inventory item
+      batch.update(doc(db, 'inventory', item.id), {
+        isDamaged: false,
+        damageNote: '',
+        damagedByUid: null,
+        damagedByName: null,
+        damagedAt: null,
+        lastRepairedAt: repairedAtIso,
+        lastRepairedByName: repairedByName,
+        updatedAt: serverTimestamp(),
+      });
+
+      // 2. Find unrepaired damaged usage records (or fallback to the most recent usage record)
+      const allUsageSnap = await getDocs(
+        query(collection(db, 'inventoryUsage'), where('itemId', '==', item.id))
+      );
+
+      const sortedUsageDocs = [...allUsageSnap.docs].sort((a, b) => {
+        const aTime = a.data().checkedOutAt?.toDate ? a.data().checkedOutAt.toDate().getTime() : 0;
+        const bTime = b.data().checkedOutAt?.toDate ? b.data().checkedOutAt.toDate().getTime() : 0;
+        return bTime - aTime;
+      });
+
+      let targetDocs = sortedUsageDocs.filter(
+        (d) => d.data().isDamaged && !d.data().repairedAt
+      );
+
+      if (targetDocs.length === 0 && sortedUsageDocs.length > 0) {
+        targetDocs = [sortedUsageDocs[0]];
+      }
+
+      const updatedUsageIds = new Set();
+      targetDocs.forEach((usageDoc) => {
+        const data = usageDoc.data();
+        updatedUsageIds.add(usageDoc.id);
+        batch.update(doc(db, 'inventoryUsage', usageDoc.id), {
+          isDamaged: true,
+          damageNote: data.damageNote || item.damageNote || '',
+          repairedAt: repairedAtIso,
+          repairedByUid,
+          repairedByName,
+          comments: arrayUnion({
+            text: `${repairMessage}${data.damageNote || item.damageNote ? ` (Damage: ${data.damageNote || item.damageNote})` : ''}`,
+            createdByUid: repairedByUid,
+            createdByName: repairedByName,
+            createdAt: repairedAtIso,
+            type: 'repaired',
+          }),
+          updatedAt: serverTimestamp(),
+        });
+      });
+
+      await batch.commit();
+
+      // 3. Update open modal state immediately
+      setItemDetailModal((prev) => (
+        prev.item?.id === item.id
+          ? {
+              ...prev,
+              item: {
+                ...prev.item,
+                isDamaged: false,
+                damageNote: '',
+                damagedByName: null,
+                damagedAt: null,
+              },
+              usageHistory: prev.usageHistory.map((usage) =>
+                updatedUsageIds.has(usage.id)
+                  ? {
+                      ...usage,
+                      isDamaged: true,
+                      damageNote: usage.damageNote || item.damageNote || '',
+                      repairedAt: repairedAtIso,
+                      repairedByUid,
+                      repairedByName,
+                      comments: [
+                        ...(Array.isArray(usage.comments) ? usage.comments : []),
+                        {
+                          text: `${repairMessage}${usage.damageNote || item.damageNote ? ` (Damage: ${usage.damageNote || item.damageNote})` : ''}`,
+                          createdByUid: repairedByUid,
+                          createdByName: repairedByName,
+                          createdAt: repairedAtIso,
+                          type: 'repaired',
+                        },
+                      ],
+                    }
+                  : usage
+              ),
+            }
+          : prev
+      ));
+
+      setMessage({ type: 'success', text: repairMessage });
+    } catch (error) {
+      console.error('Error clearing item damage:', error);
+      setMessage({ type: 'error', text: 'Failed to clear damage status.' });
     } finally {
       setSaving(false);
     }
@@ -642,7 +798,7 @@ const InventoryItems = () => {
           </div>
         </div>
 
-        <div className="mb-5 grid grid-cols-2 gap-3 xl:grid-cols-4">
+        <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
           <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_8px_20px_rgba(15,23,42,0.04)]">
             <p className="text-xs text-slate-500">Total</p>
             <p className="mt-2 text-xl font-bold text-slate-800">{items.length}</p>
@@ -658,6 +814,10 @@ const InventoryItems = () => {
           <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_8px_20px_rgba(15,23,42,0.04)]">
             <p className="text-xs text-slate-500">Overdue</p>
             <p className="mt-2 text-xl font-bold text-red-600">{items.filter((item) => (item.status || 'available') === 'overdue').length}</p>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_8px_20px_rgba(15,23,42,0.04)]">
+            <p className="text-xs text-slate-500">Damaged</p>
+            <p className="mt-2 text-xl font-bold text-rose-600">{items.filter((item) => Boolean(item.isDamaged)).length}</p>
           </div>
         </div>
 
@@ -770,7 +930,11 @@ const InventoryItems = () => {
                             openItemDetailModal(item);
                           }
                         }}
-                        className="cursor-pointer rounded-[22px] border border-slate-200 bg-white/90 p-3 shadow-[0_10px_24px_rgba(15,23,42,0.04)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_16px_28px_rgba(59,130,246,0.08)]"
+                        className={`cursor-pointer rounded-[22px] border p-3 shadow-[0_10px_24px_rgba(15,23,42,0.04)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_16px_28px_rgba(59,130,246,0.08)] ${
+                          item.isDamaged
+                            ? 'border-red-300 bg-red-50/30'
+                            : 'border-slate-200 bg-white/90'
+                        }`}
                       >
                         {coverImage && (
                           <div className="relative mb-3 overflow-hidden rounded-xl bg-slate-50">
@@ -803,7 +967,19 @@ const InventoryItems = () => {
                               RFID: {item.rfidCardId}
                             </span>
                           )}
+                          {item.isDamaged && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-red-700 ring-1 ring-red-300">
+                              <FaExclamationTriangle className="text-[9px]" />
+                              Damaged
+                            </span>
+                          )}
                         </div>
+
+                        {item.isDamaged && item.damageNote && (
+                          <p className="mb-2 line-clamp-1 rounded-lg bg-red-100/70 px-2 py-1 text-[11px] font-medium text-red-800">
+                            Damage: {item.damageNote}
+                          </p>
+                        )}
 
                         {item.description && (
                           <p className="mb-3 line-clamp-2 text-xs text-slate-600 sm:text-sm">{item.description}</p>
@@ -1060,12 +1236,21 @@ const InventoryItems = () => {
           </div>
         )}
 
+        {/* Item Detail Modal (Popup View) */}
         {itemDetailModal.open && itemDetailModal.item && (
           <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={closeItemDetailModal}>
             <div className="w-full max-w-3xl max-h-[88vh] overflow-hidden rounded-2xl bg-white shadow-xl flex flex-col" onClick={(e) => e.stopPropagation()}>
               <div className="flex items-start justify-between gap-4 border-b border-slate-200 p-4 sm:p-5">
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-800">{itemDetailModal.item.itemName}</h3>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-lg font-semibold text-gray-800">{itemDetailModal.item.itemName}</h3>
+                    {itemDetailModal.item.isDamaged && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-bold uppercase tracking-wide text-red-700 ring-1 ring-red-300">
+                        <FaExclamationTriangle className="text-[10px]" />
+                        Damaged
+                      </span>
+                    )}
+                  </div>
                   <p className="text-sm text-gray-600">
                     Item No: {itemDetailModal.item.itemNo || 'N/A'}
                     {itemDetailModal.item.category ? ` | ${itemDetailModal.item.category}` : ''}
@@ -1084,11 +1269,52 @@ const InventoryItems = () => {
                   </div>
                 ) : (
                   <>
+                    {/* Current Damage Alert Banner */}
+                    {itemDetailModal.item.isDamaged && (
+                      <div className="rounded-xl border border-red-300 bg-red-50 p-3.5 text-sm text-red-900">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 font-bold text-red-800">
+                            <FaExclamationTriangle />
+                            <span>Item Marked as Damaged</span>
+                          </div>
+                          {canManageInventory && (
+                            <button
+                              type="button"
+                              onClick={() => handleClearItemDamage(itemDetailModal.item)}
+                              disabled={saving}
+                              className="rounded-lg border border-red-300 bg-white px-2.5 py-1 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50"
+                            >
+                              Mark Repaired / Clear
+                            </button>
+                          )}
+                        </div>
+                        {itemDetailModal.item.damageNote && (
+                          <p className="mt-1.5 text-red-800">{itemDetailModal.item.damageNote}</p>
+                        )}
+                        {(itemDetailModal.item.damagedByName || itemDetailModal.item.damagedAt) && (
+                          <p className="mt-1 text-xs text-red-600">
+                            Reported{itemDetailModal.item.damagedByName ? ` by ${itemDetailModal.item.damagedByName}` : ''}
+                            {itemDetailModal.item.damagedAt ? ` on ${formatDateTime(itemDetailModal.item.damagedAt)}` : ''}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 text-sm">
                       <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                         <p className="text-gray-500">Status</p>
                         <p className="mt-1 font-semibold text-gray-800">
-                          {(itemDetailModal.item.status || 'available') === 'checkedOut' ? 'Checked out' : 'Available'}
+                          {(itemDetailModal.item.status || 'available') === 'overdue'
+                            ? 'Overdue'
+                            : (itemDetailModal.item.status || 'available') === 'checkedOut'
+                              ? 'Checked out'
+                              : 'Available'}
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                        <p className="text-gray-500">Condition</p>
+                        <p className={`mt-1 font-semibold ${itemDetailModal.item.isDamaged ? 'text-red-600' : 'text-emerald-600'}`}>
+                          {itemDetailModal.item.isDamaged ? 'Damaged' : 'Good'}
                         </p>
                       </div>
                       <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
@@ -1099,7 +1325,7 @@ const InventoryItems = () => {
                         <p className="text-gray-500">Checked Out At</p>
                         <p className="mt-1 font-semibold text-gray-800">{formatDateTime(itemDetailModal.item.checkedOutAt)}</p>
                       </div>
-                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 sm:col-span-2">
                         <p className="text-gray-500">Due Date</p>
                         <p className="mt-1 font-semibold text-gray-800">
                           {itemDetailModal.item.dueAt?.toDate ? itemDetailModal.item.dueAt.toDate().toLocaleString() : 'N/A'}
@@ -1141,7 +1367,20 @@ const InventoryItems = () => {
                           {itemDetailModal.usageHistory.map((usage) => (
                             <div key={usage.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">
                               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                                <p className="font-semibold text-gray-800">{usage.userName || 'Unknown user'}</p>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <p className="font-semibold text-gray-800">{usage.userName || 'Unknown user'}</p>
+                                  {usage.isDamaged && (
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-700 ring-1 ring-red-300">
+                                      <FaExclamationTriangle className="text-[9px]" />
+                                      Damaged
+                                    </span>
+                                  )}
+                                  {usage.isDamaged && usage.repairedAt && (
+                                    <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700 ring-1 ring-emerald-300">
+                                      Repaired
+                                    </span>
+                                  )}
+                                </div>
                                 <span
                                   className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wide ${
                                     usage.status === 'returned' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-800'
@@ -1150,6 +1389,39 @@ const InventoryItems = () => {
                                   {usage.status === 'returned' ? 'Returned' : 'Checked out'}
                                 </span>
                               </div>
+
+                              {usage.reason && (
+                                <p className="mb-2 text-xs text-slate-700">
+                                  <span className="font-semibold text-slate-500">Reason:</span> {usage.reason}
+                                </p>
+                              )}
+
+                              {usage.isDamaged && (usage.damageNote || usage.repairedAt) && (
+                                <div
+                                  className={`mb-2 rounded-lg border px-2.5 py-2 text-xs ${
+                                    usage.repairedAt
+                                      ? 'border-emerald-200 bg-emerald-50/70 text-slate-800'
+                                      : 'border-red-200 bg-red-50 text-red-800'
+                                  }`}
+                                >
+                                  {usage.damageNote && (
+                                    <div>
+                                      <span className="font-semibold text-red-800">Damage Note:</span> {usage.damageNote}
+                                      {usage.damagedByName && (
+                                        <span className="ml-1.5 text-[10px] text-red-600">
+                                          (Marked by {usage.damagedByName})
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
+                                  {usage.repairedAt && (
+                                    <div className="mt-1 font-medium text-emerald-700">
+                                      {usage.repairedByName || 'Super admin'} is Mark as Repaired on {formatDateTime(usage.repairedAt)}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
                               <div className="grid grid-cols-1 gap-2 text-gray-700 sm:grid-cols-2">
                                 <p><span className="text-gray-500">Checked out:</span> {formatDateTime(usage.checkedOutAt)}</p>
                                 <p><span className="text-gray-500">Returned:</span> {formatDateTime(usage.returnedAt)}</p>
@@ -1199,6 +1471,7 @@ const InventoryItems = () => {
           </div>
         )}
 
+        {/* Confirm Return Modal with Mark Damage Option */}
         {returnConfirmModal.open && returnConfirmModal.item && (
           <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={closeReturnConfirmModal}>
             <div className="w-full max-w-lg rounded-2xl bg-white shadow-xl p-4 sm:p-5" onClick={(e) => e.stopPropagation()}>
@@ -1213,11 +1486,50 @@ const InventoryItems = () => {
                 Return <span className="font-bold">{returnConfirmModal.item.itemName}</span> now?
               </div>
 
+              {/* Mark Damaged Toggle */}
+              <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50/70 p-3">
+                <label className="flex cursor-pointer items-center gap-2.5 text-sm font-semibold text-amber-900">
+                  <input
+                    type="checkbox"
+                    checked={returnConfirmModal.isDamaged}
+                    onChange={(e) =>
+                      setReturnConfirmModal((prev) => ({
+                        ...prev,
+                        isDamaged: e.target.checked,
+                      }))
+                    }
+                    className="h-4 w-4 rounded border-amber-400 text-red-600 focus:ring-red-500"
+                  />
+                  <FaExclamationTriangle className="text-amber-600" />
+                  <span>Mark item as damaged</span>
+                </label>
+
+                {returnConfirmModal.isDamaged && (
+                  <div className="mt-2.5">
+                    <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-red-800">
+                      Damage Description *
+                    </label>
+                    <textarea
+                      value={returnConfirmModal.damageNote}
+                      onChange={(e) =>
+                        setReturnConfirmModal((prev) => ({
+                          ...prev,
+                          damageNote: e.target.value,
+                        }))
+                      }
+                      rows="2"
+                      placeholder="Describe the damage..."
+                      className="w-full rounded border border-red-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+                    />
+                  </div>
+                )}
+              </div>
+
               <label className="mb-2 block text-sm font-semibold text-gray-700">Comment</label>
               <textarea
                 value={returnConfirmModal.comment}
                 onChange={(e) => setReturnConfirmModal((prev) => ({ ...prev, comment: e.target.value }))}
-                rows="4"
+                rows="3"
                 placeholder="Optional note for this return"
                 className="w-full rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
@@ -1233,10 +1545,18 @@ const InventoryItems = () => {
                 <button
                   type="button"
                   onClick={handleConfirmReturn}
-                  disabled={saving}
-                  className="rounded bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                  disabled={saving || (returnConfirmModal.isDamaged && !returnConfirmModal.damageNote.trim())}
+                  className={`rounded px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 ${
+                    returnConfirmModal.isDamaged
+                      ? 'bg-red-600 hover:bg-red-700'
+                      : 'bg-emerald-600 hover:bg-emerald-700'
+                  }`}
                 >
-                  {saving ? 'Returning...' : 'Confirm Return'}
+                  {saving
+                    ? 'Returning...'
+                    : returnConfirmModal.isDamaged
+                      ? 'Confirm Return & Mark Damaged'
+                      : 'Confirm Return'}
                 </button>
               </div>
             </div>

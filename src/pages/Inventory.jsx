@@ -18,7 +18,18 @@ import {
 import { httpsCallable } from 'firebase/functions';
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { useNavigate } from 'react-router-dom';
-import { FaBox, FaIdCard, FaList, FaPlus, FaSpinner, FaTimes, FaCommentDots, FaEdit, FaTrash } from 'react-icons/fa';
+import {
+  FaBox,
+  FaIdCard,
+  FaList,
+  FaPlus,
+  FaSpinner,
+  FaTimes,
+  FaCommentDots,
+  FaEdit,
+  FaTrash,
+  FaExclamationTriangle,
+} from 'react-icons/fa';
 import Header from '../components/Header';
 import { db, functions, storage } from '../firebase/config';
 import { useUserProfile } from '../hooks/useUserProfile';
@@ -39,44 +50,47 @@ const getTimestampMillis = (value) => {
 const formatCountdown = (seconds) =>
   `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 
-const buildIssueHistoryFromUsage = (usageRecords, legacyIssueRecords) => usageRecords
-  .filter((usage) => usage.itemId)
-  .map((usage) => {
-    const issuedAt = usage.checkedOutAt || usage.createdAt || null;
-    const issuedAtMillis = getTimestampMillis(issuedAt);
-    const legacyRecord = legacyIssueRecords.find((record) => (
-      Array.isArray(record.itemsIssued) &&
-      getTimestampMillis(record.createdAt) === issuedAtMillis &&
-      record.itemsIssued.some((item) => item.itemId === usage.itemId)
-    ));
-    const legacyItem = legacyRecord?.itemsIssued.find((item) => item.itemId === usage.itemId);
-    const comments = Array.isArray(usage.comments) && usage.comments.length
-      ? usage.comments
-      : Array.isArray(legacyItem?.comments)
-        ? legacyItem.comments
-        : [];
-    const returnedAt = usage.returnedAt || legacyItem?.returnedAt || null;
-    const issuedToMembers = Array.isArray(usage.issuedToMembers) && usage.issuedToMembers.length
-      ? usage.issuedToMembers
-      : Array.isArray(legacyRecord?.issuedToMembers) && legacyRecord.issuedToMembers.length
-        ? legacyRecord.issuedToMembers
-        : [{
-            id: usage.userId || '',
-            name: usage.userName || usage.userEmail || 'Member',
-            email: usage.userEmail || '',
-          }];
+const buildIssueHistoryFromUsage = (usageRecords, legacyIssueRecords) => {
+  const groups = new Map();
 
-    return {
-      ...usage,
-      action: 'issue',
-      sourceCollection: 'inventoryUsage',
-      createdAt: issuedAt || legacyRecord?.createdAt || null,
-      createdByUid: usage.issuedByUid || legacyRecord?.createdByUid || null,
-      createdByName: usage.issuedByName || legacyRecord?.createdByName || null,
-      reason: usage.reason || legacyRecord?.reason || '',
-      description: usage.description || legacyRecord?.description || '',
-      issuedToMembers,
-      itemsIssued: [{
+  usageRecords
+    .filter((usage) => usage.itemId)
+    .forEach((usage) => {
+      const issuedAt = usage.checkedOutAt || usage.createdAt || null;
+      const issuedAtMillis = getTimestampMillis(issuedAt);
+
+      const legacyRecord = legacyIssueRecords.find((record) => (
+        Array.isArray(record.itemsIssued) &&
+        getTimestampMillis(record.createdAt) === issuedAtMillis &&
+        record.itemsIssued.some((item) => item.itemId === usage.itemId)
+      ));
+
+      const legacyItem = legacyRecord?.itemsIssued.find((item) => item.itemId === usage.itemId);
+      const comments = Array.isArray(usage.comments) && usage.comments.length
+        ? usage.comments
+        : Array.isArray(legacyItem?.comments)
+          ? legacyItem.comments
+          : [];
+
+      const returnedAt = usage.returnedAt || legacyItem?.returnedAt || null;
+      const issuedToMembers = Array.isArray(usage.issuedToMembers) && usage.issuedToMembers.length
+        ? usage.issuedToMembers
+        : Array.isArray(legacyRecord?.issuedToMembers) && legacyRecord.issuedToMembers.length
+          ? legacyRecord.issuedToMembers
+          : [{
+              id: usage.userId || '',
+              name: usage.userName || usage.userEmail || 'Member',
+              email: usage.userEmail || '',
+            }];
+
+      const reasonText = (usage.reason || legacyRecord?.reason || '').trim();
+      const descriptionText = (usage.description || legacyRecord?.description || '').trim();
+
+      const timeBucket = issuedAtMillis ? Math.floor(issuedAtMillis / 60000) : 0;
+      const groupKey = `${reasonText.toLowerCase()}__${timeBucket}__${usage.issuedByUid || ''}`;
+
+      const itemEntry = {
+        usageId: usage.id,
         itemId: usage.itemId,
         itemNo: usage.itemNo || legacyItem?.itemNo || '',
         itemName: usage.itemName || legacyItem?.itemName || 'Item',
@@ -89,11 +103,48 @@ const buildIssueHistoryFromUsage = (usageRecords, legacyIssueRecords) => usageRe
         returnedAt,
         returnedByUid: usage.returnedByUid || legacyItem?.returnedByUid || null,
         returnedByName: usage.returnedByName || legacyItem?.returnedByName || null,
+        isDamaged: Boolean(usage.isDamaged || legacyItem?.isDamaged),
+        damageNote: usage.damageNote || legacyItem?.damageNote || '',
+        damagedByName: usage.damagedByName || legacyItem?.damagedByName || null,
+        damagedAt: usage.damagedAt || legacyItem?.damagedAt || null,
         comments,
-      }],
-    };
-  })
-  .sort((a, b) => getTimestampMillis(b.createdAt) - getTimestampMillis(a.createdAt));
+      };
+
+      if (!groups.has(groupKey)) {
+        groups.set(groupKey, {
+          ...usage,
+          id: groupKey,
+          action: 'issue',
+          sourceCollection: 'inventoryUsageGroup',
+          createdAt: issuedAt || legacyRecord?.createdAt || null,
+          createdByUid: usage.issuedByUid || legacyRecord?.createdByUid || null,
+          createdByName: usage.issuedByName || legacyRecord?.createdByName || null,
+          reason: reasonText,
+          description: descriptionText,
+          issuedToMembers,
+          itemsIssued: [itemEntry],
+        });
+      } else {
+        const existingGroup = groups.get(groupKey);
+        existingGroup.itemsIssued.push(itemEntry);
+
+        const existingMemberKeys = new Set(
+          existingGroup.issuedToMembers.map((m) => m.id || m.email || m.name)
+        );
+        issuedToMembers.forEach((member) => {
+          const memberKey = member.id || member.email || member.name;
+          if (memberKey && !existingMemberKeys.has(memberKey)) {
+            existingMemberKeys.add(memberKey);
+            existingGroup.issuedToMembers.push(member);
+          }
+        });
+      }
+    });
+
+  return Array.from(groups.values()).sort(
+    (a, b) => getTimestampMillis(b.createdAt) - getTimestampMillis(a.createdAt)
+  );
+};
 
 const Inventory = () => {
   const navigate = useNavigate();
@@ -101,6 +152,8 @@ const Inventory = () => {
   const [items, setItems] = useState([]);
   const itemsRef = useRef(items);
   const [allMembers, setAllMembers] = useState([]);
+  const allMembersRef = useRef(allMembers);
+  const allUsersRef = useRef([]);
   const [usageRecords, setUsageRecords] = useState([]);
   const [legacyIssueRecords, setLegacyIssueRecords] = useState([]);
   const [issueHistoryLoading, setIssueHistoryLoading] = useState(false);
@@ -154,16 +207,31 @@ const Inventory = () => {
   const [addImagePreviews, setAddImagePreviews] = useState([]);
   const [addImageError, setAddImageError] = useState('');
   const [addImageUploading, setAddImageUploading] = useState(false);
+
   const [commentModal, setCommentModal] = useState({
     open: false,
     recordId: null,
     itemId: null,
     itemName: '',
+    isReturned: false,
     comments: [],
   });
   const [commentText, setCommentText] = useState('');
   const [commentEditingIndex, setCommentEditingIndex] = useState(null);
   const [commentSaving, setCommentSaving] = useState(false);
+
+  const [damageModal, setDamageModal] = useState({
+    open: false,
+    recordId: null,
+    itemId: null,
+    usageId: null,
+    itemName: '',
+    isDamaged: false,
+    damageNote: '',
+  });
+  const [damageNoteText, setDamageNoteText] = useState('');
+  const [damageSaving, setDamageSaving] = useState(false);
+
   const issueHistory = useMemo(
     () => buildIssueHistoryFromUsage(usageRecords, legacyIssueRecords),
     [usageRecords, legacyIssueRecords]
@@ -188,10 +256,12 @@ const Inventory = () => {
     });
 
     const membersUnsubscribe = onSnapshot(collection(db, 'users'), (snapshot) => {
-      const members = snapshot.docs
-        .map((entry) => ({ id: entry.id, ...entry.data() }))
-        .filter((user) => !isUserTO(user));
-      members.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      const allUsers = snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() }));
+      allUsers.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      allUsersRef.current = allUsers;
+
+      const members = allUsers.filter((user) => !isUserTO(user));
+      allMembersRef.current = members;
       setAllMembers(members);
     }, (error) => {
       console.error('Error listening to users:', error);
@@ -255,7 +325,7 @@ const Inventory = () => {
 
       socket.onopen = () => {
         if (!disposed) {
-          if (showManualCheckout) setRfidScanMessage('Waiting for an item RFID card...');
+          if (showManualCheckout) setRfidScanMessage('Waiting for an item or user RFID card...');
           else setRfidReturnScanMessage('Waiting for an item RFID card...');
         }
       };
@@ -267,7 +337,7 @@ const Inventory = () => {
           const data = JSON.parse(event.data);
           if (data.event === 'card_removed') {
             lastDetectedUid = '';
-            if (showManualCheckout) setRfidScanMessage('Waiting for an item RFID card...');
+            if (showManualCheckout) setRfidScanMessage('Waiting for an item or user RFID card...');
             else setRfidReturnScanMessage('Waiting for an item RFID card...');
             return;
           }
@@ -276,20 +346,43 @@ const Inventory = () => {
           if (data.event !== 'card_detected' || !uid || uid.toUpperCase() === lastDetectedUid) return;
           lastDetectedUid = uid.toUpperCase();
 
+          const getMemberRfid = (member) =>
+            String(
+              member?.rfidCardId ||
+              member?.rfidUid ||
+              member?.cardUid ||
+              member?.nfcCardId ||
+              ''
+            ).trim().toUpperCase();
+
           const item = itemsRef.current.find(
             (entry) => String(entry.rfidCardId || '').trim().toUpperCase() === lastDetectedUid
           );
+          const member = !item
+            ? allUsersRef.current.find((entry) => getMemberRfid(entry) === lastDetectedUid)
+            : null;
 
           if (showManualCheckout) {
-            if (!item) {
-              setRfidScanMessage(`No inventory item is assigned to RFID card ${uid}.`);
-            } else if (['checkedOut', 'overdue'].includes(item.status || 'available')) {
-              setRfidScanMessage(`${item.itemName || 'This item'} is not available to issue.`);
-            } else {
-              setSelectedItems((previous) => (
-                previous.includes(item.id) ? previous : [...previous, item.id]
+            if (item) {
+              if (['checkedOut', 'overdue'].includes(item.status || 'available')) {
+                setRfidScanMessage(`${item.itemName || 'This item'} is not available to issue.`);
+              } else {
+                setSelectedItems((previous) => (
+                  previous.includes(item.id) ? previous : [...previous, item.id]
+                ));
+                setRfidScanMessage(
+                  `Item "${item.itemName || 'Item'}${item.itemNo ? ` (#${item.itemNo})` : ''}" selected. Tap another item or user card...`
+                );
+              }
+            } else if (member) {
+              setSelectedMembers((previous) => (
+                previous.some((m) => m.id === member.id) ? previous : [...previous, member]
               ));
-              setRfidScanMessage(`${item.itemName || 'Item'}${item.itemNo ? ` (#${item.itemNo})` : ''} is selected. Waiting for another card...`);
+              setRfidScanMessage(
+                `User "${member.name || member.email || 'Member'}" selected. Tap another item or user card...`
+              );
+            } else {
+              setRfidScanMessage(`No item or user is assigned to RFID card ${uid}.`);
             }
           } else {
             const issueRecord = issueHistoryWithStatusRef.current.find((record) => (
@@ -511,46 +604,6 @@ const Inventory = () => {
         ? 'siteAdmin'
         : 'user';
 
-  const handleDownloadInventoryExcel = () => {
-    const rows = items.map((item, index) => ({
-      No: index + 1,
-      'Item No': item.itemNo || '',
-      'Item Name': item.itemName || '',
-      Category: item.category || '',
-      Status: item.status || 'available',
-      Description: item.description || '',
-    }));
-
-    const worksheet = XLSX.utils.json_to_sheet(rows);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Inventory');
-    XLSX.writeFile(workbook, `inventory_${new Date().toISOString().slice(0, 10)}.xlsx`);
-  };
-
-  const handleDownloadInventoryPdf = () => {
-    const doc = new jsPDF();
-    doc.setFontSize(16);
-    doc.text('Inventory Records', 14, 16);
-
-    const rows = items.map((item, index) => [
-      index + 1,
-      item.itemNo || '-',
-      item.itemName || '-',
-      item.category || '-',
-      item.status || 'available',
-    ]);
-
-    autoTable(doc, {
-      head: [['#', 'Item No', 'Item Name', 'Category', 'Status']],
-      body: rows,
-      startY: 22,
-      styles: { fontSize: 9 },
-      headStyles: { fillColor: [22, 163, 74] },
-    });
-
-    doc.save(`inventory_${new Date().toISOString().slice(0, 10)}.pdf`);
-  };
-
   const toReportDate = (value, endOfDay = false) => {
     if (!value) return null;
     const date = new Date(`${value}T00:00:00`);
@@ -575,7 +628,9 @@ const Inventory = () => {
               ? record.issuedToMembers.map((member) => member.name || member.email || 'Unknown').join('; ')
               : record.userName || record.userId || '',
             'Issued By': record.createdByName || record.createdByUid || '',
+            'Reason': record.reason || '',
             'Return Status': item.returnStatus || (item.returnedAt ? 'returned' : 'not returned'),
+            'Damaged': item.isDamaged ? `Yes${item.damageNote ? ` (${item.damageNote})` : ''}` : 'No',
             'Returned Date': item.returnedAt ? formatDateTime(item.returnedAt) : '',
             'Returned By': item.returnedByName || item.returnedByUid || '',
             'Comment': Array.isArray(item.comments) ? item.comments.map((comment) => comment.text).join(' | ') : '',
@@ -591,7 +646,9 @@ const Inventory = () => {
           'Item Name': record.itemName || '',
           'Issued To': record.userName || '',
           'Issued By': record.createdByName || record.createdByUid || '',
+          'Reason': record.reason || '',
           'Return Status': 'returned',
+          'Damaged': 'No',
           'Returned Date': recordDate.toLocaleString(),
           'Returned By': record.createdByName || record.createdByUid || '',
           'Comment': record.comment || '',
@@ -669,11 +726,12 @@ const Inventory = () => {
           row['Item Name'],
           row['Issued To'],
           row['Return Status'],
+          row['Damaged'],
           row['Returned Date'],
         ]);
 
         autoTable(doc, {
-          head: [['Type', 'Issue/Return Date', 'Item No', 'Item Name', 'Issued To', 'Status', 'Returned Date']],
+          head: [['Type', 'Issue/Return Date', 'Item No', 'Item Name', 'Issued To', 'Status', 'Damaged', 'Returned Date']],
           body: tableRows,
           startY: 22,
           styles: { fontSize: 8 },
@@ -1029,6 +1087,7 @@ const Inventory = () => {
 
     try {
       const batch = writeBatch(db);
+      const batchTimestamp = serverTimestamp();
 
       for (const itemId of selectedItems) {
         const item = items.find((entry) => entry.id === itemId);
@@ -1059,29 +1118,31 @@ const Inventory = () => {
             email: member.email || '',
           })),
           rfidCardId: primaryMember.rfidCardId || '',
-          checkedOutAt: serverTimestamp(),
+          checkedOutAt: batchTimestamp,
           dueAt,
           returnedAt: null,
           status: 'checkedOut',
           overdueAlertSent: false,
           overdueAt: null,
+          isDamaged: false,
+          damageNote: '',
           issuedByUid: profile?.id || null,
           issuedByName: profile?.name || profile?.email || null,
           reason: issueReason.trim(),
           description: issueDescription.trim() || '',
-          createdAt: serverTimestamp(),
+          createdAt: batchTimestamp,
         });
 
         batch.update(itemRef, {
           status: 'checkedOut',
           checkedOutToUserId: primaryMember.id,
           checkedOutToName: primaryMember.name || primaryMember.email || 'Member',
-          checkedOutAt: serverTimestamp(),
+          checkedOutAt: batchTimestamp,
           dueAt,
           overdueAt: null,
           overdueAlertSent: false,
           currentUsageId: usageRef.id,
-          updatedAt: serverTimestamp(),
+          updatedAt: batchTimestamp,
         });
       }
 
@@ -1121,9 +1182,8 @@ const Inventory = () => {
         const itemSnap = items.find((entry) => entry.id === itemId);
         if (!itemSnap) continue;
 
-        let usageId = record.sourceCollection === 'inventoryUsage'
-          ? record.id
-          : itemSnap.currentUsageId || null;
+        const recordItem = (record.itemsIssued || []).find((entry) => entry.itemId === itemId);
+        let usageId = recordItem?.usageId || (record.sourceCollection === 'inventoryUsage' ? record.id : null) || itemSnap.currentUsageId || null;
         if (!usageId) {
           const usageSnap = await getDocs(
             query(
@@ -1177,20 +1237,101 @@ const Inventory = () => {
     }
   };
 
-  const openCommentModal = (record, item) => {
+  // --- Mark Damage Handlers ---
+  const openDamageModal = (record, item, itemStatus) => {
+    // Cannot edit damage once returned
+    if (itemStatus === 'returned' || record.isCompleted) return;
+
+    setDamageModal({
+      open: true,
+      recordId: record.id,
+      itemId: item.itemId,
+      usageId: item.usageId || null,
+      itemName: item.itemName || 'Item',
+      isDamaged: Boolean(item.isDamaged),
+      damageNote: item.damageNote || '',
+    });
+    setDamageNoteText(item.damageNote || '');
+  };
+
+  const closeDamageModal = () => {
+    setDamageModal({
+      open: false,
+      recordId: null,
+      itemId: null,
+      usageId: null,
+      itemName: '',
+      isDamaged: false,
+      damageNote: '',
+    });
+    setDamageNoteText('');
+  };
+
+  const handleSaveDamage = async (markAsDamaged) => {
+    if (!damageModal.itemId) return;
+
+    setDamageSaving(true);
+    try {
+      const record = issueHistory.find((entry) => entry.id === damageModal.recordId);
+      const recordItem = (record?.itemsIssued || []).find((entry) => entry.itemId === damageModal.itemId);
+      const itemSnap = items.find((entry) => entry.id === damageModal.itemId);
+      const targetUsageId = damageModal.usageId || recordItem?.usageId || itemSnap?.currentUsageId;
+
+      if (targetUsageId) {
+        await updateDoc(doc(db, 'inventoryUsage', targetUsageId), {
+          isDamaged: markAsDamaged,
+          damageNote: markAsDamaged ? damageNoteText.trim() : '',
+          damagedByUid: markAsDamaged ? (profile?.id || null) : null,
+          damagedByName: markAsDamaged ? (profile?.name || profile?.email || null) : null,
+          damagedAt: markAsDamaged ? new Date().toISOString() : null,
+          updatedAt: serverTimestamp(),
+          updatedByUid: profile?.id || null,
+        });
+      }
+
+      if (itemSnap) {
+        await updateDoc(doc(db, 'inventory', damageModal.itemId), {
+          isDamaged: markAsDamaged,
+          damageNote: markAsDamaged ? damageNoteText.trim() : '',
+          updatedAt: serverTimestamp(),
+        });
+      }
+
+      await fetchIssueHistory();
+      setMessage({
+        type: 'success',
+        text: markAsDamaged
+          ? `"${damageModal.itemName}" marked as damaged.`
+          : `Damage mark cleared for "${damageModal.itemName}".`,
+      });
+      closeDamageModal();
+    } catch (error) {
+      console.error('Error saving damage status:', error);
+      setMessage({ type: 'error', text: 'Failed to update damage status.' });
+    } finally {
+      setDamageSaving(false);
+    }
+  };
+
+  // --- Comment Handlers ---
+  const openCommentModal = (record, item, itemStatus) => {
     setCommentModal({
       open: true,
       recordId: record.id,
       itemId: item.itemId,
       itemName: item.itemName || 'Item',
+      isReturned: itemStatus === 'returned' || Boolean(record.isCompleted),
       comments: Array.isArray(item.comments) ? item.comments : [],
     });
     setCommentText('');
     setCommentEditingIndex(null);
   };
 
-  const openCommentModalForEdit = (record, item, commentIndex) => {
-    openCommentModal(record, item);
+  const openCommentModalForEdit = (record, item, commentIndex, itemStatus) => {
+    // Prevent editing comments after item is returned
+    if (itemStatus === 'returned' || record.isCompleted) return;
+
+    openCommentModal(record, item, itemStatus);
     const comments = Array.isArray(item.comments) ? item.comments : [];
     const comment = comments[commentIndex];
     setCommentEditingIndex(commentIndex);
@@ -1199,14 +1340,17 @@ const Inventory = () => {
 
   const saveIssueComments = async (record, itemsWithComments, itemId) => {
     const updatedItem = itemsWithComments.find((item) => item.itemId === itemId);
-    await updateDoc(doc(db, 'inventoryUsage', record.id), {
+    const targetUsageDocId = updatedItem?.usageId || record.id;
+    await updateDoc(doc(db, 'inventoryUsage', targetUsageDocId), {
       comments: Array.isArray(updatedItem?.comments) ? updatedItem.comments : [],
       updatedAt: serverTimestamp(),
       updatedByUid: profile?.id || null,
     });
   };
 
-  const deleteCommentFromHistory = async (record, item, commentIndex) => {
+  const deleteCommentFromHistory = async (record, item, commentIndex, itemStatus) => {
+    // Prevent deleting comments after item is returned
+    if (itemStatus === 'returned' || record.isCompleted) return;
     if (!record?.id || !item?.itemId) return;
 
     setCommentSaving(true);
@@ -1248,14 +1392,19 @@ const Inventory = () => {
       recordId: null,
       itemId: null,
       itemName: '',
+      isReturned: false,
       comments: [],
     });
     setCommentText('');
+    setCommentEditingIndex(null);
   };
 
   const handleSaveComment = async () => {
     const trimmedComment = commentText.trim();
     if (!trimmedComment || !commentModal.recordId || !commentModal.itemId) return;
+
+    // Extra safety: if item is already returned, force append-only (no editing existing index)
+    const effectiveEditingIndex = commentModal.isReturned ? null : commentEditingIndex;
 
     setCommentSaving(true);
     try {
@@ -1265,7 +1414,7 @@ const Inventory = () => {
       const updatedItems = (record.itemsIssued || []).map((item) => {
         if (item.itemId !== commentModal.itemId) return item;
         const comments = Array.isArray(item.comments) ? item.comments : [];
-        const nextComments = commentEditingIndex === null
+        const nextComments = effectiveEditingIndex === null
           ? [
               ...comments,
               {
@@ -1276,7 +1425,7 @@ const Inventory = () => {
               },
             ]
           : comments.map((comment, index) => (
-              index === commentEditingIndex
+              index === effectiveEditingIndex
                 ? {
                     ...comment,
                     text: trimmedComment,
@@ -1310,43 +1459,8 @@ const Inventory = () => {
     }
   };
 
-  const handleEditComment = (record, item, index) => {
-    openCommentModalForEdit(record, item, index);
-  };
-
-  const handleDeleteComment = async (commentIndex) => {
-    if (!commentModal.recordId || !commentModal.itemId) return;
-
-    setCommentSaving(true);
-    try {
-      const record = issueHistory.find((entry) => entry.id === commentModal.recordId);
-      if (!record) return;
-
-      const updatedItems = (record.itemsIssued || []).map((item) => {
-        if (item.itemId !== commentModal.itemId) return item;
-        const comments = Array.isArray(item.comments) ? item.comments : [];
-        return {
-          ...item,
-          comments: comments.filter((_, index) => index !== commentIndex),
-        };
-      });
-
-      await saveIssueComments(record, updatedItems, commentModal.itemId);
-
-      await fetchIssueHistory();
-      const updatedItem = updatedItems.find((item) => item.itemId === commentModal.itemId);
-      setCommentModal((prev) => ({
-        ...prev,
-        comments: Array.isArray(updatedItem?.comments) ? updatedItem.comments : [],
-      }));
-      setCommentText('');
-      setCommentEditingIndex(null);
-    } catch (error) {
-      console.error(error);
-      setMessage({ type: 'error', text: 'Failed to delete comment.' });
-    } finally {
-      setCommentSaving(false);
-    }
+  const handleEditComment = (record, item, index, itemStatus) => {
+    openCommentModalForEdit(record, item, index, itemStatus);
   };
 
   const inventoryStats = [
@@ -1374,6 +1488,12 @@ const Inventory = () => {
       accent: 'from-rose-500 to-red-500',
       soft: 'bg-rose-50 text-red-700',
     },
+    {
+      label: 'Damaged',
+      value: items.filter((item) => Boolean(item.isDamaged)).length,
+      accent: 'from-red-600 to-rose-600',
+      soft: 'bg-red-50 text-red-700',
+    },
   ];
 
   return (
@@ -1394,7 +1514,7 @@ const Inventory = () => {
           </div>
         </div>
 
-        <div className="mb-5 grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
+        <div className="mb-5 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
           {inventoryStats.map((stat) => (
             <div
               key={stat.label}
@@ -1455,56 +1575,6 @@ const Inventory = () => {
             <p className="mt-2 text-xs text-slate-500">
               Authorization lasts two minutes and is used to classify door events. Physical cupboard unlocking is not connected.
             </p>
-          </div>
-        )}
-
-        {canManageInventory && (
-          <div className="mb-6 rounded-[28px] border border-slate-200 bg-white/90 p-4 shadow-[0_15px_30px_rgba(15,23,42,0.05)] sm:p-6">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">Reports</p>
-                <h2 className="mt-1 text-xl font-bold text-slate-800">Usage export</h2>
-              </div>
-
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-                <div>
-                  <label className="mb-1 block text-sm font-semibold text-gray-700">From date</label>
-                  <input
-                    type="date"
-                    value={reportStartDate}
-                    onChange={(e) => setReportStartDate(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-emerald-400 focus:bg-white"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-sm font-semibold text-gray-700">To date</label>
-                  <input
-                    type="date"
-                    value={reportEndDate}
-                    onChange={(e) => setReportEndDate(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-emerald-400 focus:bg-white"
-                  />
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleDownloadUsageReport('excel')}
-                    disabled={reportGenerating}
-                    className="inline-flex items-center justify-center rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-50"
-                  >
-                    {reportGenerating ? 'Preparing...' : 'Usage Excel'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDownloadUsageReport('pdf')}
-                    disabled={reportGenerating}
-                    className="inline-flex items-center justify-center rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-50"
-                  >
-                    Usage PDF
-                  </button>
-                </div>
-              </div>
-            </div>
           </div>
         )}
 
@@ -1581,6 +1651,56 @@ const Inventory = () => {
         )}
 
         {canManageInventory && (
+          <div className="mb-6 rounded-[28px] border border-slate-200 bg-white/90 p-4 shadow-[0_15px_30px_rgba(15,23,42,0.05)] sm:p-6">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">Reports</p>
+                <h2 className="mt-1 text-xl font-bold text-slate-800">Usage export</h2>
+              </div>
+
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                <div>
+                  <label className="mb-1 block text-sm font-semibold text-gray-700">From date</label>
+                  <input
+                    type="date"
+                    value={reportStartDate}
+                    onChange={(e) => setReportStartDate(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-emerald-400 focus:bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-semibold text-gray-700">To date</label>
+                  <input
+                    type="date"
+                    value={reportEndDate}
+                    onChange={(e) => setReportEndDate(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-emerald-400 focus:bg-white"
+                  />
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadUsageReport('excel')}
+                    disabled={reportGenerating}
+                    className="inline-flex items-center justify-center rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-50"
+                  >
+                    {reportGenerating ? 'Preparing...' : 'Usage Excel'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadUsageReport('pdf')}
+                    disabled={reportGenerating}
+                    className="inline-flex items-center justify-center rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-50"
+                  >
+                    Usage PDF
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {canManageInventory && (
           <div className="mb-5 rounded-[22px] border border-slate-200 bg-white/90 p-4 shadow-[0_12px_24px_rgba(15,23,42,0.04)] sm:p-5">
             <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -1635,17 +1755,36 @@ const Inventory = () => {
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                           <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-2">
-                              <p className={`text-base font-bold ${recordHasOverdue ? 'text-red-600' : 'text-slate-800'}`}>{formatDateTime(record.createdAt)}</p>
-                              {recordHasOverdue && <span className="rounded-full bg-red-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-red-700">Overdue</span>}
-                              {!record.isCompleted && <span className="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-700">Open</span>}
+                              <p className={`text-base font-bold ${recordHasOverdue ? 'text-red-600' : 'text-slate-800'}`}>
+                                {record.reason || record.description || 'No reason provided'}
+                              </p>
+                              {recordHasOverdue && (
+                                <span className="rounded-full bg-red-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-red-700">
+                                  Overdue
+                                </span>
+                              )}
+                              {!record.isCompleted && (
+                                <span className="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-700">
+                                  Open
+                                </span>
+                              )}
                             </div>
-                            {record.reason && <p className="mt-1 text-sm text-slate-600">Reason: {record.reason}</p>}
+                            <p className="mt-1 text-xs font-medium text-slate-500">
+                              Issued: {formatDateTime(record.createdAt)}
+                            </p>
+                            <p className="mt-1 truncate text-xs text-slate-600">
+                              Items: {itemList.map((i) => i.itemName || 'Item').join(', ')}
+                            </p>
                           </div>
 
                           <div className="flex flex-wrap items-center gap-3 text-sm text-slate-600">
-                            <span className="rounded-full bg-white px-2 py-1 font-semibold text-slate-700 ring-1 ring-slate-200">{itemList.length} items</span>
-                            <span className="rounded-full bg-white px-2 py-1 font-semibold text-slate-700 ring-1 ring-slate-200">{userList.length} users</span>
-                            <span className="font-medium text-slate-500">{isOpen ? 'Hide' : 'Show details'}</span>
+                            <span className="rounded-full bg-white px-2.5 py-1 font-semibold text-slate-700 ring-1 ring-slate-200">
+                              {itemList.length} {itemList.length === 1 ? 'item' : 'items'}
+                            </span>
+                            <span className="rounded-full bg-white px-2.5 py-1 font-semibold text-slate-700 ring-1 ring-slate-200">
+                              {userList.length} {userList.length === 1 ? 'user' : 'users'}
+                            </span>
+                            <span className="font-medium text-blue-600">{isOpen ? 'Hide' : 'Show details'}</span>
                           </div>
                         </div>
                       </button>
@@ -1711,12 +1850,13 @@ const Inventory = () => {
                                   const itemStatus = (record.itemsWithStatus || [])[index]?.returnStatus || 'not returned';
                                   const comments = Array.isArray(item.comments) ? item.comments : [];
                                   const isSelected = selectedIds.includes(item.itemId);
-                                  const canSelect = itemStatus !== 'returned';
+                                  const isItemReturned = itemStatus === 'returned';
+                                  const canSelect = !isItemReturned;
 
                                   return (
                                     <div key={`${record.id}-item-${index}`} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
                                       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                                        <div className="flex min-w-0 items-center gap-2">
+                                        <div className="flex min-w-0 flex-wrap items-center gap-2">
                                           <input
                                             type="checkbox"
                                             checked={isSelected}
@@ -1748,9 +1888,43 @@ const Inventory = () => {
                                           >
                                             {item.itemName || 'Item'}{item.itemNo ? ` (#${item.itemNo})` : ''}
                                           </span>
-                                          <button type="button" onClick={() => openCommentModal(record, item)} className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-1 text-blue-600 ring-1 ring-blue-200 hover:bg-blue-50" title="Add comment">
+
+                                          {/* Mark Damage button BEFORE Add Comment button */}
+                                          {!isItemReturned ? (
+                                            <button
+                                              type="button"
+                                              onClick={() => openDamageModal(record, item, itemStatus)}
+                                              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 transition ${
+                                                item.isDamaged
+                                                  ? 'bg-red-100 text-red-700 ring-red-300 hover:bg-red-200'
+                                                  : 'bg-white text-amber-700 ring-amber-300 hover:bg-amber-50'
+                                              }`}
+                                              title={item.isDamaged ? 'Edit damage mark' : 'Mark damage'}
+                                            >
+                                              <FaExclamationTriangle className="text-[11px]" />
+                                              <span>{item.isDamaged ? 'Damaged' : 'Mark Damage'}</span>
+                                            </button>
+                                          ) : (
+                                            item.isDamaged && (
+                                              <span
+                                                className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-700 ring-1 ring-red-300"
+                                                title="Damage record locked after return"
+                                              >
+                                                <FaExclamationTriangle className="text-[11px]" />
+                                                <span>Mark Damaged</span>
+                                              </span>
+                                            )
+                                          )}
+
+                                          {/* Add Comment button (always available even after return) */}
+                                          <button
+                                            type="button"
+                                            onClick={() => openCommentModal(record, item, itemStatus)}
+                                            className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-blue-600 ring-1 ring-blue-200 hover:bg-blue-50"
+                                            title="Add comment"
+                                          >
                                             <FaCommentDots />
-                                            <span className="text-xs font-semibold">{comments.length}</span>
+                                            <span>{comments.length}</span>
                                           </button>
                                         </div>
 
@@ -1759,7 +1933,18 @@ const Inventory = () => {
                                         </span>
                                       </div>
 
-                                      {record.isCompleted && (
+                                      {item.isDamaged && item.damageNote && (
+                                        <div className="mt-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
+                                          <span className="font-semibold">Damage Note:</span> {item.damageNote}
+                                          {item.damagedByName && (
+                                            <span className="ml-2 text-[10px] text-red-600">
+                                              (Marked by {item.damagedByName})
+                                            </span>
+                                          )}
+                                        </div>
+                                      )}
+
+                                      {isItemReturned && (
                                         <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 text-xs text-slate-600">
                                           <div><span className="font-semibold text-slate-500">Issued by:</span> {record.createdByName || record.createdByUid || 'Unknown'}</div>
                                           <div><span className="font-semibold text-slate-500">Issued at:</span> {formatDateTime(record.createdAt)}</div>
@@ -1775,12 +1960,33 @@ const Inventory = () => {
                                               <div className="flex items-start justify-between gap-2">
                                                 <div>
                                                   <div>{comment.text}</div>
-                                                  <div className="mt-1 text-[10px] font-medium text-slate-400">{comment.createdByName || 'Unknown'}{comment.updatedAt ? ' • edited' : ''}</div>
+                                                  <div className="mt-1 text-[10px] font-medium text-slate-400">
+                                                    {comment.createdByName || 'Unknown'}
+                                                    {comment.updatedAt ? ' • edited' : ''}
+                                                  </div>
                                                 </div>
-                                                <div className="flex shrink-0 items-center gap-2">
-                                                  <button type="button" onClick={() => handleEditComment(record, item, commentIndex)} className="text-blue-600 hover:text-blue-800" title="Edit comment"><FaEdit /></button>
-                                                  <button type="button" onClick={() => deleteCommentFromHistory(record, item, commentIndex)} className="text-red-600 hover:text-red-800" title="Delete comment"><FaTrash /></button>
-                                                </div>
+
+                                                {/* Edit and Delete buttons only shown BEFORE item is returned */}
+                                                {!isItemReturned && (
+                                                  <div className="flex shrink-0 items-center gap-2">
+                                                    <button
+                                                      type="button"
+                                                      onClick={() => handleEditComment(record, item, commentIndex, itemStatus)}
+                                                      className="text-blue-600 hover:text-blue-800"
+                                                      title="Edit comment"
+                                                    >
+                                                      <FaEdit />
+                                                    </button>
+                                                    <button
+                                                      type="button"
+                                                      onClick={() => deleteCommentFromHistory(record, item, commentIndex, itemStatus)}
+                                                      className="text-red-600 hover:text-red-800"
+                                                      title="Delete comment"
+                                                    >
+                                                      <FaTrash />
+                                                    </button>
+                                                  </div>
+                                                )}
                                               </div>
                                             </div>
                                           ))}
@@ -1997,30 +2203,34 @@ const Inventory = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-                  <div>
-                    <div className="mb-2 flex items-center justify-between gap-2">
-                      <label className="block text-sm font-semibold text-gray-700">Select Items</label>
-                      {rfidScanning && (
-                        <span className="inline-flex items-center gap-2 text-xs text-blue-700">
-                          <FaSpinner className="animate-spin" />
-                          RFID active
-                        </span>
-                      )}
-                    </div>
-                    {rfidScanMessage && (
-                      <p className={`mb-2 text-sm ${
-                        rfidScanMessage.startsWith('No inventory') ||
+                {/* Shared RFID Reader Status Banner above both Items & Users */}
+                {(rfidScanning || rfidScanMessage) && (
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-blue-200 bg-blue-50/80 px-3 py-2">
+                    <span
+                      className={`text-xs font-medium sm:text-sm ${
+                        rfidScanMessage.startsWith('No item or user') ||
                         rfidScanMessage.includes('not available') ||
                         rfidScanMessage.startsWith('Could not') ||
                         rfidScanMessage.startsWith('No RFID') ||
                         rfidScanMessage.startsWith('NFC_URL')
                           ? 'text-red-600'
                           : 'text-blue-700'
-                      }`}>
-                        {rfidScanMessage}
-                      </p>
+                      }`}
+                    >
+                      {rfidScanMessage || 'Waiting for an item or user RFID card...'}
+                    </span>
+                    {rfidScanning && (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-0.5 text-xs font-semibold text-blue-700 ring-1 ring-blue-200">
+                        <FaSpinner className="animate-spin" />
+                        RFID active (Items & Users)
+                      </span>
                     )}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-gray-700">Select Items</label>
                     <input type="text" value={itemSearchText} onChange={(e) => setItemSearchText(e.target.value)} placeholder="Search by item no or name" className="mb-2 w-full rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
                     <div className="max-h-52 overflow-y-auto rounded border border-slate-200 bg-slate-50 p-2">
                       {availableItems.length === 0 ? (
@@ -2147,24 +2357,106 @@ const Inventory = () => {
           </div>
         )}
 
+        {/* Mark Damage Modal */}
+        {damageModal.open && (
+          <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={closeDamageModal}>
+            <div className="w-full max-w-md rounded-lg bg-white shadow-xl p-5" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2 text-amber-700">
+                  <FaExclamationTriangle />
+                  <h3 className="text-lg font-semibold text-gray-800">Mark Item Damage</h3>
+                </div>
+                <button type="button" onClick={closeDamageModal} className="text-gray-500 hover:text-gray-700">
+                  <FaTimes />
+                </button>
+              </div>
+
+              <p className="text-sm font-medium text-gray-700 mb-3">{damageModal.itemName}</p>
+
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-600">
+                Damage Description
+              </label>
+              <textarea
+                value={damageNoteText}
+                onChange={(e) => setDamageNoteText(e.target.value)}
+                rows="3"
+                placeholder="Describe the damage (e.g. cracked lens, bent pin, broken strap)..."
+                className="w-full px-3 py-2 border border-slate-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+              />
+
+              <p className="mt-2 text-xs text-slate-500">
+                Note: Once the item is returned, this damage status cannot be edited.
+              </p>
+
+              <div className="mt-4 flex flex-wrap justify-end gap-2">
+                {damageModal.isDamaged && (
+                  <button
+                    type="button"
+                    onClick={() => handleSaveDamage(false)}
+                    disabled={damageSaving}
+                    className="px-3 py-2 rounded border border-slate-300 text-slate-700 text-xs font-semibold hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    Clear Damage
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={closeDamageModal}
+                  className="px-4 py-2 rounded border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSaveDamage(true)}
+                  disabled={damageSaving || !damageNoteText.trim()}
+                  className="px-4 py-2 rounded bg-red-600 text-white text-sm font-semibold hover:bg-red-700 disabled:opacity-50"
+                >
+                  {damageSaving ? 'Saving...' : 'Save Damage'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Comment Modal */}
         {commentModal.open && (
           <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={closeCommentModal}>
             <div className="w-full max-w-lg rounded-lg bg-white shadow-xl p-5" onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-800">Add Comment</h3>
+                <h3 className="text-lg font-semibold text-gray-800">
+                  {commentEditingIndex === null ? 'Add Comment' : 'Edit Comment'}
+                </h3>
                 <button type="button" onClick={closeCommentModal} className="text-gray-500 hover:text-gray-700"><FaTimes /></button>
               </div>
 
               <p className="text-sm text-gray-600 mb-3">{commentModal.itemName}</p>
 
-              <textarea value={commentText} onChange={(e) => setCommentText(e.target.value)} rows="4" placeholder="Write a comment..." className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <textarea
+                value={commentText}
+                onChange={(e) => setCommentText(e.target.value)}
+                rows="4"
+                placeholder="Write a comment..."
+                className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+
+              {commentModal.isReturned && (
+                <p className="mt-2 text-xs text-slate-500">
+                  This item has been returned. Existing comments are locked, but you can add a new comment.
+                </p>
+              )}
 
               {commentModal.comments.length > 0 && (
                 <div className="mt-4 border-t pt-3">
                   <p className="text-sm font-semibold text-gray-800 mb-2">Previous comments</p>
                   <div className="space-y-2 max-h-40 overflow-y-auto">
                     {commentModal.comments.map((comment, index) => (
-                      <div key={`${commentModal.itemId}-existing-${index}`} className="text-sm text-gray-600 bg-gray-50 rounded p-2">{comment.text}</div>
+                      <div key={`${commentModal.itemId}-existing-${index}`} className="text-sm text-gray-600 bg-gray-50 rounded p-2">
+                        <div>{comment.text}</div>
+                        <div className="mt-1 text-[10px] text-gray-400">
+                          {comment.createdByName || 'Unknown'}
+                        </div>
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -2173,7 +2465,7 @@ const Inventory = () => {
               <div className="mt-4 flex justify-end gap-2">
                 <button type="button" onClick={closeCommentModal} className="px-4 py-2 rounded border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50">Cancel</button>
                 <button type="button" onClick={handleSaveComment} disabled={commentSaving || !commentText.trim()} className="px-4 py-2 rounded bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-50">
-                  {commentSaving ? 'Saving...' : (commentEditingIndex === null ? 'Save Comment' : 'Update Comment')}
+                  {commentSaving ? 'Saving...' : (commentEditingIndex === null || commentModal.isReturned ? 'Save Comment' : 'Update Comment')}
                 </button>
               </div>
             </div>
