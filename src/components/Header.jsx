@@ -76,6 +76,11 @@ const Header = ({ userType, isTO = false, isDarkMode, toggleDarkMode, isGlobalLa
         : effectiveUserType === 'siteAdmin'
           ? '/site-admin'
           : '/home';
+  const notificationsPath = isMemberShell
+    ? '/user/notifications'
+    : effectiveUserType === 'superAdmin'
+      ? '/system-alerts'
+      : '/notifications';
 
   const isDepartmentHead = userType === 'departmentHead';
 
@@ -90,7 +95,6 @@ const Header = ({ userType, isTO = false, isDarkMode, toggleDarkMode, isGlobalLa
           ...(showTOInventory ? [{ path: '/inventory', label: 'Inventory', icon: <FaBox /> }] : []),
           ...(showTOInventory ? [{ path: '/access-records', label: 'Access Records', icon: <FaIdCard /> }] : []),
           { path: '/profile', label: 'Profile', icon: <FaUser /> },
-          { path: '/user/notifications', label: 'Notifications', icon: <FaBell /> },
         ]
       : [{ path: '/profile', label: 'Profile', icon: <FaUser /> }]),
   ];
@@ -101,8 +105,7 @@ const Header = ({ userType, isTO = false, isDarkMode, toggleDarkMode, isGlobalLa
       { path: '/work-list', label: 'Work List', icon: <FaList /> },
       { path: '/inventory', label: 'Inventory', icon: <FaBox /> },
       { path: '/card-identifier', label: 'Card Identifier', icon: <FaIdCard /> },
-      { path: '/access-records', label: 'Access Records', icon: <FaIdCard /> },
-      { path: '/notifications', label: 'Notification History', icon: <FaBell /> }
+      { path: '/access-records', label: 'Access Records', icon: <FaIdCard /> }
     );
   }
 
@@ -116,7 +119,6 @@ const Header = ({ userType, isTO = false, isDarkMode, toggleDarkMode, isGlobalLa
       // ...(isDepartmentHead ? [] : [{ path: '/inventory', label: 'Inventory', icon: <FaBox /> }]),
       // { path: '/access-records', label: 'Access Records', icon: <FaIdCard /> },
       { path: '/profile', label: 'Profile', icon: <FaUser /> },
-      { path: '/notifications', label: 'Notification History', icon: <FaBell /> }
     );
   }
 
@@ -181,33 +183,31 @@ const Header = ({ userType, isTO = false, isDarkMode, toggleDarkMode, isGlobalLa
           </div>
 
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-            <Link
-              to="/profile"
-              className="inline-flex items-center gap-2 rounded-full border border-white/15 px-3 py-2 text-sm font-semibold text-white hover:bg-white/10 dark:border-white/10 dark:text-white dark:hover:bg-white/10"
-            >
-              <span className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-white/15 text-xs font-bold text-white dark:bg-white/10 dark:text-white">
-                {userAvatarUrl ? (
-                  <img
-                    src={userAvatarUrl}
-                    alt={userDisplayName}
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <FaUser className="text-sm" />
-                )}
-              </span>
-              <span className="hidden sm:block truncate max-w-[10rem]">{userDisplayName}</span>
-            </Link>
-
-            <button
-              type="button"
-              onClick={() => setShowLogoutConfirm(true)}
-              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/15 text-white hover:bg-white/10 dark:border-white/10 dark:text-white dark:hover:bg-white/10"
-              aria-label="Logout"
-              title="Logout"
-            >
-              <FaSignOutAlt className="text-xl" />
-            </button>
+            <div className="inline-flex items-center gap-1 rounded-full border border-white/15 px-2 py-1 text-sm font-semibold text-white dark:border-white/10">
+              <Link to="/profile" className="inline-flex min-w-0 items-center gap-2 rounded-full px-1 hover:text-blue-100">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white/15 text-xs font-bold text-white dark:bg-white/10 dark:text-white">
+                  {userAvatarUrl ? (
+                    <img
+                      src={userAvatarUrl}
+                      alt={userDisplayName}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <FaUser className="text-sm" />
+                  )}
+                </span>
+                <span className="hidden sm:block max-w-[10rem] truncate">{userDisplayName}</span>
+              </Link>
+              <button
+                type="button"
+                onClick={() => setShowLogoutConfirm(true)}
+                aria-label="Logout"
+                title="Logout"
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/30 text-white/90 transition hover:bg-white/15 hover:text-white focus:outline-none focus:ring-2 focus:ring-white/70"
+              >
+                <FaSignOutAlt />
+              </button>
+            </div>
 
             <button
               type="button"
@@ -217,6 +217,17 @@ const Header = ({ userType, isTO = false, isDarkMode, toggleDarkMode, isGlobalLa
             >
               {darkModeOn ? <FaSun /> : <FaMoon />}
             </button>
+
+            <Link
+              to={notificationsPath}
+              aria-label="Notifications"
+              title="Notifications"
+              className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/15 text-white transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/70 dark:border-white/10 dark:hover:bg-white/10 ${
+                isActive(notificationsPath) ? 'bg-white/15' : ''
+              }`}
+            >
+              <FaBell className="text-lg" />
+            </Link>
           </div>
         </div>
       </header>

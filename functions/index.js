@@ -1,6 +1,7 @@
 const { onDocumentCreated } = require('firebase-functions/v2/firestore');
 const { onCall, onRequest, HttpsError } = require('firebase-functions/v2/https');
 const { onSchedule } = require('firebase-functions/v2/scheduler');
+const { defineSecret } = require('firebase-functions/params');
 const { addDoc, collection, FieldPath } = require('firebase-admin/firestore');
 const logger = require('firebase-functions/logger');
 const admin = require('firebase-admin');
@@ -15,6 +16,8 @@ const db = admin.firestore();
 
 const GMAIL_USER = process.env.GMAIL_USER;
 const GMAIL_PASS = process.env.GMAIL_PASS;
+const GMAIL_USER_SECRET = defineSecret('GMAIL_USER');
+const GMAIL_PASS_SECRET = defineSecret('GMAIL_PASS');
 
 const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
 const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
@@ -918,7 +921,10 @@ async function authorizeCupboardAccess(request) {
 }
 
 exports.onAccessRecordCreated = onDocumentCreated(
-  'accessRecords/{recordId}',
+  {
+    document: 'accessRecords/{recordId}',
+    secrets: [GMAIL_USER_SECRET, GMAIL_PASS_SECRET],
+  },
   async (event) => {
     if (!event.data) return;
     const record = event.data.data();
@@ -1003,7 +1009,9 @@ exports.onAccessRecordCreated = onDocumentCreated(
       });
       return;
     }
-    if (!GMAIL_USER || !GMAIL_PASS) {
+    const gmailUser = GMAIL_USER_SECRET.value();
+    const gmailPass = GMAIL_PASS_SECRET.value();
+    if (!gmailUser || !gmailPass) {
       logger.error('Cannot email unauthorized door alert: GMAIL_USER/GMAIL_PASS are not configured.', {
         recordId: event.params.recordId,
       });
@@ -1023,8 +1031,15 @@ exports.onAccessRecordCreated = onDocumentCreated(
       : '<p>No image was attached to this event.</p>';
 
     try {
-      await transporter.sendMail({
-        from: GMAIL_USER,
+      const alertTransporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+          user: gmailUser,
+          pass: gmailPass,
+        },
+      });
+      await alertTransporter.sendMail({
+        from: gmailUser,
         to: emails.join(','),
         subject: title,
         text: `${message}\nAccess record: ${event.params.recordId}${recordUrl ? `\nImage: ${recordUrl}` : ''}`,

@@ -30,6 +30,7 @@ import MyItemUsage from './pages/MyItemUsage.jsx';
 import AdminRejectDetails from './pages/AdminRejectDetails';
 import UserRejectDetails from './pages/UserRejectDetails';
 import NotificationHistory from './pages/NotificationHistory';
+import SystemAlerts from './pages/SystemAlerts';
 import PostingDates from './pages/PostingDates';
 import AdminNotifications from './pages/AdminNotifications';
 import UserNotifications from './pages/UserNotifications';
@@ -53,7 +54,7 @@ const AppShell = () => {
       '/inventory',
       '/card-identifier',
       '/access-records',
-      '/notifications',
+      '/system-alerts',
       '/admin/',
       '/posting-dates',
       '/add-old-work',
@@ -215,27 +216,35 @@ const AppShell = () => {
         }
       />
       <Route
+        path="/system-alerts"
+        element={
+          <SuperAdminRoute>
+            <SystemAlerts />
+          </SuperAdminRoute>
+        }
+      />
+      <Route
         path="/notifications"
         element={
-          <DeptHeadRoute>
+          <RoleRoute allowRoles={['departmentHead', 'siteAdmin']}>
             <NotificationHistory />
-          </DeptHeadRoute>
+          </RoleRoute>
         }
       />
       <Route
         path="/admin/notifications"
         element={
-          <DeptHeadRoute>
+          <RoleRoute allowRoles={['departmentHead', 'siteAdmin']}>
             <AdminNotifications />
-          </DeptHeadRoute>
+          </RoleRoute>
         }
       />
       <Route
         path="/admin/notifications/:notifId"
         element={
-          <DeptHeadRoute>
+          <RoleRoute allowRoles={['departmentHead', 'siteAdmin']}>
             <NotificationDetails />
-          </DeptHeadRoute>
+          </RoleRoute>
         }
       />
       <Route path="/user/notifications" element={<UserNotifications />} />

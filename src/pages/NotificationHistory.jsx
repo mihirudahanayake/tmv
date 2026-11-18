@@ -30,11 +30,13 @@ const NotificationHistory = () => {
   const [editMessage, setEditMessage] = useState('');
   const [savingEdit, setSavingEdit] = useState(false);
   const [tab, setTab] = useState('sent'); // 'sent' | 'activity'
+  const [loadError, setLoadError] = useState('');
   const navigate = useNavigate();
   const { profile, loading: loadingProfile } = useUserProfile();
 
   const load = async () => {
     setLoading(true);
+    setLoadError('');
     try {
       const q = query(
         collection(db, 'notifications'),
@@ -45,14 +47,17 @@ const NotificationHistory = () => {
       setNotifs(list);
     } catch (e) {
       console.error('Failed to load notifications', e);
+      setLoadError('Failed to load notifications. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
+    if (loadingProfile) return undefined;
     load();
-  }, []);
+    return undefined;
+  }, [loadingProfile]);
 
   const formatTypeText = (n) => {
     const who = n.userName || 'A user';
@@ -335,25 +340,31 @@ const NotificationHistory = () => {
         </div>
 
         <div className="flex gap-2 mb-4">
-          <button
-            type="button"
-            onClick={() => setTab('sent')}
-            className={`px-3 py-2 rounded text-sm font-semibold ${
-              tab === 'sent' ? 'bg-blue-600 text-white' : 'bg-white text-gray-800 border'
-            }`}
-          >
-            Sent notifications ({sentNotifs.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab('activity')}
-            className={`px-3 py-2 rounded text-sm font-semibold ${
-              tab === 'activity' ? 'bg-blue-600 text-white' : 'bg-white text-gray-800 border'
-            }`}
-          >
-            Activity ({activityNotifs.length})
-          </button>
+            <button
+              type="button"
+              onClick={() => setTab('sent')}
+              className={`px-3 py-2 rounded text-sm font-semibold ${
+                tab === 'sent' ? 'bg-blue-600 text-white' : 'bg-white text-gray-800 border'
+              }`}
+            >
+              Sent notifications ({sentNotifs.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab('activity')}
+              className={`px-3 py-2 rounded text-sm font-semibold ${
+                tab === 'activity' ? 'bg-blue-600 text-white' : 'bg-white text-gray-800 border'
+              }`}
+            >
+              Activity ({activityNotifs.length})
+            </button>
         </div>
+
+        {loadError && (
+          <p role="alert" className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">
+            {loadError}
+          </p>
+        )}
 
         {loading || loadingProfile ? (
           <p>Loading notifications...</p>
