@@ -389,6 +389,7 @@ def create_door_access_record(
     _: None = Depends(verify_door_api_key),
 ):
     received_at = datetime.now(timezone.utc)
+    event_time = payload.timestamp or received_at
     photo_url = payload.photoUrl or payload.imagePath
     try:
         client = get_firestore_client()
@@ -399,7 +400,7 @@ def create_door_access_record(
         ) from exc
     verification_failed = False
     try:
-        authorization = _get_active_door_authorization(client, received_at)
+        authorization = _get_active_door_authorization(client, event_time)
     except Exception:
         logger.exception("Could not verify the current cupboard authorization window.")
         authorization = None
@@ -466,6 +467,9 @@ def create_door_access_record(
         "createdAt": received_at.isoformat(),
         "photoUrl": photo_url,
         "authorized": record["authorized"],
+        "rfidCardId": record.get("rfidCardId"),
+        "userName": record.get("userName"),
+        "reason": record.get("reason"),
     }
 
 

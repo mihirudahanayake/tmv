@@ -95,6 +95,10 @@ exports.getDepartmentUsers = onCall(
     ],
   },
   async (request) => {
+    if (request.data?.action === 'cupboard-card-scan') {
+      return authorizeCupboardAccess(request);
+    }
+
     if (!request.auth) {
       throw new HttpsError('unauthenticated', 'You must be signed in.');
     }
@@ -801,107 +805,117 @@ function getCupboardRole(userDoc) {
   return isCupboardTO(userDoc) ? Roles.SUPERVISOR_TO : role;
 }
 
-exports.authorizeCupboardAccess = onCall(async (request) => {
-  const callerUid = request.auth?.uid;
-  if (!callerUid) {
-    throw new HttpsError('unauthenticated', 'Sign in before scanning an access card.');
-  }
+async function authorizeCupboardAccess(request) {
+  let stage = 'validate-request';
+  try {
+    const callerUid = request.auth?.uid;
+    if (!callerUid) {
+      throw new HttpsError('unauthenticated', 'Sign in before scanning an access card.');
+    }
 
-  const cardUid = typeof request.data?.cardUid === 'string'
-    ? request.data.cardUid.trim()
-    : '';
-  if (!cardUid || cardUid.length > 200) {
-    throw new HttpsError('invalid-argument', 'A valid NFC card UID is required.');
-  }
+    const cardUid = typeof request.data?.cardUid === 'string'
+      ? request.data.cardUid.trim()
+      : '';
+    if (!cardUid || cardUid.length > 200) {
+      throw new HttpsError('invalid-argument', 'A valid NFC card UID is required.');
+    }
 
-  const callerSnap = await db.collection('users').doc(callerUid).get();
-  const callerDoc = callerSnap.exists ? callerSnap.data() || {} : {};
-  const callerRole = getCupboardRole({
-    ...callerDoc,
-    email: callerDoc.email || request.auth.token?.email,
-  });
-  if (!isCupboardAuthorizedUser(callerDoc)) {
-    throw new HttpsError('permission-denied', 'Only TO and Super Admin users can scan cupboard cards.');
-  }
+    stage = 'load-scanning-user';
+    const callerSnap = await db.collection('users').doc(callerUid).get();
+    const callerDoc = callerSnap.exists ? callerSnap.data() || {} : {};
+    const callerRole = getCupboardRole({
+      ...callerDoc,
+      email: callerDoc.email || request.auth.token?.email,
+    });
+    if (!isCupboardAuthorizedUser(callerDoc)) {
+      throw new HttpsError('permission-denied', 'Only TO and Super Admin users can scan cupboard cards.');
+    }
 
-  const cardSnapshot = await db
-    .collection('users')
-    .where('NFC_card_id', '==', cardUid)
-    .limit(2)
-    .get();
-  const cardOwnerSnap = cardSnapshot.docs.length === 1 ? cardSnapshot.docs[0] : null;
-  const cardOwner = cardOwnerSnap ? cardOwnerSnap.data() || {} : {};
-  const ownerRole = cardOwnerSnap ? getCupboardRole(cardOwner) : null;
-  const authorized = cardOwnerSnap !== null && isCupboardAuthorizedUser(cardOwner);
-  const now = admin.firestore.Timestamp.now();
-  const expiresAt = authorized
-    ? admin.firestore.Timestamp.fromMillis(now.toMillis() + 2 * 60 * 1000)
-    : now;
-  const reason = authorized
-    ? null
-    : cardSnapshot.docs.length > 1
-      ? 'This NFC card is assigned to multiple users.'
-      : cardOwnerSnap
-        ? 'Only TO and Super Admin cards are authorized.'
-        : 'This NFC card is not assigned to a user.';
-  const userName = cardOwner.username || cardOwner.name || cardOwner.displayName || null;
-  if (!cardOwnerSnap) {
+    stage = 'find-card-owner';
+    const cardSnapshot = await db
+      .collection('users')
+      .where('NFC_card_id', '==', cardUid)
+      .limit(2)
+      .get();
+    const cardOwnerSnap = cardSnapshot.docs.length === 1 ? cardSnapshot.docs[0] : null;
+    const cardOwner = cardOwnerSnap ? cardOwnerSnap.data() || {} : {};
+    const ownerRole = cardOwnerSnap ? getCupboardRole(cardOwner) : null;
+    const now = admin.firestore.Timestamp.now();
+    const stateRef = db.collection('doorAccessState').doc('current');
+    if (!cardOwnerSnap) {
+      stage = 'clear-invalid-card-authorization';
+      await stateRef.delete();
+      return {
+        authorized: false,
+        assigned: false,
+        recorded: false,
+        reason: cardSnapshot.docs.length > 1
+          ? 'This NFC card is assigned to multiple users.'
+          : 'This NFC card is not assigned to a user.',
+      };
+    }
+
+    const expiresAt = admin.firestore.Timestamp.fromMillis(now.toMillis() + 2 * 60 * 1000);
+    const userName = cardOwner.username || cardOwner.name || cardOwner.displayName || null;
+    const recordRef = db.collection('accessRecords').doc();
+
+    stage = 'save-scan-and-authorization';
+    await db.runTransaction(async (transaction) => {
+      transaction.create(recordRef, {
+        authorized: true,
+        action: 'nfc_scan',
+        doorSensorTriggered: false,
+        source: 'nfc-reader',
+        rfidCardId: cardUid,
+        userId: cardOwnerSnap.id,
+        userName,
+        userEmail: cardOwner.email || null,
+        userRole: ownerRole,
+        scannedByUid: callerUid,
+        scannedByRole: callerRole,
+        reason: null,
+        createdAt: now,
+        accessWindowExpiresAt: expiresAt,
+      });
+      transaction.set(stateRef, {
+        authorized: true,
+        status: 'authorized',
+        cardUid,
+        userId: cardOwnerSnap.id,
+        userName,
+        userEmail: cardOwner.email || null,
+        userRole: ownerRole,
+        scannedByUid: callerUid,
+        authorizedAt: now,
+        scannedAt: now,
+        expiresAt,
+        reason: null,
+        updatedAt: now,
+      });
+    });
+
     return {
-      authorized: false,
-      userName: null,
-      userRole: null,
-      reason,
-      expiresAt: null,
-      recorded: false,
+      authorized: true,
+      assigned: true,
+      userName,
+      userRole: ownerRole,
+      expiresAt: expiresAt.toDate().toISOString(),
+      recorded: true,
     };
+  } catch (error) {
+    if (error instanceof HttpsError) throw error;
+
+    logger.error('Cupboard card authorization failed.', {
+      stage,
+      error: error?.message || String(error),
+      stack: error?.stack,
+    });
+    throw new HttpsError(
+      'internal',
+      `Could not verify the card during ${stage}. Check the function logs for details.`
+    );
   }
-
-  const recordRef = db.collection('accessRecords').doc();
-  const stateRef = db.collection('doorAccessState').doc('current');
-
-  await db.runTransaction(async (transaction) => {
-    transaction.create(recordRef, {
-      authorized,
-      action: 'nfc_scan',
-      doorSensorTriggered: false,
-      source: 'nfc-reader',
-      rfidCardId: cardUid,
-      userId: cardOwnerSnap?.id || null,
-      userName,
-      userEmail: cardOwner.email || null,
-      userRole: ownerRole,
-      scannedByUid: callerUid,
-      scannedByRole: callerRole,
-      reason,
-      createdAt: now,
-      accessWindowExpiresAt: authorized ? expiresAt : null,
-    });
-    transaction.set(stateRef, {
-      authorized,
-      status: authorized ? 'authorized' : 'denied',
-      cardUid,
-      userId: cardOwnerSnap?.id || null,
-      userName,
-      userEmail: cardOwner.email || null,
-      userRole: ownerRole,
-      scannedByUid: callerUid,
-      authorizedAt: authorized ? now : null,
-      scannedAt: now,
-      expiresAt,
-      reason,
-      updatedAt: now,
-    });
-  });
-
-  return {
-    authorized,
-    userName,
-    userRole: ownerRole,
-    reason,
-    expiresAt: authorized ? expiresAt.toDate().toISOString() : null,
-    recorded: true,
-  };
-});
+}
 
 exports.onAccessRecordCreated = onDocumentCreated(
   'accessRecords/{recordId}',

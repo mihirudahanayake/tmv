@@ -46,11 +46,18 @@ Each photo filename is treated as one door-opening record. The backend stores
 `accessRecords`. Authorization is granted only when the server-side
 `doorAccessState/current` window is active for the event time. The window is
 created by the `authorizeCupboardAccess` callable after it verifies that the
-scanned card is assigned to a TO or Super Admin, and expires after two minutes.
+scanning operator is a TO or Super Admin and that the scanned card UID belongs
+to exactly one user. The card owner may have any user role. The authorization
+expires two minutes after the scan; an unassigned or ambiguous card clears the
+active window without creating a scan-history record.
 Missing or unverifiable authorization is recorded as unauthorized. The API
 uses a deterministic Firestore document ID derived from the filename, so
 polling the same photo repeatedly or restarting the backend does not create
 duplicates. This assumes photo filenames are unique for each entry.
+
+The Python API classifies door-sensor events; it does not actuate a physical
+lock. Unauthorized door openings are recorded as unauthorized in `accessRecords`
+and trigger the configured Firebase in-app, push, and email alerts.
 
 Set `VITE_ESP_IMAGE_URL_PREFIX` in the React app's root `.env` to the URL prefix
 the browser uses to load a photo, for example
@@ -81,10 +88,12 @@ doesn't provide an image. If supplied, the image value must be an absolute URL
 or a path served by the configured server URL; the API stores the reference but
 does not upload or serve local image files. `timestamp` or `time` is optional
 and defaults to the API server's current UTC time. Timestamps without a
-timezone are treated as UTC. The API does not trust the request's `authorized`,
-user, or action fields: it determines authorization from the current Firestore
-window and records door openings as authorized only while that window is
-active.
+timezone are treated as UTC. When supplied, the sensor timestamp is used to
+check whether the cupboard opened within two minutes of the card scan;
+`createdAt` still records when the API received the event. The API does not
+trust the request's `authorized`, user, or action fields: it determines
+authorization from the current Firestore window and records door openings as
+authorized only while that window is active.
 
 The API responds with HTTP 201, the new Firestore document ID, and the
 server-computed authorization result. It stores the server receipt time as
