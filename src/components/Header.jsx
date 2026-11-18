@@ -104,8 +104,6 @@ const Header = ({ userType, isTO = false, isDarkMode, toggleDarkMode, isGlobalLa
       ? '/system-alerts'
       : '/notifications';
 
-  const isDepartmentHead = userType === 'departmentHead';
-
   const navItems = [
     { path: homePath, label: 'Dashboard', icon: <FaHome /> },
     ...(isMemberShell
@@ -116,9 +114,8 @@ const Header = ({ userType, isTO = false, isDarkMode, toggleDarkMode, isGlobalLa
           { path: '/user-reject-details', label: 'My Rejections', icon: <FaBan /> },
           ...(showTOInventory ? [{ path: '/inventory', label: 'Inventory', icon: <FaBox /> }] : []),
           ...(showTOInventory ? [{ path: '/access-records', label: 'Access Records', icon: <FaIdCard /> }] : []),
-          { path: '/profile', label: 'Profile', icon: <FaUser /> },
         ]
-      : [{ path: '/profile', label: 'Profile', icon: <FaUser /> }]),
+      : []),
   ];
 
   if (effectiveUserType === 'superAdmin') {
@@ -132,15 +129,9 @@ const Header = ({ userType, isTO = false, isDarkMode, toggleDarkMode, isGlobalLa
   }
 
   if (effectiveUserType === 'admin') {
-    const profileIndex = navItems.findIndex((item) => item.path === '/profile');
-    if (profileIndex !== -1) navItems.splice(profileIndex, 1);
-
     navItems.push(
       { path: '/manage-users', label: 'Users', icon: <FaUserPlus /> },
-      { path: '/work-list', label: 'Work List', icon: <FaList /> },
-      // ...(isDepartmentHead ? [] : [{ path: '/inventory', label: 'Inventory', icon: <FaBox /> }]),
-      // { path: '/access-records', label: 'Access Records', icon: <FaIdCard /> },
-      { path: '/profile', label: 'Profile', icon: <FaUser /> },
+      { path: '/work-list', label: 'Work List', icon: <FaList /> }
     );
   }
 

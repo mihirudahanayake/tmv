@@ -9,6 +9,8 @@ const nfcApiUrl = (
   'http://localhost:8000'
 ).trim().replace(/\/+$/, '');
 
+const normalizeCardUid = (value) => String(value ?? '').replace(/[\s:-]/g, '').toUpperCase();
+
 const CardIdentifier = () => {
   const [users, setUsers] = useState([]);
   const [items, setItems] = useState([]);
@@ -92,16 +94,16 @@ const CardIdentifier = () => {
         const data = await response.json();
         const cardUid = String(data?.uid ?? '').trim();
         if (cardUid) {
-          const normalizedUid = cardUid.toUpperCase();
+          const normalizedUid = normalizeCardUid(cardUid);
           const assignedUsers = users.filter((user) => [
             user.NFC_card_id,
             user.rfidCardId,
             user.rfidUid,
             user.cardUid,
             user.nfcCardId,
-          ].some((value) => String(value || '').trim().toUpperCase() === normalizedUid));
+          ].some((value) => normalizeCardUid(value) === normalizedUid));
           const assignedItems = items.filter(
-            (item) => String(item.rfidCardId || '').trim().toUpperCase() === normalizedUid
+            (item) => normalizeCardUid(item.rfidCardId) === normalizedUid
           );
           setResult({ cardUid, users: assignedUsers, items: assignedItems });
           setMessage('');

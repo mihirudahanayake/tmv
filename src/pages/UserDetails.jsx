@@ -211,8 +211,11 @@ const UserDetails = () => {
   const canEditUser = canEdit(profile) && canManageUser(profile, user);
   const canDeleteUsers = canEditUser;
   const targetRole = normalizeRole(user);
-  const canAssignOfferId = Boolean(user?.isTO)
-    || [Roles.SUPER_ADMIN, Roles.DEPARTMENT_HEAD].includes(targetRole);
+  const canAssignOfferId = canEditUser && (
+    [Roles.SUPER_ADMIN, Roles.DEPARTMENT_HEAD].includes(profileRole)
+    || Boolean(user?.isTO)
+    || [Roles.SUPER_ADMIN, Roles.DEPARTMENT_HEAD].includes(targetRole)
+  );
   const canAssignTO = profileRole === Roles.SUPER_ADMIN
     && ![Roles.SITE_ADMIN, Roles.SUPER_ADMIN, Roles.DEPARTMENT_HEAD].includes(targetRole);
   const canManageDepartmentHead = profileRole === Roles.SUPER_ADMIN
@@ -434,6 +437,7 @@ const UserDetails = () => {
   };
 
   const handleOfferIdClick = () => {
+    if (!canAssignOfferId) return;
     setActionError('');
     setActionSuccess('');
     setDuplicateUser(null);
@@ -450,7 +454,7 @@ const UserDetails = () => {
   };
 
   const handleRemoveAndAssign = async () => {
-    if (!duplicateUser?.uid || !userId) return;
+    if (!canAssignOfferId || !duplicateUser?.uid || !userId) return;
     setActionError('');
     setActionSuccess('');
     setNfcMessage('Reassigning card...');
