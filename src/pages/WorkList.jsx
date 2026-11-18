@@ -958,8 +958,16 @@ const WorkList = () => {
                   {oldWorks.map((task) => (
                     <div
                       key={task.id}
-                      className="cursor-pointer rounded-[26px] border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-violet-50 p-4 shadow-[0_14px_30px_rgba(15,23,42,0.06)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_18px_35px_rgba(124,58,237,0.12)]"
-                      onClick={() => navigate(`/edit-old-work/${task.id}`)}
+                      className={`rounded-[26px] border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-violet-50 p-4 shadow-[0_14px_30px_rgba(15,23,42,0.06)] transition-all duration-300 ${
+                        normalizeRole(profile) === Roles.DEPARTMENT_HEAD
+                          ? 'cursor-pointer hover:-translate-y-1 hover:shadow-[0_18px_35px_rgba(124,58,237,0.12)]'
+                          : ''
+                      }`}
+                      onClick={() => {
+                        if (normalizeRole(profile) === Roles.DEPARTMENT_HEAD) {
+                          navigate(`/edit-old-work/${task.id}`);
+                        }
+                      }}
                     >
                       <div className="mb-2 flex items-center justify-between">
                         <h3 className="text-base font-bold text-slate-800">{task.title || 'Old Work'}</h3>

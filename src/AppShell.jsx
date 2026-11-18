@@ -119,9 +119,9 @@ const AppShell = () => {
       <Route
         path="/assign-work"
         element={
-          <DeptHeadRoute>
+          <RoleRoute allowRoles={['departmentHead']}>
             <AssignWork />
-          </DeptHeadRoute>
+          </RoleRoute>
         }
       />
       <Route
@@ -252,17 +252,17 @@ const AppShell = () => {
       <Route
         path="/add-old-work"
         element={
-          <DeptHeadRoute>
+          <RoleRoute allowRoles={['departmentHead']}>
             <AddOldWork />
-          </DeptHeadRoute>
+          </RoleRoute>
         }
       />
       <Route
         path="/edit-old-work/:id"
         element={
-          <DeptHeadRoute>
+          <RoleRoute allowRoles={['departmentHead']}>
             <EditOldWork />
-          </DeptHeadRoute>
+          </RoleRoute>
         }
       />
       <Route

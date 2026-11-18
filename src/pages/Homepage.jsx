@@ -37,6 +37,7 @@ const Homepage = () => {
   const [isAssignWorkOpen, setIsAssignWorkOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const { profile, loading: loadingProfile } = useUserProfile();
+  const isDepartmentHead = profile?.role === 'departmentHead';
   const [department, setDepartment] = useState('');
   const [departmentUserCount, setDepartmentUserCount] = useState(0);
   const [departmentWorks, setDepartmentWorks] = useState([]);
@@ -286,7 +287,9 @@ const Homepage = () => {
             <div className="grid gap-3 sm:grid-cols-3">
               {[
                 { label: 'Create a user', description: 'Add a member to your department.', icon: FaUserPlus, path: '/create-user', color: 'text-emerald-600' },
-                { label: 'Assign work', description: 'Create and assign a department task.', icon: FaClipboardList, onClick: () => setIsAssignWorkOpen(true), color: 'text-blue-600' },
+                ...(isDepartmentHead
+                  ? [{ label: 'Assign work', description: 'Create and assign a department task.', icon: FaClipboardList, onClick: () => setIsAssignWorkOpen(true), color: 'text-blue-600' }]
+                  : []),
                 { label: 'Make an announcement', description: 'Share an update with your team.', icon: FaPaperPlane, path: '/admin/notifications', color: 'text-orange-500' },
               ].map(({ label, description, icon: Icon, path, onClick, color }) => (
                 <button
@@ -357,7 +360,7 @@ const Homepage = () => {
         </div>
       </main>
 
-      {isAssignWorkOpen && (
+      {isDepartmentHead && isAssignWorkOpen && (
         <AssignWork isModal onClose={() => setIsAssignWorkOpen(false)} />
       )}
     </div>

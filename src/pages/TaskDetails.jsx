@@ -34,6 +34,7 @@ const TaskDetails = () => {
   const { taskId } = useParams();
   const navigate = useNavigate();
   const { profile, loading: loadingProfile } = useUserProfile();
+  const canManageWork = profile?.role === Roles.DEPARTMENT_HEAD;
 
   const [task, setTask] = useState(null);
   const [users, setUsers] = useState([]);
@@ -500,6 +501,10 @@ const TaskDetails = () => {
   };
 
   const handleToggleMissed = async (uid) => {
+    if (!canManageWork) {
+      setError('Only Department Heads can update missed status.');
+      return;
+    }
     if (!task?.id) return;
     if (markingMissed[uid]) return;
 
@@ -558,6 +563,10 @@ const TaskDetails = () => {
 
 const handleSave = async (e) => {
   e.preventDefault();
+  if (!canManageWork) {
+    setError('Only Department Heads can edit work.');
+    return;
+  }
   if (!task) return;
   setSaving(true);
   setError('');
@@ -711,6 +720,10 @@ if (phones.length > 0) {
   };
 
   const handleDelete = async () => {
+    if (!canManageWork) {
+      setError('Only Department Heads can delete work.');
+      return;
+    }
     if (!window.confirm('Are you sure you want to delete this task?')) return;
 
     setDeleting(true);
@@ -832,24 +845,28 @@ if (phones.length > 0) {
             </button>
             {!editing ? (
               <>
-                <button
-                  onClick={() => {
-                    setEditing(true);
-                    setError('');
-                    setSuccess('');
-                  }}
-                  className="px-3 py-1 rounded bg-blue-600 text-white text-sm hover:bg-blue-700"
-                >
-                  Edit
-                </button>
-                <button
-                  onClick={handleDelete}
-                  disabled={deleting}
-                  className="px-3 py-1 rounded bg-red-600 text-white text-sm hover:bg-red-700 disabled:opacity-50 inline-flex items-center gap-1"
-                >
-                  <FaTrash />
-                  {deleting ? 'Deleting...' : 'Delete'}
-                </button>
+                {canManageWork && (
+                  <>
+                    <button
+                      onClick={() => {
+                        setEditing(true);
+                        setError('');
+                        setSuccess('');
+                      }}
+                      className="px-3 py-1 rounded bg-blue-600 text-white text-sm hover:bg-blue-700"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={handleDelete}
+                      disabled={deleting}
+                      className="px-3 py-1 rounded bg-red-600 text-white text-sm hover:bg-red-700 disabled:opacity-50 inline-flex items-center gap-1"
+                    >
+                      <FaTrash />
+                      {deleting ? 'Deleting...' : 'Delete'}
+                    </button>
+                  </>
+                )}
               </>
             ) : (
               <>
@@ -1029,7 +1046,7 @@ if (phones.length > 0) {
                                 Missed
                               </span>
                             )}
-                            <button
+                            {canManageWork && <button
                               type="button"
                               onClick={(e) => {
                                 e.preventDefault();
@@ -1049,7 +1066,7 @@ if (phones.length > 0) {
                                 : missed
                                   ? 'Unmark missed'
                                   : 'Mark missed'}
-                            </button>
+                            </button>}
                           </div>
                         )}
                       </div>

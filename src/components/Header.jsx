@@ -17,23 +17,45 @@ import {
   FaSignOutAlt,
 } from 'react-icons/fa';
 import { useState } from 'react';
+import { useEffect } from 'react';
 import { signOut } from 'firebase/auth';
+import { collection, onSnapshot } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 import { useDarkMode } from '../context/DarkModeContext';
 import { useUserProfile } from '../hooks/useUserProfile';
-import { auth } from '../firebase/config';
+import { auth, db } from '../firebase/config';
 
 const Header = ({ userType, isTO = false, isDarkMode, toggleDarkMode, isGlobalLayout = false }) => {
-  if (!isGlobalLayout) {
-    return null;
-  }
-
   const location = useLocation();
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const { profile } = useUserProfile();
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
+  const { user, profile } = useUserProfile();
   const { isDarkMode: contextDarkMode, toggleDarkMode: contextToggleDarkMode } = useDarkMode();
+
+  useEffect(() => {
+    if (!user) {
+      setUnreadNotificationCount(0);
+      return undefined;
+    }
+
+    return onSnapshot(
+      collection(db, 'users', user.uid, 'notifications'),
+      (snapshot) => {
+        setUnreadNotificationCount(
+          snapshot.docs.filter((notification) => notification.data().read === false).length
+        );
+      },
+      (error) => {
+        console.error('Failed to load unread notification count:', error);
+      }
+    );
+  }, [user]);
+
+  if (!isGlobalLayout) {
+    return null;
+  }
 
   const darkModeOn = typeof isDarkMode === 'boolean' ? isDarkMode : contextDarkMode;
   const toggleTheme = toggleDarkMode || contextToggleDarkMode;
@@ -222,11 +244,16 @@ const Header = ({ userType, isTO = false, isDarkMode, toggleDarkMode, isGlobalLa
               to={notificationsPath}
               aria-label="Notifications"
               title="Notifications"
-              className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/15 text-white transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/70 dark:border-white/10 dark:hover:bg-white/10 ${
+              className={`relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/15 text-white transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/70 dark:border-white/10 dark:hover:bg-white/10 ${
                 isActive(notificationsPath) ? 'bg-white/15' : ''
               }`}
             >
               <FaBell className="text-lg" />
+              {unreadNotificationCount > 0 && (
+                <span className="absolute -right-1 -top-1 inline-flex min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold leading-5 text-white ring-2 ring-blue-900 dark:ring-slate-950">
+                  {unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}
+                </span>
+              )}
             </Link>
           </div>
         </div>

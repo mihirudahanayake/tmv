@@ -583,6 +583,10 @@ const AssignWork = ({ isModal = false, onClose }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!isDepartmentHead) {
+      setMessage({ type: 'error', text: 'Only Department Heads can assign work.' });
+      return;
+    }
     if (!allowedDepartments.includes(department)) {
       setMessage({ type: 'error', text: 'You can only assign work in a department you manage.' });
       return;
@@ -805,6 +809,19 @@ if (phones.length > 0) {
     const no = (item.itemNo || '').toLowerCase();
     return name.includes(normalizedItemSearch) || no.includes(normalizedItemSearch);
   });
+
+  if (!loadingProfile && !isDepartmentHead) {
+    return (
+      <div className="min-h-screen bg-gray-100">
+        <Header userType="admin" />
+        <main className="container mx-auto max-w-3xl px-4 py-8">
+          <p role="alert" className="rounded-lg bg-red-50 p-4 text-sm text-red-700">
+            Only Department Heads can assign work.
+          </p>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div
