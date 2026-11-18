@@ -100,6 +100,7 @@ const Header = ({ userType, isTO = false, isDarkMode, toggleDarkMode, isGlobalLa
       { path: '/manage-users', label: 'Users', icon: <FaUserPlus /> },
       { path: '/work-list', label: 'Work List', icon: <FaList /> },
       { path: '/inventory', label: 'Inventory', icon: <FaBox /> },
+      { path: '/card-identifier', label: 'Card Identifier', icon: <FaIdCard /> },
       { path: '/access-records', label: 'Access Records', icon: <FaIdCard /> },
       { path: '/notifications', label: 'Notification History', icon: <FaBell /> }
     );

@@ -15,7 +15,6 @@ import {
   writeBatch,
   serverTimestamp,
 } from 'firebase/firestore';
-import { httpsCallable } from 'firebase/functions';
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -31,7 +30,7 @@ import {
   FaExclamationTriangle,
 } from 'react-icons/fa';
 import Header from '../components/Header';
-import { db, functions, storage } from '../firebase/config';
+import { auth, db, storage } from '../firebase/config';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { isUserTO } from '../utils/authz';
 
@@ -46,9 +45,6 @@ const getTimestampMillis = (value) => {
 
   return date && !Number.isNaN(date.getTime()) ? date.getTime() : 0;
 };
-
-const formatCountdown = (seconds) =>
-  `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 
 const buildIssueHistoryFromUsage = (usageRecords, legacyIssueRecords) => {
   const groups = new Map();
@@ -177,8 +173,6 @@ const Inventory = () => {
   const rfidSocketRef = useRef(null);
   const [cupboardNfcScanning, setCupboardNfcScanning] = useState(false);
   const [cupboardNfcMessage, setCupboardNfcMessage] = useState('');
-  const [cupboardAuthorizationExpiresAt, setCupboardAuthorizationExpiresAt] = useState(null);
-  const [cupboardAuthorizationSeconds, setCupboardAuthorizationSeconds] = useState(0);
   const cupboardNfcScanControllerRef = useRef(null);
   const nfcApiUrl = (
     import.meta.env.VITE_NFC_URL ||
@@ -457,26 +451,6 @@ const Inventory = () => {
     addRfidControllerRef.current?.abort();
   }, []);
 
-  useEffect(() => {
-    if (!cupboardAuthorizationExpiresAt) return undefined;
-
-    const updateRemainingTime = () => {
-      const remaining = Math.max(
-        0,
-        Math.ceil((cupboardAuthorizationExpiresAt - Date.now()) / 1000)
-      );
-      setCupboardAuthorizationSeconds(remaining);
-      if (remaining === 0) {
-        setCupboardAuthorizationExpiresAt(null);
-        setCupboardNfcMessage('Authorization expired. Scan again before opening the cupboard.');
-      }
-    };
-
-    updateRemainingTime();
-    const intervalId = window.setInterval(updateRemainingTime, 1000);
-    return () => window.clearInterval(intervalId);
-  }, [cupboardAuthorizationExpiresAt]);
-
   const handleCupboardNfcScan = async () => {
     const isSuperAdmin = profile?.role === 'superAdmin' || profile?.userType === 'superAdmin';
     if (!isUserTO(profile) && !isSuperAdmin) {
@@ -497,10 +471,8 @@ const Inventory = () => {
 
     const controller = new AbortController();
     cupboardNfcScanControllerRef.current = controller;
-    setCupboardAuthorizationExpiresAt(null);
-    setCupboardAuthorizationSeconds(0);
     setCupboardNfcScanning(true);
-    setCupboardNfcMessage('Waiting for an NFC card. Hold it near the reader.');
+    setCupboardNfcMessage('Waiting for a card. Hold it near the reader.');
 
     try {
       const scanDeadline = Date.now() + 30000;
@@ -516,31 +488,47 @@ const Inventory = () => {
         const data = await response.json();
         const uid = String(data?.uid ?? '').trim();
         if (uid) {
+          let operation = 'find the assigned user';
           try {
-            const authorizeCupboardAccess = httpsCallable(functions, 'authorizeCupboardAccess');
-            const result = await authorizeCupboardAccess({ cardUid: uid });
-            const authorization = result.data || {};
+            const assignedUsers = await getDocs(query(
+              collection(db, 'users'),
+              where('NFC_card_id', '==', uid),
+              limit(2)
+            ));
 
-            if (authorization.authorized) {
-              const expiresAt = Date.parse(authorization.expiresAt || '');
-              if (!Number.isFinite(expiresAt)) {
-                throw new Error('Authorization response did not include a valid expiry time.');
-              }
-              setCupboardAuthorizationExpiresAt(expiresAt);
-              setCupboardAuthorizationSeconds(
-                Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000))
-              );
-              setCupboardNfcMessage(
-                `Authorized${authorization.userName ? ` for ${authorization.userName}` : ''}.`
-              );
+            if (assignedUsers.empty) {
+              setCupboardNfcMessage(`Card ${uid} is not assigned to a user. No scan record was saved.`);
+            } else if (assignedUsers.size > 1) {
+              setCupboardNfcMessage(`Card ${uid} is assigned to multiple users. No scan record was saved.`);
             } else {
+              const owner = assignedUsers.docs[0];
+              const ownerData = owner.data();
+              const scannedByUid = auth.currentUser?.uid;
+              if (!scannedByUid) throw new Error('You must be signed in to save a card scan.');
+              operation = 'save the scan record';
+              await addDoc(collection(db, 'accessRecords'), {
+                action: 'cupboard_card_scan',
+                source: 'nfc-reader',
+                cardUid: uid,
+                userId: owner.id,
+                userName: ownerData.username || ownerData.name || ownerData.displayName || null,
+                userEmail: ownerData.email || null,
+                scannedByUid,
+                scannedByRole: profile?.role === 'superAdmin' || profile?.userType === 'superAdmin'
+                  ? 'superAdmin'
+                  : 'supervisorTO',
+                createdAt: serverTimestamp(),
+              });
               setCupboardNfcMessage(
-                `Unauthorized card${authorization.reason ? `: ${authorization.reason}` : '.'}`
+                `Card ${uid} assigned to ${ownerData.username || ownerData.name || 'user'}; scan saved at ${new Date().toLocaleString()}.`
               );
             }
           } catch (error) {
-            console.error('Error authorizing cupboard NFC card:', error);
-            setCupboardNfcMessage('NFC card detected, but authorization could not be verified.');
+            console.error('Error looking up or recording cupboard card:', error);
+            const errorCode = error?.code ? ` (${error.code})` : '';
+            setCupboardNfcMessage(
+              `Could not ${operation}${errorCode}: ${error?.message || 'Check Firestore permissions.'}`
+            );
           }
           return;
         }
@@ -1540,8 +1528,10 @@ const Inventory = () => {
                   <FaIdCard className="text-lg" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-slate-800">Cupboard access</h2>
-                  <p className="mt-1 text-sm text-slate-600">Scan an NFC card with the connected reader.</p>
+                  <h2 className="text-lg font-bold text-slate-800">Cupboard card scan</h2>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Scan a user-assigned card to save its UID and scan time.
+                  </p>
                 </div>
               </div>
               <button
@@ -1567,13 +1557,8 @@ const Inventory = () => {
                 {cupboardNfcMessage}
               </p>
             )}
-            {cupboardAuthorizationSeconds > 0 && (
-              <p role="status" aria-live="polite" className="mt-2 text-sm font-semibold text-emerald-700">
-                Access authorized for {formatCountdown(cupboardAuthorizationSeconds)}.
-              </p>
-            )}
             <p className="mt-2 text-xs text-slate-500">
-              Authorization lasts two minutes and is used to classify door events. Physical cupboard unlocking is not connected.
+              Unassigned or ambiguously assigned cards are not saved. This scan records card activity; it does not unlock the cupboard.
             </p>
           </div>
         )}

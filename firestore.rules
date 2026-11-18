@@ -37,7 +37,10 @@ service cloud.firestore {
     }
 
     function isSuperAdmin() {
-      return signedIn() && myRole() == 'superAdmin';
+      return signedIn() && (
+        myUserDoc().get('role', null) == 'superAdmin'
+        || myUserDoc().get('userType', null) == 'superAdmin'
+      );
     }
 
     function isDeptHead() {
@@ -46,6 +49,16 @@ service cloud.firestore {
 
     function isSupervisorTO() {
       return signedIn() && (myRole() == 'supervisorTO' || myUserDoc().isTO == true);
+    }
+
+    function isCupboardCardScanner() {
+      return signedIn() && (
+        myUserDoc().get('role', null) == 'superAdmin'
+        || myUserDoc().get('userType', null) == 'superAdmin'
+        || myUserDoc().get('role', null) == 'supervisorTO'
+        || myUserDoc().get('userType', null) in ['supervisor', 'supervisorTO']
+        || myUserDoc().get('isTO', false) == true
+      );
     }
 
     function myDepartments() {
@@ -184,7 +197,11 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read: if canReadUserDoc(userId, resource.data);
+      allow read: if canReadUserDoc(userId, resource.data)
+        || (
+          isCupboardCardScanner()
+          && resource.data.get('NFC_card_id', null) is string
+        );
 
       // Site admin can manage roles/departments.
       allow update: if isSiteAdmin() && preservesUsername();

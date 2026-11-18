@@ -24,6 +24,7 @@ import TaskHistory from './pages/TaskHistory.jsx';
 import TaskDetails from './pages/TaskDetails.jsx';
 import Inventory from './pages/Inventory';
 import InventoryItems from './pages/InventoryItems.jsx';
+import CardIdentifier from './pages/CardIdentifier.jsx';
 import AccessRecords from './pages/AccessRecords.jsx';
 import MyItemUsage from './pages/MyItemUsage.jsx';
 import AdminRejectDetails from './pages/AdminRejectDetails';
@@ -50,6 +51,7 @@ const AppShell = () => {
       '/manage-users',
       '/work-list',
       '/inventory',
+      '/card-identifier',
       '/access-records',
       '/notifications',
       '/admin/',
@@ -169,6 +171,14 @@ const AppShell = () => {
           <RoleRoute allowRoles={['departmentHead', 'superAdmin', 'siteAdmin', 'supervisorTO']} redirectTo="/home">
             <InventoryItems />
           </RoleRoute>
+        }
+      />
+      <Route
+        path="/card-identifier"
+        element={
+          <SuperAdminRoute>
+            <CardIdentifier />
+          </SuperAdminRoute>
         }
       />
       <Route

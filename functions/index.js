@@ -845,6 +845,17 @@ exports.authorizeCupboardAccess = onCall(async (request) => {
         ? 'Only TO and Super Admin cards are authorized.'
         : 'This NFC card is not assigned to a user.';
   const userName = cardOwner.username || cardOwner.name || cardOwner.displayName || null;
+  if (!cardOwnerSnap) {
+    return {
+      authorized: false,
+      userName: null,
+      userRole: null,
+      reason,
+      expiresAt: null,
+      recorded: false,
+    };
+  }
+
   const recordRef = db.collection('accessRecords').doc();
   const stateRef = db.collection('doorAccessState').doc('current');
 
@@ -888,6 +899,7 @@ exports.authorizeCupboardAccess = onCall(async (request) => {
     userRole: ownerRole,
     reason,
     expiresAt: authorized ? expiresAt.toDate().toISOString() : null,
+    recorded: true,
   };
 });
 
