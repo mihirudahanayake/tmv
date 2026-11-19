@@ -6,14 +6,13 @@ import Header from '../components/Header';
 import { FaCalendarAlt, FaSpinner, FaCheck, FaTrash } from 'react-icons/fa';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { httpsCallable } from 'firebase/functions';
-import { canEdit, canManageUser, getManagedDepartments, normalizeRole, Roles } from '../utils/authz';
+import { canEdit, canManageUser, getManagedDepartments, isUserTO, normalizeRole, Roles } from '../utils/authz';
 import { WORK_DEPARTMENTS, formatWorkDepartmentLabel } from '../constants/workDepartments';
 import {
   getWorkRolesForDepartment,
   normalizeRolesForDepartment,
   formatWorkRoleLabel,
 } from '../constants/workRoles';
-
 
 const UserDetails = () => {
   const { userId } = useParams();
@@ -49,7 +48,7 @@ const UserDetails = () => {
         const userSnap = await getDoc(doc(db, 'users', userId));
         if (userSnap.exists()) {
           const userData = { id: userId, ...userSnap.data() };
-          if (profile?.role === Roles.DEPARTMENT_HEAD && !canManageUser(profile, userData)) {
+          if (normalizeRole(profile) === Roles.DEPARTMENT_HEAD && !canManageUser(profile, userData)) {
             setUser(null);
             setActionError('You can only manage users in your department.');
             return;
@@ -73,8 +72,8 @@ const UserDetails = () => {
           : userData.department
             ? [userData.department]
             : [];
-        const managedDepartments = profile?.managedDepartments || [];
-        const workDepartments = profile?.role === Roles.DEPARTMENT_HEAD
+        const managedDepartments = getManagedDepartments(profile);
+        const workDepartments = normalizeRole(profile) === Roles.DEPARTMENT_HEAD
           ? userDepartments.filter((dept) => managedDepartments.includes(dept))
           : userDepartments.length
             ? userDepartments
@@ -208,9 +207,10 @@ const UserDetails = () => {
 
   const profileRole = normalizeRole(profile);
   const isDepartmentHead = profileRole === Roles.DEPARTMENT_HEAD;
-  const canEditUser = canEdit(profile) && canManageUser(profile, user);
-  const canDeleteUsers = canEditUser;
   const targetRole = normalizeRole(user);
+  const canManageTarget = Boolean(user) && canManageUser(profile, user);
+  const canEditUser = (canEdit(profile) || isDepartmentHead) && canManageTarget;
+  const canDeleteUsers = (canEdit(profile) || isDepartmentHead) && canManageTarget;
   const canAssignOfferId = canEditUser && (
     [Roles.SUPER_ADMIN, Roles.DEPARTMENT_HEAD].includes(profileRole)
     || Boolean(user?.isTO)
@@ -221,6 +221,12 @@ const UserDetails = () => {
   const canManageDepartmentHead = profileRole === Roles.SUPER_ADMIN
     && targetRole !== Roles.SITE_ADMIN
     && [Roles.MEMBER, Roles.DEPARTMENT_HEAD].includes(targetRole);
+
+  const headerUserType = profileRole === Roles.SUPER_ADMIN
+    ? 'superAdmin'
+    : profileRole === Roles.SITE_ADMIN
+      ? 'siteAdmin'
+      : 'admin';
 
   const handleToggleDepartmentHeadDepartment = (department, checked) => {
     if (!userId || !user || !canManageDepartmentHead) return;
@@ -387,11 +393,15 @@ const UserDetails = () => {
         gender: editForm.gender?.trim() || '',
         registrationNumber: editForm.registrationNumber?.trim() || '',
         cardNumber: editForm.cardNumber?.trim() || '',
-        userType: editForm.userType?.trim() || 'user',
-        isTO: Boolean(editForm.isTO),
-        departments: selectedDepartments.length ? selectedDepartments : [primaryDepartment],
-        firstPriority: isDepartmentHead ? (user.firstPriority || primaryDepartment) : primaryDepartment,
-        department: departmentValue,
+        ...(isDepartmentHead
+          ? {}
+          : {
+              userType: editForm.userType?.trim() || 'user',
+              isTO: Boolean(editForm.isTO),
+              departments: selectedDepartments.length ? selectedDepartments : [primaryDepartment],
+              firstPriority: primaryDepartment,
+              department: departmentValue,
+            }),
       };
 
       await updateDoc(doc(db, 'users', userId), normalized);
@@ -401,7 +411,11 @@ const UserDetails = () => {
       setEditForm(null);
     } catch (err) {
       console.error('Failed to update user details', err);
-      setActionError('Failed to update user details. Please try again.');
+      setActionError(
+        err?.code === 'permission-denied'
+          ? 'You do not have permission to update one or more fields for this user.'
+          : 'Failed to update user details. Please try again.'
+      );
     } finally {
       setSavingDetails(false);
     }
@@ -520,7 +534,7 @@ const UserDetails = () => {
 
   return (
     <div className="min-h-screen bg-gray-100">
-      <Header userType="admin" />
+      <Header userType={headerUserType} isTO={isUserTO(profile)} />
 
       <main className="container mx-auto px-4 py-6 sm:py-8 max-w-4xl">
         {loading && (
@@ -814,50 +828,42 @@ const UserDetails = () => {
                       className="border rounded px-3 py-2"
                     />
                   </label>
-                  {/*
-                  <label className="flex flex-col gap-1">
-                    <span className="font-semibold text-gray-700">Card</span>
-                    <input
-                      name="cardNumber"
-                      value={editForm.cardNumber}
-                      onChange={handleEditFieldChange}
-                      className="border rounded px-3 py-2"
-                    />
-                  </label>
-                  */}
-                  <label className="flex flex-col gap-1">
-                    <span className="font-semibold text-gray-700">User type</span>
-                    <input
-                      name="userType"
-                      value={editForm.userType}
-                      onChange={handleEditFieldChange}
-                      disabled={isDepartmentHead}
-                      className="border rounded px-3 py-2"
-                    />
-                  </label>
-                  <label className="flex flex-col gap-1 md:col-span-2">
-                    <span className="font-semibold text-gray-700">Work departments</span>
-                    <input
-                      name="departments"
-                      value={editForm.departments}
-                      onChange={handleEditFieldChange}
-                      disabled={isDepartmentHead}
-                      placeholder="ITT, EET"
-                      className="border rounded px-3 py-2"
-                    />
-                  </label>
+                  {!isDepartmentHead && (
+                    <>
+                      <label className="flex flex-col gap-1">
+                        <span className="font-semibold text-gray-700">User type</span>
+                        <input
+                          name="userType"
+                          value={editForm.userType}
+                          onChange={handleEditFieldChange}
+                          className="border rounded px-3 py-2"
+                        />
+                      </label>
+                      <label className="flex flex-col gap-1 md:col-span-2">
+                        <span className="font-semibold text-gray-700">Work departments</span>
+                        <input
+                          name="departments"
+                          value={editForm.departments}
+                          onChange={handleEditFieldChange}
+                          placeholder="ITT, EET"
+                          className="border rounded px-3 py-2"
+                        />
+                      </label>
+                    </>
+                  )}
                 </div>
 
-                <label className="mt-4 flex items-center gap-2 text-sm font-medium text-gray-700">
-                  <input
-                    name="isTO"
-                    type="checkbox"
-                    checked={Boolean(editForm.isTO)}
-                    onChange={handleEditFieldChange}
-                    disabled={isDepartmentHead}
-                  />
-                  TO status
-                </label>
+                {!isDepartmentHead && (
+                  <label className="mt-4 flex items-center gap-2 text-sm font-medium text-gray-700">
+                    <input
+                      name="isTO"
+                      type="checkbox"
+                      checked={Boolean(editForm.isTO)}
+                      onChange={handleEditFieldChange}
+                    />
+                    TO status
+                  </label>
+                )}
 
                 <div className="mt-4 flex gap-3">
                   <button
