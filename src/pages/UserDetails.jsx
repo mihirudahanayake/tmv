@@ -14,6 +14,13 @@ import {
   formatWorkRoleLabel,
 } from '../constants/workRoles';
 
+const FieldError = ({ id, message }) =>
+  message ? (
+    <p id={id} role="alert" className="mt-1.5 text-xs font-medium text-rose-600">
+      {message}
+    </p>
+  ) : null;
+
 const UserDetails = () => {
   const { userId } = useParams();
   const navigate = useNavigate();
@@ -27,6 +34,7 @@ const UserDetails = () => {
   const [duplicateUser, setDuplicateUser] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState(null);
+  const [editFieldErrors, setEditFieldErrors] = useState({});
   const [savingDetails, setSavingDetails] = useState(false);
   const [savingDepartmentHead, setSavingDepartmentHead] = useState(false);
   const [departmentHeadDepartments, setDepartmentHeadDepartments] = useState([]);
@@ -325,24 +333,60 @@ const UserDetails = () => {
     }
   };
 
+  const validateEditField = (name, value, currentForm = editForm) => {
+    const trimmedValue = typeof value === 'string' ? value.trim() : '';
+    if (name === 'name' && !trimmedValue) return 'Please enter name with initial.';
+    if (name === 'username') {
+      if (!trimmedValue) return 'Please enter a username.';
+      const normalizedUsername = trimmedValue.replace(/\s+/g, ' ');
+      if (
+        normalizedUsername.length < 3
+        || normalizedUsername.length > 20
+        || !/^[a-z0-9_]+( [a-z0-9_]+)*$/i.test(normalizedUsername)
+      ) {
+        return 'Use 3–20 letters, numbers, underscores, or spaces.';
+      }
+    }
+    if (name === 'email') {
+      if (!trimmedValue) return 'Please enter an email address.';
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedValue)) {
+        return 'Enter a valid email address.';
+      }
+    }
+    if (name === 'phoneNo' && trimmedValue && !/^\d{10}$/.test(trimmedValue)) {
+      return 'Enter a valid 10-digit phone number.';
+    }
+    if (name === 'departments' && !isDepartmentHead && (!currentForm?.departments || currentForm.departments.length === 0)) {
+      return 'Choose at least one work department.';
+    }
+    return '';
+  };
+
   const handleStartEdit = () => {
     if (!user || !canEditUser) return;
+    const existingDepartments = Array.isArray(user.departments)
+      ? user.departments.filter(Boolean)
+      : user.department
+        ? [user.department]
+        : ['videography'];
+
     setEditForm({
       name: user.fullName || (user.username ? '' : user.name || ''),
+      username: user.username || user.name || '',
       email: user.email || '',
       phoneNo: user.phoneNo || '',
       batch: user.batch || '',
       studyDepartment: user.studyDepartment || '',
-      gender: user.gender || '',
+      gender: (user.gender || '').toLowerCase(),
       registrationNumber: user.registrationNumber || '',
+      birthday: user.birthday || '',
       cardNumber: user.cardNumber || '',
       userType: user.userType || 'user',
       isTO: Boolean(user.isTO),
-      departments: Array.isArray(user.departments)
-        ? user.departments.join(', ')
-        : user.department || '',
-      firstPriority: user.firstPriority || user.department || '',
+      departments: existingDepartments,
+      firstPriority: user.firstPriority || existingDepartments[0] || 'videography',
     });
+    setEditFieldErrors({});
     setActionError('');
     setActionSuccess('');
     setIsEditing(true);
@@ -350,57 +394,111 @@ const UserDetails = () => {
 
   const handleEditFieldChange = (event) => {
     const { name, value, type, checked } = event.target;
+    const nextValue = type === 'checkbox' ? checked : value;
     setEditForm((prev) => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : value,
+      [name]: nextValue,
     }));
+    setEditFieldErrors((prev) => ({
+      ...prev,
+      [name]: '',
+    }));
+  };
+
+  const handleEditPhoneChange = (event) => {
+    const phoneNo = event.target.value.replace(/\D/g, '').slice(0, 10);
+    setEditForm((prev) => ({ ...prev, phoneNo }));
+    setEditFieldErrors((prev) => ({ ...prev, phoneNo: '' }));
+  };
+
+  const handleEditFieldBlur = (event) => {
+    const { name, value } = event.target;
+    setEditFieldErrors((prev) => ({
+      ...prev,
+      [name]: validateEditField(name, value),
+    }));
+  };
+
+  const handleEditDepartmentToggle = (departmentValue) => {
+    if (isDepartmentHead) return;
+    setEditForm((prev) => {
+      const current = Array.isArray(prev.departments) ? prev.departments : [];
+      const exists = current.includes(departmentValue);
+      const nextDepartments = exists
+        ? current.filter((d) => d !== departmentValue)
+        : [...current, departmentValue];
+
+      setEditFieldErrors((errPrev) => ({
+        ...errPrev,
+        departments: nextDepartments.length === 0 ? 'Choose at least one work department.' : '',
+      }));
+
+      return {
+        ...prev,
+        departments: nextDepartments,
+      };
+    });
   };
 
   const handleCancelEdit = () => {
     setEditForm(null);
+    setEditFieldErrors({});
     setIsEditing(false);
     setActionError('');
     setActionSuccess('');
   };
 
-  const handleSaveUserDetails = async () => {
+  const handleSaveUserDetails = async (e) => {
+    if (e) e.preventDefault();
     if (!userId || !editForm || !canEditUser) return;
+
+    const fieldsToValidate = ['name', 'username', 'email', 'phoneNo', 'departments'];
+    const nextErrors = Object.fromEntries(
+      fieldsToValidate
+        .map((field) => [
+          field,
+          validateEditField(field, field === 'departments' ? editForm.departments : editForm[field], editForm),
+        ])
+        .filter(([, message]) => message)
+    );
+    setEditFieldErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) {
+      return;
+    }
 
     setSavingDetails(true);
     setActionError('');
     setActionSuccess('');
 
     try {
-      const selectedDepartments = (editForm.departments || '')
-        .split(',')
-        .map((item) => item.trim())
-        .filter(Boolean);
+      const cleanUsername = editForm.username.trim().replace(/\s+/g, ' ');
+      const cleanFullName = editForm.name.trim();
+      const selectedDepartments = Array.isArray(editForm.departments) && editForm.departments.length
+        ? editForm.departments
+        : ['videography'];
 
-      const primaryDepartment = isDepartmentHead
-        ? (user.firstPriority || user.department || selectedDepartments[0] || '').trim()
-        : (editForm.firstPriority || selectedDepartments[0] || editForm.studyDepartment || 'videography').trim();
-      const departmentValue = isDepartmentHead
-        ? (user.department || primaryDepartment)
-        : primaryDepartment;
+      const primaryDepartment = selectedDepartments[0] || 'videography';
 
       const normalized = {
-        name: user.username || editForm.name?.trim() || '',
-        fullName: editForm.name?.trim() || '',
-        email: editForm.email?.trim() || '',
-        phoneNo: editForm.phoneNo?.trim() || '',
-        batch: editForm.batch?.trim() || '',
-        studyDepartment: editForm.studyDepartment?.trim() || '',
-        gender: editForm.gender?.trim() || '',
-        registrationNumber: editForm.registrationNumber?.trim() || '',
-        cardNumber: editForm.cardNumber?.trim() || '',
+        username: cleanUsername,
+        name: cleanUsername || cleanFullName,
+        fullName: cleanFullName,
+        email: editForm.email.trim(),
+        phoneNo: editForm.phoneNo.trim(),
+        batch: editForm.batch.trim(),
+        studyDepartment: editForm.studyDepartment.trim(),
+        gender: editForm.gender.trim(),
+        registrationNumber: editForm.registrationNumber.trim(),
+        birthday: editForm.birthday || null,
+        cardNumber: editForm.cardNumber?.trim() || null,
         ...(isDepartmentHead
           ? {}
           : {
               userType: editForm.userType?.trim() || 'user',
               isTO: Boolean(editForm.isTO),
-              departments: selectedDepartments.length ? selectedDepartments : [primaryDepartment],
+              departments: selectedDepartments,
               firstPriority: primaryDepartment,
-              department: departmentValue,
+              department: primaryDepartment,
             }),
       };
 
@@ -409,6 +507,7 @@ const UserDetails = () => {
       setActionSuccess('User details updated successfully.');
       setIsEditing(false);
       setEditForm(null);
+      setEditFieldErrors({});
     } catch (err) {
       console.error('Failed to update user details', err);
       setActionError(
@@ -531,6 +630,10 @@ const UserDetails = () => {
 
     return roleCompletion[userId + '_' + role] === 'done';
   };
+
+  const editLabelClass = 'mb-1.5 block text-sm font-semibold text-slate-700';
+  const editInputClass =
+    'w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition hover:-translate-y-0.5 hover:shadow-sm focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10';
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -763,126 +866,313 @@ const UserDetails = () => {
             ) : null}
 
             {isEditing && editForm ? (
-              <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-6 text-sm sm:text-base">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <label className="flex flex-col gap-1">
-                    <span className="font-semibold text-gray-700">Full Name</span>
-                    <input
-                      name="name"
-                      value={editForm.name}
-                      onChange={handleEditFieldChange}
-                      className="border rounded px-3 py-2"
-                    />
-                  </label>
-                  <label className="flex flex-col gap-1">
-                    <span className="font-semibold text-gray-700">Email</span>
-                    <input
-                      name="email"
-                      value={editForm.email}
-                      onChange={handleEditFieldChange}
-                      className="border rounded px-3 py-2"
-                    />
-                  </label>
-                  <label className="flex flex-col gap-1">
-                    <span className="font-semibold text-gray-700">Phone</span>
-                    <input
-                      name="phoneNo"
-                      value={editForm.phoneNo}
-                      onChange={handleEditFieldChange}
-                      className="border rounded px-3 py-2"
-                    />
-                  </label>
-                  <label className="flex flex-col gap-1">
-                    <span className="font-semibold text-gray-700">Batch</span>
-                    <input
-                      name="batch"
-                      value={editForm.batch}
-                      onChange={handleEditFieldChange}
-                      className="border rounded px-3 py-2"
-                    />
-                  </label>
-                  <label className="flex flex-col gap-1">
-                    <span className="font-semibold text-gray-700">Study department</span>
-                    <input
-                      name="studyDepartment"
-                      value={editForm.studyDepartment}
-                      onChange={handleEditFieldChange}
-                      className="border rounded px-3 py-2"
-                    />
-                  </label>
-                  <label className="flex flex-col gap-1">
-                    <span className="font-semibold text-gray-700">Gender</span>
-                    <input
-                      name="gender"
-                      value={editForm.gender}
-                      onChange={handleEditFieldChange}
-                      className="border rounded px-3 py-2"
-                    />
-                  </label>
-                  <label className="flex flex-col gap-1">
-                    <span className="font-semibold text-gray-700">Registration no</span>
-                    <input
-                      name="registrationNumber"
-                      value={editForm.registrationNumber}
-                      onChange={handleEditFieldChange}
-                      className="border rounded px-3 py-2"
-                    />
-                  </label>
-                  {!isDepartmentHead && (
-                    <>
-                      <label className="flex flex-col gap-1">
-                        <span className="font-semibold text-gray-700">User type</span>
-                        <input
+              <form
+                onSubmit={handleSaveUserDetails}
+                noValidate
+                className="mb-6 space-y-8 rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_16px_32px_rgba(15,23,42,0.06)] sm:p-8"
+              >
+                {/* Section 1: Member Details */}
+                <section>
+                  <div className="mb-4 flex items-center gap-3">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-sm font-bold text-indigo-700">
+                      1
+                    </span>
+                    <div>
+                      <h2 className="font-bold text-slate-800">Member details</h2>
+                      <p className="text-xs text-slate-500">Required fields are marked with *</p>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <label className="sm:col-span-2">
+                      <span className={editLabelClass}>
+                        Name with initial <span className="text-rose-500">*</span>
+                      </span>
+                      <input
+                        type="text"
+                        name="name"
+                        value={editForm.name}
+                        onChange={handleEditFieldChange}
+                        onBlur={handleEditFieldBlur}
+                        placeholder="e.g. A B User"
+                        aria-invalid={Boolean(editFieldErrors.name)}
+                        className={editInputClass}
+                      />
+                      <FieldError id="edit-name-error" message={editFieldErrors.name} />
+                    </label>
+
+                    <label className="sm:col-span-2">
+                      <span className={editLabelClass}>
+                        Username <span className="text-rose-500">*</span>
+                      </span>
+                      <input
+                        type="text"
+                        name="username"
+                        value={editForm.username}
+                        onChange={handleEditFieldChange}
+                        onBlur={handleEditFieldBlur}
+                        minLength={3}
+                        maxLength={20}
+                        placeholder="e.g. New User"
+                        aria-invalid={Boolean(editFieldErrors.username)}
+                        className={editInputClass}
+                      />
+                      <FieldError id="edit-username-error" message={editFieldErrors.username} />
+                      {!editFieldErrors.username ? (
+                        <p className="mt-1.5 text-xs text-slate-500">
+                          Display username using 3–20 letters, numbers, underscores, or spaces.
+                        </p>
+                      ) : null}
+                    </label>
+
+                    <label className="sm:col-span-2">
+                      <span className={editLabelClass}>
+                        Email address <span className="text-rose-500">*</span>
+                      </span>
+                      <input
+                        type="email"
+                        name="email"
+                        value={editForm.email}
+                        onChange={handleEditFieldChange}
+                        onBlur={handleEditFieldBlur}
+                        placeholder="you@example.com"
+                        aria-invalid={Boolean(editFieldErrors.email)}
+                        className={editInputClass}
+                      />
+                      <FieldError id="edit-email-error" message={editFieldErrors.email} />
+                    </label>
+
+                    <label>
+                      <span className={editLabelClass}>Phone number</span>
+                      <input
+                        type="tel"
+                        name="phoneNo"
+                        value={editForm.phoneNo}
+                        onChange={handleEditPhoneChange}
+                        onBlur={handleEditFieldBlur}
+                        inputMode="numeric"
+                        maxLength={10}
+                        placeholder="07XXXXXXXX"
+                        aria-invalid={Boolean(editFieldErrors.phoneNo)}
+                        className={editInputClass}
+                      />
+                      <FieldError id="edit-phone-error" message={editFieldErrors.phoneNo} />
+                    </label>
+
+                    <label>
+                      <span className={editLabelClass}>Batch</span>
+                      <select
+                        name="batch"
+                        value={editForm.batch}
+                        onChange={handleEditFieldChange}
+                        className={editInputClass}
+                      >
+                        <option value="">Choose batch</option>
+                        <option value="20/21">20/21</option>
+                        <option value="21/22">21/22</option>
+                        <option value="22/23">22/23</option>
+                        <option value="23/24">23/24</option>
+                        {editForm.batch && !['20/21', '21/22', '22/23', '23/24'].includes(editForm.batch) ? (
+                          <option value={editForm.batch}>{editForm.batch}</option>
+                        ) : null}
+                      </select>
+                    </label>
+
+                    <label>
+                      <span className={editLabelClass}>Department in study</span>
+                      <select
+                        name="studyDepartment"
+                        value={editForm.studyDepartment}
+                        onChange={handleEditFieldChange}
+                        className={editInputClass}
+                      >
+                        <option value="">Choose department</option>
+                        <option value="ITT">ITT</option>
+                        <option value="EET">EET</option>
+                        <option value="MTT">MTT</option>
+                        <option value="BPT">BPT</option>
+                        <option value="Food">Food</option>
+                        {editForm.studyDepartment && !['ITT', 'EET', 'MTT', 'BPT', 'Food'].includes(editForm.studyDepartment) ? (
+                          <option value={editForm.studyDepartment}>{editForm.studyDepartment}</option>
+                        ) : null}
+                      </select>
+                    </label>
+
+                    <label>
+                      <span className={editLabelClass}>Registration number</span>
+                      <input
+                        type="text"
+                        name="registrationNumber"
+                        value={editForm.registrationNumber}
+                        onChange={handleEditFieldChange}
+                        placeholder="e.g. ITT/2021/123"
+                        className={editInputClass}
+                      />
+                    </label>
+
+                    <label className="sm:col-span-2">
+                      <span className={editLabelClass}>Birthday</span>
+                      <input
+                        type="date"
+                        name="birthday"
+                        value={editForm.birthday}
+                        onChange={handleEditFieldChange}
+                        className={editInputClass}
+                      />
+                    </label>
+
+                    <fieldset className="sm:col-span-2">
+                      <legend className={editLabelClass}>Gender</legend>
+                      <div className="flex gap-3">
+                        {['male', 'female'].map((gender) => (
+                          <label
+                            key={gender}
+                            className={`flex flex-1 cursor-pointer items-center gap-2 rounded-xl border px-3.5 py-3 text-sm capitalize transition ${
+                              editForm.gender === gender
+                                ? 'border-indigo-400 bg-indigo-50 text-indigo-800'
+                                : 'border-slate-200 bg-white text-slate-600 hover:border-indigo-200'
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              name="gender"
+                              value={gender}
+                              checked={editForm.gender === gender}
+                              onChange={handleEditFieldChange}
+                              className="accent-indigo-600"
+                            />
+                            {gender}
+                          </label>
+                        ))}
+                      </div>
+                    </fieldset>
+                  </div>
+                </section>
+
+                {/* Section 2: Work Teams & Permissions (Admin/SuperAdmin only) */}
+                {!isDepartmentHead && (
+                  <section>
+                    <div className="mb-4 flex items-center gap-3">
+                      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-cyan-50 text-sm font-bold text-cyan-700">
+                        2
+                      </span>
+                      <div>
+                        <h2 className="font-bold text-slate-800">Work teams & role</h2>
+                        <p className="text-xs text-slate-500">Select every team this member works with.</p>
+                      </div>
+                    </div>
+
+                    <fieldset aria-describedby={editFieldErrors.departments ? 'edit-departments-error' : undefined}>
+                      <legend className={editLabelClass}>
+                        Work departments <span className="text-rose-500">*</span>
+                      </legend>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        {WORK_DEPARTMENTS.map((department) => {
+                          const selected = Array.isArray(editForm.departments) && editForm.departments.includes(department);
+                          return (
+                            <label
+                              key={department}
+                              className={`flex cursor-pointer items-center gap-3 rounded-2xl border p-3.5 transition hover:-translate-y-0.5 focus-within:ring-4 ${
+                                selected
+                                  ? 'border-indigo-400 bg-indigo-50 ring-indigo-500/10'
+                                  : 'border-slate-200 bg-white hover:border-indigo-200 focus-within:ring-indigo-500/10'
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={selected}
+                                onChange={() => handleEditDepartmentToggle(department)}
+                                className="sr-only"
+                                aria-label={`${formatWorkDepartmentLabel(department)} work department`}
+                              />
+                              <span
+                                className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border text-xs ${
+                                  selected
+                                    ? 'border-indigo-600 bg-indigo-600 text-white'
+                                    : 'border-slate-300 bg-white'
+                                }`}
+                              >
+                                {selected ? <FaCheck /> : null}
+                              </span>
+                              <span className="min-w-0 flex-1">
+                                <span className="block text-sm font-semibold text-slate-800">
+                                  {formatWorkDepartmentLabel(department)}
+                                </span>
+                                <span className="mt-0.5 block text-xs text-slate-500">
+                                  {selected ? 'Selected for this profile' : 'Tap to select this team'}
+                                </span>
+                              </span>
+                              {selected ? (
+                                <span className="rounded-full bg-indigo-600/10 px-2 py-1 text-[10px] font-bold text-indigo-600">
+                                  SELECTED
+                                </span>
+                              ) : null}
+                            </label>
+                          );
+                        })}
+                      </div>
+                      <FieldError id="edit-departments-error" message={editFieldErrors.departments} />
+                    </fieldset>
+
+                    <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                      <label>
+                        <span className={editLabelClass}>User type</span>
+                        <select
                           name="userType"
                           value={editForm.userType}
                           onChange={handleEditFieldChange}
-                          className="border rounded px-3 py-2"
-                        />
+                          className={editInputClass}
+                        >
+                          <option value="user">user</option>
+                          <option value="admin">admin</option>
+                          <option value="siteAdmin">siteAdmin</option>
+                          <option value="superAdmin">superAdmin</option>
+                        </select>
                       </label>
-                      <label className="flex flex-col gap-1 md:col-span-2">
-                        <span className="font-semibold text-gray-700">Work departments</span>
-                        <input
-                          name="departments"
-                          value={editForm.departments}
-                          onChange={handleEditFieldChange}
-                          placeholder="ITT, EET"
-                          className="border rounded px-3 py-2"
-                        />
-                      </label>
-                    </>
-                  )}
-                </div>
 
-                {!isDepartmentHead && (
-                  <label className="mt-4 flex items-center gap-2 text-sm font-medium text-gray-700">
-                    <input
-                      name="isTO"
-                      type="checkbox"
-                      checked={Boolean(editForm.isTO)}
-                      onChange={handleEditFieldChange}
-                    />
-                    TO status
-                  </label>
+                      <div className="flex items-end">
+                        <label className="flex w-full cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm font-semibold text-slate-700 hover:border-indigo-200">
+                          <input
+                            name="isTO"
+                            type="checkbox"
+                            checked={Boolean(editForm.isTO)}
+                            onChange={handleEditFieldChange}
+                            className="h-4 w-4 accent-indigo-600"
+                          />
+                          TO status
+                        </label>
+                      </div>
+                    </div>
+                  </section>
                 )}
 
-                <div className="mt-4 flex gap-3">
+                <div className="flex flex-wrap gap-3 border-t border-slate-200 pt-5">
                   <button
-                    type="button"
-                    onClick={handleSaveUserDetails}
+                    type="submit"
                     disabled={savingDetails}
-                    className="rounded bg-green-600 hover:bg-green-700 text-white font-semibold disabled:opacity-50 px-4 py-2"
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-indigo-600/20 transition hover:-translate-y-0.5 hover:from-indigo-700 hover:to-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {savingDetails ? 'Saving...' : 'Save changes'}
+                    {savingDetails ? (
+                      <>
+                        <FaSpinner className="animate-spin" />
+                        Saving changes...
+                      </>
+                    ) : (
+                      <>
+                        <FaCheck />
+                        Save changes
+                      </>
+                    )}
                   </button>
                   <button
                     type="button"
                     onClick={handleCancelEdit}
-                    className="rounded bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold px-4 py-2"
+                    className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                   >
                     Cancel
                   </button>
                 </div>
-              </div>
+              </form>
             ) : (
               <div className="mb-6 rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_16px_32px_rgba(15,23,42,0.06)] sm:p-6">
                 <div className="mb-4 flex items-center justify-between">
@@ -894,14 +1184,17 @@ const UserDetails = () => {
 
                 <div className="grid gap-3 sm:grid-cols-2">
                   {[
+                    ['Name with initial', user.fullName || '-'],
+                    ['Username', user.username || user.name || '-'],
                     ['Phone', user.phoneNo || '-'],
                     ['Batch', user.batch || '-'],
                     ['Study department', user.studyDepartment || '-'],
                     ['Gender', user.gender || '-'],
+                    ['Birthday', user.birthday || '-'],
                     ['Registration no', user.registrationNumber || '-'],
                     ['NFC Card ID', user.NFC_card_id || '-'],
                     ['TO status', user.isTO ? 'Yes' : 'No'],
-                    ['Work departments', Array.isArray(user.departments) ? user.departments.join(', ') : user.department || '-'],
+                    ['Work departments', Array.isArray(user.departments) ? user.departments.map(formatWorkDepartmentLabel).join(', ') : user.department || '-'],
                   ].map(([label, value]) => (
                     <div key={label} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
                       <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">{label}</p>
