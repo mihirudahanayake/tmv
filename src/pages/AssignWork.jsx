@@ -273,10 +273,6 @@ const AssignWork = ({ isModal = false, onClose }) => {
         };
       });
 
-      // Resolve item details with imageUrl
-      const items = assignedItems
-        .map((itemId) => itemsMap[itemId])
-        .filter(Boolean);
       // Card-sized canvas (matching task card layout) - high resolution
       const width = 1080;
       const height = 1360;
@@ -505,7 +501,6 @@ const AssignWork = ({ isModal = false, onClose }) => {
         }
       }
 
-
       canvas.toBlob((blob) => {
         if (!blob) return;
         const url = URL.createObjectURL(blob);
@@ -624,6 +619,7 @@ const AssignWork = ({ isModal = false, onClose }) => {
     }
 
     try {
+      const trimmedDescription = formData.description.trim();
       const normalizedAssignedUsers = (formData.assignedUsers || []).map((u) => ({
         userId: u.userId,
         roles: normalizeRolesForDepartment(department, u.roles),
@@ -632,7 +628,7 @@ const AssignWork = ({ isModal = false, onClose }) => {
       // 1) Create work document
       const workRef = await addDoc(collection(db, 'works'), {
         title: formData.title,
-        description: formData.description,
+        description: trimmedDescription || null,
         date: formData.date || null,
         deadline: formData.deadline || null,
         time: formData.time || null,
@@ -671,8 +667,8 @@ const AssignWork = ({ isModal = false, onClose }) => {
       });
 
       const contacts = await Promise.all(contactPromises);
-      const emails = contacts.map(c => c.email).filter(Boolean);
-      const phones = contacts.map(c => c.phone).filter(Boolean);
+      const emails = contacts.map((c) => c.email).filter(Boolean);
+      const phones = contacts.map((c) => c.phone).filter(Boolean);
 
       const departmentLabel = formatWorkDepartmentLabel(department);
       const websiteName = 'Media Manager';
@@ -694,65 +690,65 @@ const AssignWork = ({ isModal = false, onClose }) => {
           ...(formData.date ? [`Date: ${formData.date}`] : []),
           ...(formData.deadline ? [`Deadline: ${formData.deadline}`] : []),
           ...(formData.time ? [`Time: ${formData.time}`] : []),
-          `Description: ${formData.description}`
+          ...(trimmedDescription ? [`Description: ${trimmedDescription}`] : [])
         ]
       };
 
       // 4) Send Email via mail collection
-if (emails.length > 0) {
-  const linesText = messageContent.lines;
-  const linesHtml = [
-    `<p><b>Title:</b> ${formData.title}</p>`,
-    ...(formData.date ? [`<p><b>Date:</b> ${formData.date}</p>`] : []),
-    ...(formData.deadline ? [`<p><b>Deadline:</b> ${formData.deadline}</p>`] : []),
-    ...(formData.time ? [`<p><b>Time:</b> ${formData.time}</p>`] : []),
-    `<p><b>Description:</b> ${formData.description}</p>`
-  ];
+      if (emails.length > 0) {
+        const linesText = messageContent.lines;
+        const linesHtml = [
+          `<p><b>Title:</b> ${formData.title}</p>`,
+          ...(formData.date ? [`<p><b>Date:</b> ${formData.date}</p>`] : []),
+          ...(formData.deadline ? [`<p><b>Deadline:</b> ${formData.deadline}</p>`] : []),
+          ...(formData.time ? [`<p><b>Time:</b> ${formData.time}</p>`] : []),
+          ...(trimmedDescription ? [`<p><b>Description:</b> ${trimmedDescription}</p>`] : [])
+        ];
 
-  await addDoc(collection(db, 'mail'), {
-    to: emails,
-    message: {
-      subject: `New work assigned: ${formData.title}`,
-      text:
-        `You have been assigned to a new work:\n\n` +
-        linesText.join('\n') +
-        `\n\nKindly review and confirm the work by visiting the ${websiteName} website: ${websiteUrl}`,
-      html: `<p>Hello,</p>
-        <p>You have been assigned a new work. Please find the details below:</p> 
-        ${linesHtml.join('')}
-        <p>Kindly review and confirm the work by visiting the <a href="${websiteUrl}">${websiteName}</a> Website</p> 
-        <p>If you encounter any issues or need further assistance, feel free to contact me.</p> 
-        <p>Thank you.</p> 
-        
-        <p>Best regards,</p>
-        <p style="color:#A3A9AD">
-          <strong>${senderName}</strong><br>
-          <i>${departmentHeadTitle}<br>FOT Media<br>Faculty Of Technology<br>Rajarata University of Sri Lanka<br>
-          ${senderPhone ? `<a href="tel:${senderPhoneHref}" style="color:#0066cc; text-decoration:none;">${senderPhone}</a><br>` : ''}
-          ${senderEmail ? `<a href="mailto:${senderEmail}" style="color:#0066cc; text-decoration:none;">${senderEmail}</a>` : ''}</i><br>
-        </p>`
-    }
-  });
+        await addDoc(collection(db, 'mail'), {
+          to: emails,
+          message: {
+            subject: `New work assigned: ${formData.title}`,
+            text:
+              `You have been assigned to a new work:\n\n` +
+              linesText.join('\n') +
+              `\n\nKindly review and confirm the work by visiting the ${websiteName} website: ${websiteUrl}`,
+            html: `<p>Hello,</p>
+              <p>You have been assigned a new work. Please find the details below:</p> 
+              ${linesHtml.join('')}
+              <p>Kindly review and confirm the work by visiting the <a href="${websiteUrl}">${websiteName}</a> Website</p> 
+              <p>If you encounter any issues or need further assistance, feel free to contact me.</p> 
+              <p>Thank you.</p> 
+              
+              <p>Best regards,</p>
+              <p style="color:#A3A9AD">
+                <strong>${senderName}</strong><br>
+                <i>${departmentHeadTitle}<br>FOT Media<br>Faculty Of Technology<br>Rajarata University of Sri Lanka<br>
+                ${senderPhone ? `<a href="tel:${senderPhoneHref}" style="color:#0066cc; text-decoration:none;">${senderPhone}</a><br>` : ''}
+                ${senderEmail ? `<a href="mailto:${senderEmail}" style="color:#0066cc; text-decoration:none;">${senderEmail}</a>` : ''}</i><br>
+              </p>`
+          }
+        });
       }
 
       // 5) Send WhatsApp message via whatsapp collection
-if (phones.length > 0) {
-  const whatsappMessage = 
-    `Hello!\n\n` +
-    `You have been assigned to a new work:\n\n` +
-    messageContent.lines.join('\n') +
-    `\n\nKindly review and confirm the work by visiting the ${websiteName} website: ${websiteUrl}\n\n` +
-    `If you encounter any issues, feel free to contact me.\n\n` +
-    `Best regards,\n` +
-    `${senderName}\n` +
-    `${departmentHeadTitle}\n` +
-    `FOT Media, \nFaculty of Technology, \nRajarata University of Sri Lanka\n` +
-    (senderPhone ? `${senderPhone}` : '');
+      if (phones.length > 0) {
+        const whatsappMessage =
+          `Hello!\n\n` +
+          `You have been assigned to a new work:\n\n` +
+          messageContent.lines.join('\n') +
+          `\n\nKindly review and confirm the work by visiting the ${websiteName} website: ${websiteUrl}\n\n` +
+          `If you encounter any issues, feel free to contact me.\n\n` +
+          `Best regards,\n` +
+          `${senderName}\n` +
+          `${departmentHeadTitle}\n` +
+          `FOT Media, \nFaculty of Technology, \nRajarata University of Sri Lanka\n` +
+          (senderPhone ? `${senderPhone}` : '');
 
-  await addDoc(collection(db, 'whatsapp'), {
-    to: phones,
-    message: whatsappMessage
-  });
+        await addDoc(collection(db, 'whatsapp'), {
+          to: phones,
+          message: whatsappMessage
+        });
       }
 
       setMessage({ type: 'success', text: 'Work assigned successfully!' });
@@ -760,7 +756,7 @@ if (phones.length > 0) {
       setLastCreatedTask({
         id: workRef.id,
         title: formData.title,
-        description: formData.description,
+        description: trimmedDescription || null,
         date: formData.date || null,
         deadline: formData.deadline || null,
         time: formData.time || null,
@@ -792,7 +788,6 @@ if (phones.length > 0) {
 
   const getUserRoles = (userId) =>
     formData.assignedUsers.find((u) => u.userId === userId)?.roles || [];
-
 
   const normalizedUserSearch = userSearch.trim().toLowerCase();
   const filteredUsers = users.filter((u) => {
@@ -844,7 +839,7 @@ if (phones.length > 0) {
             : 'mx-auto max-w-3xl rounded-lg bg-white p-4 shadow-md sm:p-8'}
         >
           {isModal ? (
-            <div className="sticky  z-10 -mt-3 mb-5 border-b border-slate-100 bg-white/95 px-3 py-3 backdrop-blur sm:-mt-8 sm:px-5 sm:py-5">
+            <div className="sticky z-10 -mt-3 mb-5 border-b border-slate-100 bg-white/95 px-3 py-3 backdrop-blur sm:-mt-8 sm:px-5 sm:py-5">
               <div className="flex items-start gap-3 sm:gap-4">
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-600">New assignment</p>
@@ -993,6 +988,7 @@ if (phones.length > 0) {
                 <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700" htmlFor="assign-description">
                   <FaAlignLeft className="text-blue-600" />
                   Description
+                  <span className="text-xs font-medium text-slate-400">(optional)</span>
                 </label>
                 <textarea
                   id="assign-description"
@@ -1000,7 +996,6 @@ if (phones.length > 0) {
                   value={formData.description}
                   onChange={handleChange}
                   placeholder="Add instructions, location, or other helpful details..."
-                  required
                   rows="3"
                   className="w-full min-w-0 resize-y rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm text-slate-800 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
                 />
