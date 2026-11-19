@@ -1,343 +1,121 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { doc, getDoc, collection, getDocs, query, where, updateDoc } from 'firebase/firestore';
-import { db, functions } from '../firebase/config';
-import Header from '../components/Header';
-import { FaCalendarAlt, FaSpinner, FaCheck, FaTrash } from 'react-icons/fa';
-import { useUserProfile } from '../hooks/useUserProfile';
-import { httpsCallable } from 'firebase/functions';
-import { canEdit, canManageUser, getManagedDepartments, isUserTO, normalizeRole, Roles } from '../utils/authz';
-import { WORK_DEPARTMENTS, formatWorkDepartmentLabel } from '../constants/workDepartments';
+import { FaEye, FaEyeSlash } from 'react-icons/fa';
+import { useDarkMode } from '../context/DarkModeContext';
 import {
-  getWorkRolesForDepartment,
-  normalizeRolesForDepartment,
-  formatWorkRoleLabel,
-} from '../constants/workRoles';
+  FaSun,
+  FaMoon,
+  FaArrowLeft,
+  FaCheck,
+  FaUserPlus,
+  FaShieldAlt,
+  FaSpinner,
+  FaCamera,
+} from 'react-icons/fa';
+import { useNavigate } from 'react-router-dom';
+import {
+  createUserWithEmailAndPassword,
+  reload,
+  sendEmailVerification,
+  signOut,
+  updateProfile,
+} from 'firebase/auth';
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage';
+import { auth, db, storage } from '../firebase/config';
+import { WORK_DEPARTMENTS, formatWorkDepartmentLabel } from '../constants/workDepartments';
+
+// Configure emails that should get elevated roles.
+// - departmentHead: can manage and assign work inside their managed department(s)
+// - superAdmin: read-only across all departments
+const DEPT_HEAD_EMAILS = ['mihirudahanayake@gmail.com'];
+const SUPER_ADMIN_EMAILS = [];
+const normalizeEmail = (email = '') => email.trim().toLowerCase();
 
 const FieldError = ({ id, message }) =>
   message ? (
-    <p id={id} role="alert" className="mt-1.5 text-xs font-medium text-rose-600">
+    <p id={id} role="alert" className="mt-1.5 text-xs font-medium text-rose-600 dark:text-rose-400">
       {message}
     </p>
   ) : null;
 
-const UserDetails = () => {
-  const { userId } = useParams();
+const Signup = () => {
   const navigate = useNavigate();
-  const { profile, loading: loadingProfile } = useUserProfile();
-  const [user, setUser] = useState(null);
-  const [works, setWorks] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [deleting, setDeleting] = useState(false);
-  const [offerLoading, setOfferLoading] = useState(false);
-  const [nfcMessage, setNfcMessage] = useState('');
-  const [duplicateUser, setDuplicateUser] = useState(null);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editForm, setEditForm] = useState(null);
-  const [editFieldErrors, setEditFieldErrors] = useState({});
-  const [savingDetails, setSavingDetails] = useState(false);
-  const [savingDepartmentHead, setSavingDepartmentHead] = useState(false);
-  const [departmentHeadDepartments, setDepartmentHeadDepartments] = useState([]);
-  const [pendingDepartmentHeadUpdate, setPendingDepartmentHeadUpdate] = useState(null);
-  const [actionError, setActionError] = useState('');
-  const [actionSuccess, setActionSuccess] = useState('');
-  const nfcUrl = (import.meta.env.NFC_URL || import.meta.env.VITE_NFC_URL || '').trim();
+  const { isDarkMode, toggleDarkMode } = useDarkMode();
+
+  const [form, setForm] = useState({
+    name: '',
+    username: '',
+    email: '',
+    phoneNo: '',
+    // work departments as array
+    departments: ['videography'],
+    batch: '20/21',
+    studyDepartment: 'ITT',
+    gender: '',
+    registrationNumber: '',
+    cardNumber: '',
+    NFC_card_id: '',
+    birthday: '',
+    password: '',
+    confirmPassword: ''
+  });
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [info, setInfo] = useState('');
+  const [profilePicture, setProfilePicture] = useState(null);
+  const [profilePicturePreview, setProfilePicturePreview] = useState('');
+  const [profilePictureError, setProfilePictureError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [sendingVerificationEmail, setSendingVerificationEmail] = useState(false);
+  const [verifiedEmail, setVerifiedEmail] = useState('');
+  const [verificationEmailSentTo, setVerificationEmailSentTo] = useState('');
+  const [passwordAtVerification, setPasswordAtVerification] = useState('');
 
   useEffect(() => {
-    if (loadingProfile) return;
-    setLoading(true);
-    setUser(null);
-    setWorks([]);
-    setDepartmentHeadDepartments([]);
-
-    const load = async () => {
-      try {
-        setActionError('');
-        const userSnap = await getDoc(doc(db, 'users', userId));
-        if (userSnap.exists()) {
-          const userData = { id: userId, ...userSnap.data() };
-          if (normalizeRole(profile) === Roles.DEPARTMENT_HEAD && !canManageUser(profile, userData)) {
-            setUser(null);
-            setActionError('You can only manage users in your department.');
-            return;
-          }
-          setUser(userData);
-          setDepartmentHeadDepartments(
-            normalizeRole(userData) === Roles.DEPARTMENT_HEAD
-              ? getManagedDepartments(userData).filter((department) =>
-                  WORK_DEPARTMENTS.includes(department)
-                )
-              : []
-          );
-        } else {
-          setUser(null);
-          return;
-        }
-
-        const userData = { id: userId, ...userSnap.data() };
-        const userDepartments = Array.isArray(userData.departments)
-          ? userData.departments
-          : userData.department
-            ? [userData.department]
-            : [];
-        const managedDepartments = getManagedDepartments(profile);
-        const workDepartments = normalizeRole(profile) === Roles.DEPARTMENT_HEAD
-          ? userDepartments.filter((dept) => managedDepartments.includes(dept))
-          : userDepartments.length
-            ? userDepartments
-            : [managedDepartments[0] || 'videography'];
-        const workQueries = workDepartments.flatMap((dept) => {
-          const departmentQueries = [
-            query(
-              collection(db, 'works'),
-              where('department', '==', dept),
-              where('assignedUsers', 'array-contains', userId)
-            ),
-          ];
-          if (dept === 'videography') {
-            departmentQueries.push(
-              query(
-                collection(db, 'works'),
-                where('department', '==', null),
-                where('assignedUsers', 'array-contains', userId)
-              )
-            );
-          }
-          return departmentQueries;
-        });
-        const snaps = await Promise.all(workQueries.map((workQuery) => getDocs(workQuery)));
-
-        const dedup = new Map();
-        snaps.forEach((snap) => {
-          snap.docs.forEach((d) => dedup.set(d.id, { id: d.id, ...d.data() }));
-        });
-
-        const userWorks = Array.from(dedup.values());
-
-        userWorks.sort((a, b) => {
-          const da = a.date ? new Date(a.date).getTime() : 0;
-          const dbt = b.date ? new Date(b.date).getTime() : 0;
-          return dbt - da;
-        });
-
-        setWorks(userWorks);
-      } catch (err) {
-        console.error('Error loading user details:', err);
-        setActionError(
-          err?.code === 'permission-denied'
-            ? 'You can only manage users in your department.'
-            : 'Failed to load user details.'
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    load();
-  }, [userId, loadingProfile, profile]);
-
-  useEffect(() => {
-    let timer;
-    let active = true;
-
-    const pollNfc = async () => {
-      if (!offerLoading) return;
-      if (!nfcUrl) {
-        setActionError('NFC_URL is not configured in the environment.');
-        setOfferLoading(false);
-        return;
-      }
-
-      setNfcMessage('Waiting for NFC tap...');
-      try {
-        const resp = await fetch(`${nfcUrl.replace(/\/+$/, '')}/nfc/read`, {
-          cache: 'no-store',
-        });
-        if (!resp.ok) {
-          throw new Error(`Reader returned ${resp.status}`);
-        }
-
-        const data = await resp.json();
-        const uid = data?.uid ?? data?.UID ?? data?.data?.uid ?? data?.data?.UID ?? null;
-
-        if (uid) {
-          const usedQuery = query(
-            collection(db, 'users'),
-            where('NFC_card_id', '==', uid)
-          );
-          const usedSnap = await getDocs(usedQuery);
-          const existingUser = usedSnap.docs.find((d) => d.id !== userId);
-
-          if (existingUser) {
-            const existingData = existingUser.data();
-            const ownerName = existingData.name || existingData.email || 'Unknown user';
-            setDuplicateUser({
-              id: existingUser.id,
-              name: ownerName,
-              email: existingData.email || '',
-              uid,
-            });
-            setActionError(`This NFC card is already assigned to ${ownerName}.`);
-            setNfcMessage(`Card already used by ${ownerName}.`);
-            setOfferLoading(false);
-            return;
-          }
-
-          if (userId) {
-            await updateDoc(doc(db, 'users', userId), { NFC_card_id: uid });
-          }
-          setUser((prev) => (prev ? { ...prev, NFC_card_id: uid } : prev));
-          setActionSuccess(`NFC card detected: ${uid}`);
-          setNfcMessage(`NFC card detected: ${uid}`);
-          setOfferLoading(false);
-          return;
-        }
-
-        if (active) {
-          timer = window.setTimeout(pollNfc, 1500);
-        }
-      } catch (err) {
-        if (!active) return;
-        setNfcMessage('Waiting for NFC tap...');
-        timer = window.setTimeout(pollNfc, 2000);
-      }
-    };
-
-    if (offerLoading) {
-      pollNfc();
+    if (!profilePicture) {
+      setProfilePicturePreview('');
+      return undefined;
     }
 
-    return () => {
-      active = false;
-      if (timer) clearTimeout(timer);
-    };
-  }, [offerLoading, nfcUrl, userId]);
+    const previewUrl = URL.createObjectURL(profilePicture);
+    setProfilePicturePreview(previewUrl);
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [profilePicture]);
 
-  const profileRole = normalizeRole(profile);
-  const isDepartmentHead = profileRole === Roles.DEPARTMENT_HEAD;
-  const targetRole = normalizeRole(user);
-  const canManageTarget = Boolean(user) && canManageUser(profile, user);
-  const canEditUser = (canEdit(profile) || isDepartmentHead) && canManageTarget;
-  const canDeleteUsers = (canEdit(profile) || isDepartmentHead) && canManageTarget;
-  const canAssignOfferId = canEditUser && (
-    [Roles.SUPER_ADMIN, Roles.DEPARTMENT_HEAD].includes(profileRole)
-    || Boolean(user?.isTO)
-    || [Roles.SUPER_ADMIN, Roles.DEPARTMENT_HEAD].includes(targetRole)
-  );
-  const canAssignTO = profileRole === Roles.SUPER_ADMIN
-    && ![Roles.SITE_ADMIN, Roles.SUPER_ADMIN, Roles.DEPARTMENT_HEAD].includes(targetRole);
-  const canManageDepartmentHead = profileRole === Roles.SUPER_ADMIN
-    && targetRole !== Roles.SITE_ADMIN
-    && [Roles.MEMBER, Roles.DEPARTMENT_HEAD].includes(targetRole);
+  const requiredValues = [
+    form.name,
+    form.username,
+    form.email,
+    form.phoneNo,
+    form.birthday,
+    form.gender,
+    form.batch,
+    form.studyDepartment,
+    form.registrationNumber,
+    form.password,
+    form.confirmPassword,
+  ];
+  const completedFields =
+    requiredValues.filter((value) => String(value).trim()).length
+    + (form.departments.length ? 1 : 0);
+  const completionPercent = Math.round((completedFields / 12) * 100);
+  const passwordChecks = [
+    { label: 'At least 6 characters', passed: form.password.length >= 6 },
+    { label: 'Uppercase and lowercase', passed: /[a-z]/.test(form.password) && /[A-Z]/.test(form.password) },
+    { label: 'A number or symbol', passed: /[\d\W]/.test(form.password) },
+  ];
+  const passwordStrength = passwordChecks.filter((check) => check.passed).length;
+  const passwordsMatch =
+    form.confirmPassword.length > 0 && form.password === form.confirmPassword;
 
-  const headerUserType = profileRole === Roles.SUPER_ADMIN
-    ? 'superAdmin'
-    : profileRole === Roles.SITE_ADMIN
-      ? 'siteAdmin'
-      : 'admin';
-
-  const handleToggleDepartmentHeadDepartment = (department, checked) => {
-    if (!userId || !user || !canManageDepartmentHead) return;
-    const managedDepartments = new Set(departmentHeadDepartments);
-    if (checked) managedDepartments.add(department);
-    else managedDepartments.delete(department);
-
-    const nextDepartments = [...managedDepartments];
-    const removingLastDepartment =
-      targetRole === Roles.DEPARTMENT_HEAD && nextDepartments.length === 0;
-    const departmentLabel = formatWorkDepartmentLabel(department);
-    const userLabel = user.name || user.email || 'this user';
-    setActionError('');
-    setActionSuccess('');
-    setPendingDepartmentHeadUpdate({
-      department,
-      departmentLabel,
-      userLabel,
-      checked,
-      nextDepartments,
-      removingLastDepartment,
-      isDepartmentHead: targetRole === Roles.DEPARTMENT_HEAD,
-    });
-  };
-
-  const handleConfirmDepartmentHeadUpdate = async () => {
-    if (!pendingDepartmentHeadUpdate || !userId || !user || !canManageDepartmentHead) return;
-
-    const { nextDepartments } = pendingDepartmentHeadUpdate;
-    setSavingDepartmentHead(true);
-    setActionError('');
-    setActionSuccess('');
-    const patch = nextDepartments.length
-      ? {
-          role: Roles.DEPARTMENT_HEAD,
-          userType: 'admin',
-          managedDepartments: nextDepartments,
-          ...(pendingDepartmentHeadUpdate.isDepartmentHead ? {} : { isTO: false }),
-        }
-      : {
-          role: Roles.MEMBER,
-          userType: 'user',
-          managedDepartments: [],
-          isTO: false,
-        };
-
-    try {
-      await updateDoc(doc(db, 'users', userId), patch);
-      setUser((previous) => (previous ? { ...previous, ...patch } : previous));
-      setDepartmentHeadDepartments(nextDepartments);
-      setPendingDepartmentHeadUpdate(null);
-      setActionSuccess(
-        nextDepartments.length
-          ? 'Department head assignment updated.'
-          : 'Department head access removed.'
-      );
-    } catch (err) {
-      console.error('Failed to update department head assignment', err);
-      setActionError('Failed to update department head assignment. Please try again.');
-      setPendingDepartmentHeadUpdate(null);
-    } finally {
-      setSavingDepartmentHead(false);
-    }
-  };
-
-  const handleToggleTO = async () => {
-    if (!userId || !user || !canAssignTO) return;
-
-    const nextValue = !Boolean(user.isTO);
-    setActionError('');
-    setActionSuccess('');
-
-    try {
-      const patch = {
-        isTO: nextValue,
-      };
-
-      if (user.role === Roles.SUPERVISOR_TO && targetRole !== Roles.DEPARTMENT_HEAD) {
-        patch.role = Roles.MEMBER;
-      }
-      if (user.userType === 'supervisor' && targetRole !== Roles.DEPARTMENT_HEAD) {
-        patch.userType = 'user';
-      }
-
-      if (nextValue && targetRole !== Roles.DEPARTMENT_HEAD) {
-        patch.role = Roles.MEMBER;
-        patch.userType = 'user';
-      }
-
-      await updateDoc(doc(db, 'users', userId), patch);
-      setUser((prev) => (prev ? { ...prev, ...patch } : prev));
-      setActionSuccess(nextValue ? 'User marked as TO.' : 'TO status removed.');
-    } catch (err) {
-      console.error('Failed to update TO status', err);
-      setActionError('Failed to update TO status. Please try again.');
-    }
-  };
-
-  const validateEditField = (name, value, currentForm = editForm) => {
+  const validateField = (name, value) => {
     const trimmedValue = typeof value === 'string' ? value.trim() : '';
-    if (name === 'name' && !trimmedValue) return 'Please enter name with initial.';
+    if (name === 'name' && !trimmedValue) return 'Please enter your name.';
     if (name === 'username') {
-      if (!trimmedValue) return 'Please enter a username.';
+      if (!trimmedValue) return 'Please choose a username.';
       const normalizedUsername = trimmedValue.replace(/\s+/g, ' ');
       if (
         normalizedUsername.length < 3
@@ -348,1015 +126,1182 @@ const UserDetails = () => {
       }
     }
     if (name === 'email') {
-      if (!trimmedValue) return 'Please enter an email address.';
+      if (!trimmedValue) return 'Please enter your email address.';
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedValue)) {
         return 'Enter a valid email address.';
       }
     }
-    if (name === 'phoneNo' && trimmedValue && !/^\d{10}$/.test(trimmedValue)) {
-      return 'Enter a valid 10-digit phone number.';
+    if (name === 'phoneNo') {
+      if (!trimmedValue) return 'Please enter your phone number.';
+      if (!/^\d{10}$/.test(trimmedValue)) return 'Enter a valid 10-digit phone number.';
     }
-    if (name === 'departments' && !isDepartmentHead && (!currentForm?.departments || currentForm.departments.length === 0)) {
+    if (name === 'birthday' && !value) return 'Please enter your birthday.';
+    if (name === 'gender' && !value) return 'Please select your gender.';
+    if (name === 'batch' && !value) return 'Please choose your batch.';
+    if (name === 'studyDepartment' && !value) return 'Please choose your study department.';
+    if (name === 'registrationNumber' && !trimmedValue) {
+      return 'Please enter your registration number.';
+    }
+    if (name === 'departments' && form.departments.length === 0) {
       return 'Choose at least one work department.';
+    }
+    if (name === 'password') {
+      if (!value) return 'Please create a password.';
+      if (value.length < 6) return 'Use at least 6 characters.';
+    }
+    if (name === 'confirmPassword') {
+      if (!value) return 'Please confirm your password.';
+      if (value !== form.password) return 'These passwords do not match.';
     }
     return '';
   };
 
-  const handleStartEdit = () => {
-    if (!user || !canEditUser) return;
-    const existingDepartments = Array.isArray(user.departments)
-      ? user.departments.filter(Boolean)
-      : user.department
-        ? [user.department]
-        : ['videography'];
-
-    setEditForm({
-      name: user.fullName || (user.username ? '' : user.name || ''),
-      username: user.username || user.name || '',
-      email: user.email || '',
-      phoneNo: user.phoneNo || '',
-      batch: user.batch || '',
-      studyDepartment: user.studyDepartment || '',
-      gender: (user.gender || '').toLowerCase(),
-      registrationNumber: user.registrationNumber || '',
-      birthday: user.birthday || '',
-      cardNumber: user.cardNumber || '',
-      userType: user.userType || 'user',
-      isTO: Boolean(user.isTO),
-      departments: existingDepartments,
-      firstPriority: user.firstPriority || existingDepartments[0] || 'videography',
-    });
-    setEditFieldErrors({});
-    setActionError('');
-    setActionSuccess('');
-    setIsEditing(true);
-  };
-
-  const handleEditFieldChange = (event) => {
-    const { name, value, type, checked } = event.target;
-    const nextValue = type === 'checkbox' ? checked : value;
-    setEditForm((prev) => ({
-      ...prev,
-      [name]: nextValue,
-    }));
-    setEditFieldErrors((prev) => ({
-      ...prev,
-      [name]: '',
-    }));
-  };
-
-  const handleEditPhoneChange = (event) => {
-    const phoneNo = event.target.value.replace(/\D/g, '').slice(0, 10);
-    setEditForm((prev) => ({ ...prev, phoneNo }));
-    setEditFieldErrors((prev) => ({ ...prev, phoneNo: '' }));
-  };
-
-  const handleEditFieldBlur = (event) => {
-    const { name, value } = event.target;
-    setEditFieldErrors((prev) => ({
-      ...prev,
-      [name]: validateEditField(name, value),
-    }));
-  };
-
-  const handleEditDepartmentToggle = (departmentValue) => {
-    if (isDepartmentHead) return;
-    setEditForm((prev) => {
-      const current = Array.isArray(prev.departments) ? prev.departments : [];
-      const exists = current.includes(departmentValue);
-      const nextDepartments = exists
-        ? current.filter((d) => d !== departmentValue)
-        : [...current, departmentValue];
-
-      setEditFieldErrors((errPrev) => ({
-        ...errPrev,
-        departments: nextDepartments.length === 0 ? 'Choose at least one work department.' : '',
-      }));
-
-      return {
-        ...prev,
-        departments: nextDepartments,
-      };
+  const handleChange = (e) => {
+    const { name } = e.target;
+    const value = e.target.value;
+    setForm((prev) => ({ ...prev, [name]: value }));
+    if (name === 'email' && normalizeEmail(value) !== normalizeEmail(form.email)) {
+      setVerifiedEmail('');
+    }
+    setError('');
+    setInfo('');
+    setFieldErrors((previous) => {
+      const next = { ...previous, [name]: '' };
+      if (name === 'password' && form.confirmPassword) {
+        next.confirmPassword =
+          value === form.confirmPassword ? '' : 'These passwords do not match.';
+      }
+      if (name === 'confirmPassword' && value) {
+        next.confirmPassword = validateField(name, value);
+      }
+      return next;
     });
   };
 
-  const handleCancelEdit = () => {
-    setEditForm(null);
-    setEditFieldErrors({});
-    setIsEditing(false);
-    setActionError('');
-    setActionSuccess('');
+  const handlePhoneChange = (e) => {
+    const phoneNo = e.target.value.replace(/\D/g, '').slice(0, 10);
+    setForm((previous) => ({ ...previous, phoneNo }));
+    setError('');
+    setInfo('');
+    setFieldErrors((previous) => ({ ...previous, phoneNo: '' }));
   };
 
-  const handleSaveUserDetails = async (e) => {
-    if (e) e.preventDefault();
-    if (!userId || !editForm || !canEditUser) return;
+  const handleFieldBlur = (e) => {
+    const { name, value } = e.target;
+    setFieldErrors((previous) => ({
+      ...previous,
+      [name]: validateField(name, value),
+    }));
+  };
 
-    const fieldsToValidate = ['name', 'username', 'email', 'phoneNo', 'departments'];
-    const nextErrors = Object.fromEntries(
-      fieldsToValidate
-        .map((field) => [
-          field,
-          validateEditField(field, field === 'departments' ? editForm.departments : editForm[field], editForm),
-        ])
-        .filter(([, message]) => message)
-    );
-    setEditFieldErrors(nextErrors);
-    if (Object.keys(nextErrors).length > 0) {
+  const handleEmailVerification = async () => {
+    setError('');
+    setInfo('');
+
+    const email = form.email.trim();
+    const emailError = validateField('email', email);
+    if (emailError) {
+      setFieldErrors((previous) => ({ ...previous, email: emailError }));
+      document.querySelector('[name="email"]')?.focus();
       return;
     }
 
-    setSavingDetails(true);
-    setActionError('');
-    setActionSuccess('');
+    const passwordError = validateField('password', form.password);
+    if (passwordError) {
+      setFieldErrors((previous) => ({
+        ...previous,
+        email: '',
+        password: passwordError === 'Please create a password.'
+          ? 'Create a password before sending a verification email.'
+          : passwordError,
+      }));
+      document.querySelector('[name="password"]')?.focus();
+      return;
+    }
 
+    const normalizedEmail = normalizeEmail(email);
+    setFieldErrors((previous) => ({ ...previous, email: '', password: '' }));
+    setSendingVerificationEmail(true);
     try {
-      const cleanUsername = editForm.username.trim().replace(/\s+/g, ' ');
-      const cleanFullName = editForm.name.trim();
-      const selectedDepartments = Array.isArray(editForm.departments) && editForm.departments.length
-        ? editForm.departments
-        : ['videography'];
+      let user = auth.currentUser;
+      if (user && normalizeEmail(user.email || '') !== normalizedEmail) {
+        await signOut(auth);
+        user = null;
+      }
 
-      const primaryDepartment = selectedDepartments[0] || 'videography';
+      if (user) {
+        await reload(user);
+        const existingProfile = await getDoc(doc(db, 'users', user.uid));
+        if (existingProfile.exists()) {
+          setFieldErrors((previous) => ({
+            ...previous,
+            email: 'An account with this email already exists. Log in instead.',
+          }));
+          document.querySelector('[name="email"]')?.focus();
+          return;
+        }
 
-      const normalized = {
-        username: cleanUsername,
-        name: cleanUsername || cleanFullName,
-        fullName: cleanFullName,
-        email: editForm.email.trim(),
-        phoneNo: editForm.phoneNo.trim(),
-        batch: editForm.batch.trim(),
-        studyDepartment: editForm.studyDepartment.trim(),
-        gender: editForm.gender.trim(),
-        registrationNumber: editForm.registrationNumber.trim(),
-        birthday: editForm.birthday || null,
-        cardNumber: editForm.cardNumber?.trim() || null,
-        ...(isDepartmentHead
-          ? {}
-          : {
-              userType: editForm.userType?.trim() || 'user',
-              isTO: Boolean(editForm.isTO),
-              departments: selectedDepartments,
-              firstPriority: primaryDepartment,
-              department: primaryDepartment,
-            }),
-      };
+        if (user.emailVerified) {
+          setVerifiedEmail(normalizedEmail);
+          setVerificationEmailSentTo(normalizedEmail);
+          setInfo('This email is already verified. Complete the rest of the form to create your account.');
+          return;
+        }
+      } else {
+        const userCredential = await createUserWithEmailAndPassword(auth, email, form.password);
+        user = userCredential.user;
+        setPasswordAtVerification(form.password);
+      }
 
-      await updateDoc(doc(db, 'users', userId), normalized);
-      setUser((prev) => (prev ? { ...prev, ...normalized } : prev));
-      setActionSuccess('User details updated successfully.');
-      setIsEditing(false);
-      setEditForm(null);
-      setEditFieldErrors({});
-    } catch (err) {
-      console.error('Failed to update user details', err);
-      setActionError(
-        err?.code === 'permission-denied'
-          ? 'You do not have permission to update one or more fields for this user.'
-          : 'Failed to update user details. Please try again.'
-      );
+      await sendEmailVerification(user);
+      setVerificationEmailSentTo(normalizedEmail);
+      setVerifiedEmail('');
+      setInfo(`A verification email was sent to ${email}. Open the link, then return here to finish signup.`);
+    } catch (verificationError) {
+      console.error('Failed to send signup email verification.', verificationError);
+      if (verificationError.code === 'auth/email-already-in-use') {
+        setFieldErrors((previous) => ({
+          ...previous,
+          email: 'An account with this email already exists. Log in instead.',
+        }));
+        document.querySelector('[name="email"]')?.focus();
+      } else if (verificationError.code === 'auth/weak-password') {
+        setFieldErrors((previous) => ({
+          ...previous,
+          password: 'Choose a stronger password with at least 6 characters.',
+        }));
+        document.querySelector('[name="password"]')?.focus();
+      } else {
+        setError(
+          verificationError.code === 'auth/invalid-email'
+            ? 'That email address does not look valid. Check it and try again.'
+            : verificationError.code === 'auth/operation-not-allowed'
+              ? 'Email/password signup is not enabled for this app. Please contact an administrator.'
+              : verificationError.code === 'auth/too-many-requests'
+                ? 'Too many verification requests were made. Please wait a moment and try again.'
+                : verificationError.code === 'auth/network-request-failed'
+                  ? 'We could not connect. Check your internet connection and try again.'
+                  : 'We could not send a verification email right now. Please try again in a moment.'
+        );
+      }
     } finally {
-      setSavingDetails(false);
+      setSendingVerificationEmail(false);
     }
   };
 
-  const handleDeleteUser = async () => {
-    if (!canDeleteUsers || !canManageUser(profile, user) || !userId) return;
-    setActionError('');
-    setActionSuccess('');
+  const handleDepartmentToggle = (value) => {
+    setForm((prev) => {
+      const exists = prev.departments.includes(value);
+      const next = exists
+        ? prev.departments.filter((d) => d !== value)
+        : [...prev.departments, value];
 
-    const nameOrEmail = user?.name || user?.email || '';
-    const ok = window.confirm(
-      'Delete user ' + nameOrEmail + '?\n\nThis will permanently remove the account.'
+      return { ...prev, departments: next };
+    });
+    setError('');
+    setFieldErrors((previous) => ({
+      ...previous,
+      departments: form.departments.includes(value) && form.departments.length === 1
+        ? 'Choose at least one work department.'
+        : '',
+    }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setInfo('');
+
+    const fieldsToValidate = [
+      'name',
+      'username',
+      'email',
+      'phoneNo',
+      'birthday',
+      'gender',
+      'batch',
+      'studyDepartment',
+      'registrationNumber',
+      'departments',
+      'password',
+      'confirmPassword',
+    ];
+    const nextFieldErrors = Object.fromEntries(
+      fieldsToValidate
+        .map((field) => [
+          field,
+          validateField(field, field === 'departments' ? form.departments : form[field]),
+        ])
+        .filter(([, message]) => message)
     );
-    if (!ok) return;
+    setFieldErrors(nextFieldErrors);
+    if (Object.keys(nextFieldErrors).length) {
+      const firstInvalidField = fieldsToValidate.find((field) => nextFieldErrors[field]);
+      document.querySelector(`[name="${firstInvalidField}"]`)?.focus();
+      return;
+    }
 
+    if (passwordAtVerification && form.password !== passwordAtVerification) {
+      setFieldErrors((previous) => ({
+        ...previous,
+        password: 'Use the password you entered when sending the verification email.',
+      }));
+      document.querySelector('[name="password"]')?.focus();
+      return;
+    }
+
+    const normalizedEmail = normalizeEmail(form.email);
+    const user = auth.currentUser;
+    if (
+      !user
+      || normalizeEmail(user.email || '') !== normalizedEmail
+    ) {
+      setError('Send a verification email to this address before creating your account.');
+      document.querySelector('[name="email"]')?.focus();
+      return;
+    }
+
+    setLoading(true);
+    let profilePictureWarning = '';
     try {
-      setDeleting(true);
-      const fn = httpsCallable(functions, 'deleteUserAccount');
-      await fn({ uid: userId });
-      setActionSuccess('User deleted successfully.');
-      navigate('/manage-users', { replace: true });
+      const username = form.username.trim().replace(/\s+/g, ' ');
+
+      await reload(user);
+      if (!user.emailVerified) {
+        setVerifiedEmail('');
+        setError('Your email is not verified yet. Open the verification link and try again.');
+        return;
+      }
+      setVerifiedEmail(normalizedEmail);
+
+      const existingProfile = await getDoc(doc(db, 'users', user.uid));
+      if (existingProfile.exists()) {
+        await signOut(auth);
+        setVerifiedEmail('');
+        setError('An account with this email already exists. Log in instead.');
+        return;
+      }
+
+      await updateProfile(user, { displayName: username });
+
+      let role = 'member';
+      let managedDepartments = [];
+      if (SUPER_ADMIN_EMAILS.includes(user.email)) {
+        role = 'superAdmin';
+      } else if (DEPT_HEAD_EMAILS.includes(user.email)) {
+        role = 'departmentHead';
+        managedDepartments = ['videography'];
+      }
+
+      const userType = role === 'departmentHead' ? 'admin' : role === 'superAdmin' ? 'superAdmin' : 'user';
+
+      await setDoc(doc(db, 'users', user.uid), {
+        username,
+        name: username,
+        fullName: form.name.trim(),
+        email: user.email || form.email,
+        phoneNo: form.phoneNo,
+        departments: form.departments,
+        firstPriority: form.departments[0] || 'videography',
+        department: form.departments[0] || 'videography',
+        role,
+        managedDepartments,
+        batch: form.batch,
+        studyDepartment: form.studyDepartment,
+        gender: form.gender,
+        registrationNumber: form.registrationNumber,
+        cardNumber: form.cardNumber || null,
+        NFC_card_id: form.NFC_card_id || null,
+        birthday: form.birthday || null,
+        photoURL: null,
+        userType,
+        createdAt: new Date().toISOString()
+      });
+
+      if (profilePicture) {
+        let uploadedProfilePictureRef = null;
+        try {
+          const picturePath = `memberProfileImage/${user.uid}/signup-${Date.now()}-${profilePicture.name}`;
+          const uploadSnapshot = await uploadBytes(ref(storage, picturePath), profilePicture);
+          uploadedProfilePictureRef = uploadSnapshot.ref;
+          const photoURL = await getDownloadURL(uploadSnapshot.ref);
+          await updateDoc(doc(db, 'users', user.uid), { photoURL });
+        } catch (pictureError) {
+          console.error('Failed to upload the signup profile picture.', pictureError);
+          if (uploadedProfilePictureRef) {
+            try {
+              await deleteObject(uploadedProfilePictureRef);
+            } catch (cleanupError) {
+              console.error('Failed to clean up an incomplete signup profile picture.', cleanupError);
+            }
+          }
+          profilePictureWarning =
+            ' Your account was created, but the profile picture could not be uploaded. You can add it later from your profile.';
+        }
+      }
+
+      await signOut(auth);
+      navigate('/login', {
+        state: {
+          info: `Your email is verified and your account has been created. You can now log in.${profilePictureWarning}`,
+        },
+      });
     } catch (err) {
-      console.error('delete user failed', err);
-      const message =
-        err?.message ||
-        err?.details ||
-        'Failed to delete user. Check permissions and try again.';
-      setActionError(String(message));
+      const friendlyErrors = {
+        'auth/email-already-in-use': 'An account with this email already exists. Log in instead.',
+        'auth/invalid-email': 'That email address does not look valid. Check it and try again.',
+        'auth/weak-password': 'Choose a stronger password with at least 6 characters.',
+        'auth/network-request-failed': 'We could not connect. Check your internet connection and try again.',
+      };
+      const fieldByErrorCode = {
+        'auth/email-already-in-use': 'email',
+        'auth/invalid-email': 'email',
+        'auth/weak-password': 'password',
+      };
+      const invalidField = fieldByErrorCode[err.code];
+      if (invalidField) {
+        setFieldErrors((previous) => ({
+          ...previous,
+          [invalidField]: friendlyErrors[err.code],
+        }));
+        document.querySelector(`[name="${invalidField}"]`)?.focus();
+      } else {
+        console.error('Signup failed.', err);
+        setError(
+          err.code === 'permission-denied'
+            ? 'We could not save your account profile. Please contact an administrator to confirm this account can register.'
+            : friendlyErrors[err.code]
+              || 'We could not create your account right now. Please try again in a moment.'
+        );
+      }
     } finally {
-      setDeleting(false);
+      setLoading(false);
     }
   };
 
-  const handleOfferIdClick = () => {
-    if (!canAssignOfferId) return;
-    setActionError('');
-    setActionSuccess('');
-    setDuplicateUser(null);
-    setNfcMessage('');
-    setOfferLoading(true);
-  };
-
-  const handleScanAnother = () => {
-    setActionError('');
-    setActionSuccess('');
-    setDuplicateUser(null);
-    setNfcMessage('Waiting for NFC tap...');
-    setOfferLoading(true);
-  };
-
-  const handleRemoveAndAssign = async () => {
-    if (!canAssignOfferId || !duplicateUser?.uid || !userId) return;
-    setActionError('');
-    setActionSuccess('');
-    setNfcMessage('Reassigning card...');
-    setOfferLoading(true);
-
-    try {
-      await updateDoc(doc(db, 'users', duplicateUser.id), { NFC_card_id: null });
-      await updateDoc(doc(db, 'users', userId), { NFC_card_id: duplicateUser.uid });
-      setUser((prev) => (prev ? { ...prev, NFC_card_id: duplicateUser.uid } : prev));
-      setActionSuccess(`Card reassigned from ${duplicateUser.name} to this user.`);
-      setDuplicateUser(null);
-    } catch (err) {
-      console.error('Failed to reassign NFC card', err);
-      setActionError('Failed to reassign the card. Try again.');
-    } finally {
-      setOfferLoading(false);
-    }
-  };
-
-  const closeOfferPopup = () => {
-    setOfferLoading(false);
-    setDuplicateUser(null);
-    setNfcMessage('');
-  };
-
-  const getStoredUserRoles = (work) => {
-    const details = work.assignedUserDetails || [];
-    const mine = details.find((d) => d.userId === userId);
-    return mine?.roles || [];
-  };
-
-  const getCompletionRoles = (work) => {
-    const deptRoles = getWorkRolesForDepartment(work.department);
-    const stored = getStoredUserRoles(work);
-
-    if (deptRoles.length === 1 && deptRoles[0] === 'done') {
-      if (stored.length && !stored.includes('done')) return stored;
-      return ['done'];
-    }
-
-    return normalizeRolesForDepartment(work.department, stored);
-  };
-
-  const getUserRoles = (work) => {
-    const deptRoles = getWorkRolesForDepartment(work.department);
-    if (deptRoles.length === 1 && deptRoles[0] === 'done') return ['done'];
-    return normalizeRolesForDepartment(work.department, getStoredUserRoles(work));
-  };
-
-  const isRoleDone = (work, role) => {
-    const roleCompletion = work.roleCompletion || {};
-
-    if (role === 'done') {
-      const completionRoles = getCompletionRoles(work);
-      if (!completionRoles.length) return false;
-      return completionRoles.every(
-        (r) => roleCompletion[userId + '_' + r] === 'done'
-      );
-    }
-
-    return roleCompletion[userId + '_' + role] === 'done';
-  };
-
-  const editLabelClass = 'mb-1.5 block text-sm font-semibold text-slate-700';
-  const editInputClass =
-    'w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition hover:-translate-y-0.5 hover:shadow-sm focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10';
+  const isDeptSelected = (value) => form.departments.includes(value);
+  const isEmailVerified = Boolean(verifiedEmail) && verifiedEmail === normalizeEmail(form.email);
+  const labelClass = `mb-1.5 block text-sm font-semibold ${
+    isDarkMode ? 'text-slate-200' : 'text-slate-700'
+  }`;
+  const inputClass = `w-full rounded-xl border px-3.5 py-3 text-sm outline-none transition hover:-translate-y-0.5 hover:shadow-sm focus:ring-4 ${
+    isDarkMode
+      ? 'border-slate-700 bg-slate-800 text-white placeholder:text-slate-500 focus:border-indigo-400 focus:ring-indigo-500/15'
+      : 'border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-indigo-500/10'
+  }`;
+  const strengthLabel = ['Add a password', 'Getting started', 'Good', 'Strong'][passwordStrength];
+  const strengthColor = [
+    'bg-slate-300',
+    'bg-rose-500',
+    'bg-amber-500',
+    'bg-emerald-500',
+  ][passwordStrength];
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <Header userType={headerUserType} isTO={isUserTO(profile)} />
+    <div className={`relative min-h-screen overflow-x-clip px-3 pb-3 pt-20 transition-colors duration-300 sm:px-6 sm:pb-4 sm:pt-24 lg:pb-6 lg:pt-10 ${
+      isDarkMode
+        ? 'bg-slate-950 text-slate-100'
+        : 'bg-gradient-to-br from-indigo-50 via-white to-cyan-50 text-slate-900'
+    }`}>
+      <div
+        aria-hidden="true"
+        className={`pointer-events-none absolute -left-24 -top-24 h-72 w-72 rounded-full blur-3xl ${
+          isDarkMode ? 'bg-indigo-700/20' : 'bg-indigo-300/40'
+        }`}
+      />
+      <div
+        aria-hidden="true"
+        className={`pointer-events-none absolute bottom-0 -right-20 h-80 w-80 rounded-full blur-3xl ${
+          isDarkMode ? 'bg-cyan-700/20' : 'bg-cyan-200/60'
+        }`}
+      />
 
-      <main className="container mx-auto px-4 py-6 sm:py-8 max-w-4xl">
-        {loading && (
-          <div className="flex items-center gap-2 text-gray-600">
-            <FaSpinner className="animate-spin" />
-            <span>Loading user...</span>
+      <div className={`fixed left-3 right-3 top-4 z-20 grid h-12 min-w-0 grid-cols-[2.5rem_minmax(0,1fr)_2.5rem] items-center rounded-2xl border px-1.5 shadow-lg backdrop-blur-md sm:left-6 sm:right-6 sm:top-6 lg:hidden ${
+        isDarkMode
+          ? 'border-slate-700/70 bg-slate-900/70'
+          : 'border-white/70 bg-white/70'
+      }`}>
+        <button
+          type="button"
+          onClick={() => navigate('/')}
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition ${
+            isDarkMode
+              ? 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+              : 'bg-white text-slate-600 shadow-sm hover:bg-indigo-50'
+          }`}
+          aria-label="Back to welcome"
+          title="Back to welcome"
+        >
+          <FaArrowLeft />
+        </button>
+        <h1 className={`min-w-0 truncate text-center text-base font-bold sm:text-lg ${
+          isDarkMode ? 'text-white' : 'text-slate-900'
+        }`}>
+          Create your account
+        </h1>
+        <button
+          type="button"
+          onClick={toggleDarkMode}
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl shadow-sm transition hover:scale-105 ${
+            isDarkMode
+              ? 'bg-slate-800 text-amber-300 hover:bg-slate-700'
+              : 'bg-white text-indigo-600 hover:bg-indigo-50'
+          }`}
+          aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+          title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+        >
+          {isDarkMode ? <FaSun /> : <FaMoon />}
+        </button>
+      </div>
+
+      <button
+        type="button"
+        onClick={toggleDarkMode}
+        className={`fixed right-6 top-6 z-20 hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl shadow-lg transition hover:scale-105 lg:flex ${
+          isDarkMode
+            ? 'bg-slate-800 text-amber-300 hover:bg-slate-700'
+            : 'bg-white text-indigo-600 hover:bg-indigo-50'
+        }`}
+        aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+        title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+      >
+        {isDarkMode ? <FaSun /> : <FaMoon />}
+      </button>
+
+      <main className="relative mx-auto grid w-full min-w-0 max-w-6xl items-stretch gap-4 sm:gap-5 lg:min-h-[calc(100vh-5rem)] lg:grid-cols-[0.82fr_1.18fr]">
+        <aside className="relative hidden overflow-hidden rounded-[32px] bg-gradient-to-br from-indigo-700 via-blue-700 to-cyan-600 p-8 text-white shadow-2xl lg:flex lg:flex-col lg:justify-between xl:p-10">
+          <div
+            aria-hidden="true"
+            className="absolute -right-24 -top-20 h-72 w-72 rounded-full border-[40px] border-white/10"
+          />
+          <div className="relative">
+            <div className="flex items-start justify-between gap-8">
+              <button
+                type="button"
+                onClick={() => navigate('/')}
+                className="inline-flex items-center gap-2 rounded-xl border border-white/20 px-3 py-2 text-sm font-medium text-white/90 transition hover:bg-white/10"
+              >
+                <FaArrowLeft />
+                Back to welcome
+              </button>
+
+              <div className="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white/15 text-2xl shadow-lg ring-1 ring-white/20">
+                <FaUserPlus />
+              </div>
+            </div>
+            <p className="mt-12 text-xs font-bold uppercase tracking-[0.28em] text-cyan-100">
+              Welcome to TMS
+            </p>
+            <h1 className="mt-3 text-4xl font-bold leading-tight xl:text-5xl">
+              Your next great idea starts here.
+            </h1>
+            <p className="mt-5 max-w-sm text-base leading-7 text-blue-50">
+              Create your account to join your team, receive assignments, and keep your creative work organized.
+            </p>
+
+            <div className="mt-10 space-y-4">
+              {[
+                ['01', 'Add your details'],
+                ['02', 'Choose your work teams'],
+                ['03', 'Secure your account'],
+                ['04', 'Verify your email'],
+              ].map(([number, text]) => (
+                <div key={number} className="flex items-center gap-3">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/15 text-xs font-bold ring-1 ring-white/20">
+                    {number}
+                  </span>
+                  <span className="text-sm font-medium text-white/90">{text}</span>
+                </div>
+              ))}
+            </div>
           </div>
-        )}
+          <p className="relative mt-10 text-xs text-blue-100/80">
+            A few details now, then you’re ready to get started.
+          </p>
+        </aside>
 
-        {actionError ? (
-          <div className="mb-3 p-2 rounded bg-red-100 text-red-700 text-sm">
-            {actionError}
+        <section className={`min-w-0 rounded-2xl border p-4 shadow-2xl transition-colors duration-300 sm:rounded-[28px] sm:p-8 lg:p-10 ${
+          isDarkMode
+            ? 'border-slate-800 bg-slate-900/95 shadow-black/30'
+            : 'border-white/80 bg-white/95 shadow-slate-900/10'
+        }`}>
+          <div className="mb-7 flex items-start justify-between gap-4">
+            <div>
+              <div className={`mb-3 inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${
+                isDarkMode ? 'bg-indigo-400/10 text-indigo-300' : 'bg-indigo-50 text-indigo-700'
+              }`}>
+                <FaShieldAlt />
+                Secure account setup
+              </div>
+              <h2 className={`hidden text-2xl font-bold tracking-tight sm:text-3xl lg:block ${
+                isDarkMode ? 'text-white' : 'text-slate-900'
+              }`}>
+                Create your account
+              </h2>
+              <p className={`mt-2 text-sm leading-6 ${
+                isDarkMode ? 'text-slate-400' : 'text-slate-500'
+              }`}>
+                Tell us a little about yourself. You can update your profile later.
+              </p>
+            </div>
           </div>
-        ) : null}
-        {actionSuccess ? (
-          <div className="mb-3 p-2 rounded bg-green-100 text-green-700 text-sm">
-            {actionSuccess}
+
+          <div className="mb-7">
+            <div className="mb-2 flex items-center justify-between text-xs font-semibold">
+              <span className={isDarkMode ? 'text-slate-300' : 'text-slate-600'}>
+                Signup progress
+              </span>
+              <span className={isDarkMode ? 'text-indigo-300' : 'text-indigo-700'}>
+                {completionPercent}% complete
+              </span>
+            </div>
+            <div
+              className={`h-2 overflow-hidden rounded-full ${
+                isDarkMode ? 'bg-slate-800' : 'bg-slate-100'
+              }`}
+              role="progressbar"
+              aria-label="Signup progress"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={completionPercent}
+            >
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-cyan-500 transition-all duration-300"
+                style={{ width: `${completionPercent}%` }}
+              />
+            </div>
           </div>
-        ) : null}
 
-        {!loading && !user && (
-          <p className="text-gray-600 text-sm sm:text-base">User not found.</p>
-        )}
+          {error ? (
+            <div
+              role="alert"
+              className={`mb-5 rounded-2xl border px-4 py-3 text-sm ${
+                isDarkMode
+                  ? 'border-rose-900/70 bg-rose-950/50 text-rose-200'
+                  : 'border-rose-200 bg-rose-50 text-rose-700'
+              }`}
+            >
+              {error}
+            </div>
+          ) : null}
+          {info ? (
+            <div
+              role="status"
+              className={`mb-5 rounded-2xl border px-4 py-3 text-sm ${
+                isDarkMode
+                  ? 'border-blue-900/70 bg-blue-950/50 text-blue-200'
+                  : 'border-blue-200 bg-blue-50 text-blue-700'
+              }`}
+            >
+              {info}
+            </div>
+          ) : null}
 
-        {!loading && user && (
-          <>
-            <div className="mb-6 rounded-[28px] border border-white/60 bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 p-5 text-white shadow-[0_20px_40px_rgba(79,70,229,0.25)] sm:p-6">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-4">
-                  {user.photoURL ? (
+          <form onSubmit={handleSubmit} noValidate className="space-y-8">
+            <section>
+              <div className="mb-4 flex items-center gap-3">
+                <span className={`flex h-9 w-9 items-center justify-center rounded-xl text-sm font-bold ${
+                  isDarkMode ? 'bg-indigo-400/10 text-indigo-300' : 'bg-indigo-50 text-indigo-700'
+                }`}>
+                  1
+                </span>
+                <div>
+                  <h3 className={`font-bold ${isDarkMode ? 'text-slate-100' : 'text-slate-800'}`}>
+                    Your details
+                  </h3>
+                  <p className={`text-xs ${isDarkMode ? 'text-slate-500' : 'text-slate-500'}`}>
+                    Required fields are marked with *
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="sm:col-span-2 flex items-center gap-4">
+                  {profilePicturePreview ? (
                     <img
-                      src={user.photoURL}
-                      alt={user.name || 'User'}
-                      className="h-16 w-16 rounded-full border-2 border-white/80 object-cover bg-white/10 sm:h-20 sm:w-20"
+                      src={profilePicturePreview}
+                      alt="Selected profile picture preview"
+                      className="h-16 w-16 rounded-full border border-slate-200 object-cover dark:border-slate-700"
                     />
                   ) : (
-                    <div className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-white/80 bg-white/10 text-2xl font-bold text-white sm:h-20 sm:w-20">
-                      {(user.name || 'U').charAt(0).toUpperCase()}
+                    <div className={`flex h-16 w-16 items-center justify-center rounded-full ${
+                      isDarkMode ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-500'
+                    }`}>
+                      <FaCamera aria-hidden="true" />
                     </div>
                   )}
-
-                  <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-blue-100">Member profile</p>
-                    <h1 className="mt-2 text-2xl font-bold sm:text-3xl">
-                      {user.name || 'User details'}
-                    </h1>
-                    <p className="mt-1 text-sm text-blue-100">{user.email}</p>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <label
+                        htmlFor="signup-profile-picture"
+                        className={`cursor-pointer rounded-xl border px-3.5 py-2 text-sm font-semibold transition ${
+                          isDarkMode
+                            ? 'border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700'
+                            : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        {profilePicture ? 'Change picture' : 'Choose profile picture'}
+                      </label>
+                      {profilePicture ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setProfilePicture(null);
+                            setProfilePictureError('');
+                          }}
+                          className={`text-sm font-medium ${
+                            isDarkMode ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-700'
+                          }`}
+                        >
+                          Remove
+                        </button>
+                      ) : null}
+                    </div>
+                    <p className={`mt-1.5 text-xs ${isDarkMode ? 'text-slate-500' : 'text-slate-500'}`}>
+                      Profile picture (optional). Choose an image file.
+                    </p>
+                    {profilePictureError ? (
+                      <p id="signup-profile-picture-error" role="alert" className="mt-1.5 text-xs font-medium text-rose-600 dark:text-rose-400">
+                        {profilePictureError}
+                      </p>
+                    ) : null}
+                    <input
+                      id="signup-profile-picture"
+                      type="file"
+                      accept="image/*"
+                      className="sr-only"
+                      aria-invalid={Boolean(profilePictureError)}
+                      aria-describedby={profilePictureError ? 'signup-profile-picture-error' : undefined}
+                      onChange={(event) => {
+                        const selectedFile = event.target.files?.[0];
+                        event.target.value = '';
+                        if (!selectedFile) return;
+                        if (!selectedFile.type.startsWith('image/')) {
+                          setProfilePictureError('Choose a valid image file.');
+                          return;
+                        }
+                        setProfilePictureError('');
+                        setProfilePicture(selectedFile);
+                      }}
+                    />
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2">
-                  {canAssignTO ? (
-                    <button
-                      type="button"
-                      onClick={handleToggleTO}
-                      className={`inline-flex items-center justify-center rounded-xl px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:-translate-y-0.5 ${user.isTO ? 'bg-red-500 hover:bg-red-600' : 'bg-white/15 hover:bg-white/25'}`}
-                    >
-                      {user.isTO ? 'Remove TO' : 'Make TO'}
-                    </button>
+                <label className="sm:col-span-2">
+                  <span className={labelClass}>Name with initial <span className="text-rose-500">*</span></span>
+                  <input
+                    type="text"
+                    name="name"
+                    value={form.name}
+                    onChange={handleChange}
+                    onBlur={handleFieldBlur}
+                    autoComplete="name"
+                    required
+                    placeholder="e.g. A B User"
+                    aria-invalid={Boolean(fieldErrors.name)}
+                    aria-describedby={fieldErrors.name ? 'name-error' : undefined}
+                    className={inputClass}
+                  />
+                  <FieldError id="name-error" message={fieldErrors.name} />
+                </label>
+
+                <label className="sm:col-span-2">
+                  <span className={labelClass}>Username <span className="text-rose-500">*</span></span>
+                  <input
+                    type="text"
+                    name="username"
+                    value={form.username}
+                    onChange={handleChange}
+                    onBlur={handleFieldBlur}
+                    autoComplete="nickname"
+                    minLength={3}
+                    maxLength={20}
+                    required
+                    placeholder="e.g. New User"
+                    aria-invalid={Boolean(fieldErrors.username)}
+                    aria-describedby={fieldErrors.username ? 'username-error' : 'username-hint'}
+                    className={inputClass}
+                  />
+                  <FieldError id="username-error" message={fieldErrors.username} />
+                  {!fieldErrors.username ? (
+                    <p id="username-hint" className={`mt-1.5 text-xs ${isDarkMode ? 'text-slate-500' : 'text-slate-500'}`}>
+                      Choose a display username using 3–20 letters, numbers, underscores, or spaces. Uppercase and lowercase letters are supported.
+                    </p>
                   ) : null}
-                  {canEditUser && !isEditing ? (
-                    <button
-                      type="button"
-                      onClick={handleStartEdit}
-                      className="inline-flex items-center justify-center rounded-xl bg-amber-400 px-3 py-2 text-xs font-semibold text-slate-900 shadow-sm transition hover:-translate-y-0.5 hover:bg-amber-300"
-                    >
-                      Edit
-                    </button>
+                </label>
+
+                <label>
+                  <span className={labelClass}>Phone number <span className="text-rose-500">*</span></span>
+                  <input
+                    type="tel"
+                    name="phoneNo"
+                    value={form.phoneNo}
+                    onChange={handlePhoneChange}
+                    onBlur={handleFieldBlur}
+                    autoComplete="tel"
+                    inputMode="numeric"
+                    maxLength={10}
+                    minLength={10}
+                    pattern="[0-9]{10}"
+                    required
+                    placeholder="07XXXXXXXX"
+                    aria-invalid={Boolean(fieldErrors.phoneNo)}
+                    aria-describedby={fieldErrors.phoneNo ? 'phone-error' : 'phone-hint'}
+                    className={inputClass}
+                  />
+                  <FieldError id="phone-error" message={fieldErrors.phoneNo} />
+                  {!fieldErrors.phoneNo ? (
+                    <p id="phone-hint" className={`mt-1.5 text-xs ${isDarkMode ? 'text-slate-500' : 'text-slate-500'}`}>
+                      Enter exactly 10 digits.
+                    </p>
                   ) : null}
-                  {canEditUser && isEditing ? (
-                    <button
-                      type="button"
-                      onClick={handleCancelEdit}
-                      className="inline-flex items-center justify-center rounded-xl bg-slate-200 px-3 py-2 text-xs font-semibold text-slate-800 shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-100"
-                    >
-                      Cancel
-                    </button>
-                  ) : null}
-                  {canAssignOfferId ? (
-                    <button
-                      type="button"
-                      onClick={handleOfferIdClick}
-                      disabled={offerLoading || loadingProfile}
-                      className="inline-flex items-center justify-center rounded-xl bg-cyan-400 px-3 py-2 text-xs font-semibold text-slate-900 shadow-sm transition hover:-translate-y-0.5 hover:bg-cyan-300 disabled:opacity-50"
-                    >
-                      {offerLoading ? 'Waiting...' : 'Offer ID'}
-                    </button>
-                  ) : null}
-                  {canDeleteUsers ? (
-                    <button
-                      type="button"
-                      onClick={handleDeleteUser}
-                      disabled={deleting || loadingProfile}
-                      className="inline-flex items-center justify-center gap-1 rounded-xl bg-red-500 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-red-600 disabled:opacity-50"
-                    >
-                      <FaTrash />
-                      <span>{deleting ? 'Deleting...' : 'Delete'}</span>
-                    </button>
-                  ) : null}
+                </label>
+
+                <label>
+                  <span className={labelClass}>Batch <span className="text-rose-500">*</span></span>
+                  <select
+                    name="batch"
+                    value={form.batch}
+                    onChange={handleChange}
+                    onBlur={handleFieldBlur}
+                    required
+                    aria-invalid={Boolean(fieldErrors.batch)}
+                    aria-describedby={fieldErrors.batch ? 'batch-error' : undefined}
+                    className={inputClass}
+                  >
+                    <option value="">Choose your batch</option>
+                    <option value="20/21">20/21</option>
+                    <option value="21/22">21/22</option>
+                    <option value="22/23">22/23</option>
+                    <option value="23/24">23/24</option>
+                  </select>
+                  <FieldError id="batch-error" message={fieldErrors.batch} />
+                </label>
+
+                <label>
+                  <span className={labelClass}>Department in study <span className="text-rose-500">*</span></span>
+                  <select
+                    name="studyDepartment"
+                    value={form.studyDepartment}
+                    onChange={handleChange}
+                    onBlur={handleFieldBlur}
+                    required
+                    aria-invalid={Boolean(fieldErrors.studyDepartment)}
+                    aria-describedby={fieldErrors.studyDepartment ? 'study-department-error' : undefined}
+                    className={inputClass}
+                  >
+                    <option value="">Choose your department</option>
+                    <option value="ITT">ITT</option>
+                    <option value="EET">EET</option>
+                    <option value="MTT">MTT</option>
+                    <option value="BPT">BPT</option>
+                    <option value="Food">Food</option>
+                  </select>
+                  <FieldError id="study-department-error" message={fieldErrors.studyDepartment} />
+                </label>
+
+                <label>
+                  <span className={labelClass}>Registration number <span className="text-rose-500">*</span></span>
+                  <input
+                    type="text"
+                    name="registrationNumber"
+                    value={form.registrationNumber}
+                    onChange={handleChange}
+                    onBlur={handleFieldBlur}
+                    autoComplete="off"
+                    required
+                    placeholder="e.g. ITT/2021/123"
+                    aria-invalid={Boolean(fieldErrors.registrationNumber)}
+                    aria-describedby={fieldErrors.registrationNumber ? 'registration-number-error' : undefined}
+                    className={inputClass}
+                  />
+                  <FieldError id="registration-number-error" message={fieldErrors.registrationNumber} />
+                </label>
+
+                <label>
+                  <span className={labelClass}>Birthday <span className="text-rose-500">*</span></span>
+                  <input
+                    type="date"
+                    name="birthday"
+                    value={form.birthday}
+                    onChange={handleChange}
+                    onBlur={handleFieldBlur}
+                    required
+                    aria-invalid={Boolean(fieldErrors.birthday)}
+                    aria-describedby={fieldErrors.birthday ? 'birthday-error' : undefined}
+                    className={inputClass}
+                  />
+                  <FieldError id="birthday-error" message={fieldErrors.birthday} />
+                </label>
+
+                <fieldset
+                  className="sm:col-span-2"
+                  aria-invalid={Boolean(fieldErrors.gender)}
+                  aria-describedby={fieldErrors.gender ? 'gender-error' : undefined}
+                >
+                  <legend className={labelClass}>Gender <span className="text-rose-500">*</span></legend>
+                  <div className="flex gap-3">
+                    {['male', 'female'].map((gender) => (
+                      <label
+                        key={gender}
+                        className={`flex flex-1 cursor-pointer items-center gap-2 rounded-xl border px-3.5 py-3 text-sm capitalize transition ${
+                          form.gender === gender
+                            ? isDarkMode
+                              ? 'border-indigo-400 bg-indigo-400/10 text-indigo-200'
+                              : 'border-indigo-400 bg-indigo-50 text-indigo-800'
+                            : isDarkMode
+                              ? 'border-slate-700 bg-slate-800/60 text-slate-300'
+                              : 'border-slate-200 bg-white text-slate-600'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="gender"
+                          value={gender}
+                          checked={form.gender === gender}
+                          onChange={handleChange}
+                          onBlur={handleFieldBlur}
+                          required
+                          className="accent-indigo-600"
+                        />
+                        {gender}
+                      </label>
+                    ))}
+                  </div>
+                  <FieldError id="gender-error" message={fieldErrors.gender} />
+                </fieldset>
+              </div>
+            </section>
+
+            <section>
+              <div className="mb-4 flex items-center gap-3">
+                <span className={`flex h-9 w-9 items-center justify-center rounded-xl text-sm font-bold ${
+                  isDarkMode ? 'bg-cyan-400/10 text-cyan-300' : 'bg-cyan-50 text-cyan-700'
+                }`}>
+                  2
+                </span>
+                <div>
+                  <h3 className={`font-bold ${isDarkMode ? 'text-slate-100' : 'text-slate-800'}`}>
+                    Choose your work teams
+                  </h3>
+                  <p className={`text-xs ${isDarkMode ? 'text-slate-500' : 'text-slate-500'}`}>
+                    Select every team you’d like to work with.
+                  </p>
                 </div>
               </div>
-            </div>
 
-            {canManageDepartmentHead ? (
-              <section className="mb-6 rounded-[24px] border border-indigo-200 bg-white p-4 shadow-sm sm:p-6">
-                <h2 className="text-lg font-bold text-slate-800">Department head access</h2>
-                <p className="mt-1 text-sm text-slate-600">
-                  Select a department to assign it immediately after confirmation. Assigned departments are marked below.
-                </p>
-                <p className="mt-2 text-xs font-medium text-slate-500">
-                  {departmentHeadDepartments.length} of {WORK_DEPARTMENTS.length} departments assigned
-                </p>
-
-                <div className="mt-4 grid gap-2 sm:grid-cols-2">
+              <fieldset aria-describedby={fieldErrors.departments ? 'departments-error' : undefined}>
+                <legend className={labelClass}>Work departments <span className="text-rose-500">*</span></legend>
+                <div className="grid gap-3 sm:grid-cols-2">
                   {WORK_DEPARTMENTS.map((department) => {
-                    const isManaged = departmentHeadDepartments.includes(department);
+                    const selected = isDeptSelected(department);
                     return (
                       <label
                         key={department}
-                        className={`flex cursor-pointer items-center justify-between gap-3 rounded-xl border px-3 py-2 text-sm transition ${
-                          isManaged
-                            ? 'border-indigo-300 bg-indigo-50 text-indigo-900 shadow-sm'
-                            : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-indigo-200 hover:bg-indigo-50/50'
+                        className={`flex cursor-pointer items-center gap-3 rounded-2xl border p-3.5 transition hover:-translate-y-0.5 focus-within:ring-4 ${
+                          selected
+                            ? isDarkMode
+                              ? 'border-indigo-400 bg-indigo-400/10 ring-indigo-500/10'
+                              : 'border-indigo-400 bg-indigo-50 ring-indigo-500/10'
+                            : isDarkMode
+                              ? 'border-slate-700 bg-slate-800/60 hover:border-slate-600 focus-within:ring-slate-500/10'
+                              : 'border-slate-200 bg-white hover:border-indigo-200 focus-within:ring-indigo-500/10'
                         }`}
                       >
-                        <span className="flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            aria-label={`${formatWorkDepartmentLabel(department)} department access`}
-                            checked={isManaged}
-                            onChange={(event) =>
-                              handleToggleDepartmentHeadDepartment(department, event.target.checked)
-                            }
-                            disabled={savingDepartmentHead || Boolean(pendingDepartmentHeadUpdate)}
-                            className="h-4 w-4 accent-indigo-600"
-                          />
-                          <span className="font-medium">{formatWorkDepartmentLabel(department)}</span>
+                        <input
+                          type="checkbox"
+                          checked={selected}
+                          onChange={() => handleDepartmentToggle(department)}
+                          className="sr-only"
+                          aria-invalid={Boolean(fieldErrors.departments)}
+                          aria-label={`${formatWorkDepartmentLabel(department)} work department`}
+                        />
+                        <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border text-xs ${
+                          selected
+                            ? 'border-indigo-600 bg-indigo-600 text-white'
+                            : isDarkMode
+                              ? 'border-slate-500 bg-slate-900'
+                              : 'border-slate-300 bg-white'
+                        }`}>
+                          {selected ? <FaCheck /> : null}
                         </span>
-                        <span
-                          className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-semibold ${
-                            isManaged
-                              ? 'bg-indigo-100 text-indigo-700'
-                              : 'bg-white text-slate-500'
-                          }`}
-                        >
-                          {isManaged ? <><FaCheck /> Assigned</> : 'Not assigned'}
+                        <span className="min-w-0 flex-1">
+                          <span className={`block text-sm font-semibold ${
+                            isDarkMode ? 'text-slate-100' : 'text-slate-800'
+                          }`}>
+                            {formatWorkDepartmentLabel(department)}
+                          </span>
+                          <span className={`mt-0.5 block text-xs ${
+                            isDarkMode ? 'text-slate-500' : 'text-slate-500'
+                          }`}>
+                            {selected ? 'Selected for your profile' : 'Tap to select this team'}
+                          </span>
                         </span>
+                        {selected ? (
+                          <span className="rounded-full bg-indigo-600/10 px-2 py-1 text-[10px] font-bold text-indigo-600 dark:text-indigo-300">
+                            SELECTED
+                          </span>
+                        ) : null}
                       </label>
                     );
                   })}
                 </div>
+                <FieldError id="departments-error" message={fieldErrors.departments} />
+                <p className={`mt-3 text-xs ${
+                  isDarkMode ? 'text-slate-400' : 'text-slate-500'
+                }`}>
+                  {form.departments.length
+                    ? `${form.departments.length} ${form.departments.length === 1 ? 'team' : 'teams'} selected`
+                    : 'Choose at least one team to continue.'}
+                </p>
+              </fieldset>
+            </section>
 
-                {savingDepartmentHead ? (
-                  <p className="mt-4 text-sm font-medium text-slate-500">
-                    Saving department access...
+            <section>
+              <div className="mb-4 flex items-center gap-3">
+                <span className={`flex h-9 w-9 items-center justify-center rounded-xl text-sm font-bold ${
+                  isDarkMode ? 'bg-emerald-400/10 text-emerald-300' : 'bg-emerald-50 text-emerald-700'
+                }`}>
+                  3
+                </span>
+                <div>
+                  <h3 className={`font-bold ${isDarkMode ? 'text-slate-100' : 'text-slate-800'}`}>
+                    Secure your account
+                  </h3>
+                  <p className={`text-xs ${isDarkMode ? 'text-slate-500' : 'text-slate-500'}`}>
+                    Use a password only you know.
                   </p>
-                ) : null}
-              </section>
-            ) : null}
-
-            {pendingDepartmentHeadUpdate ? (
-              <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
-                <div
-                  role="alertdialog"
-                  aria-modal="true"
-                  aria-labelledby="department-head-confirm-title"
-                  className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl"
-                >
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-100 text-indigo-700">
-                    <FaCheck className="text-xl" />
-                  </div>
-                  <h2
-                    id="department-head-confirm-title"
-                    className="mt-4 text-xl font-bold text-slate-900"
-                  >
-                    {pendingDepartmentHeadUpdate.checked
-                      ? pendingDepartmentHeadUpdate.isDepartmentHead
-                        ? 'Add department access?'
-                        : 'Make department head?'
-                      : pendingDepartmentHeadUpdate.removingLastDepartment
-                        ? 'Remove department-head access?'
-                        : 'Remove this department?'}
-                  </h2>
-                  <p className="mt-2 text-sm leading-6 text-slate-600">
-                    {pendingDepartmentHeadUpdate.checked
-                      ? pendingDepartmentHeadUpdate.isDepartmentHead
-                        ? `${pendingDepartmentHeadUpdate.userLabel} will be able to manage users in ${pendingDepartmentHeadUpdate.departmentLabel}. This change saves immediately.`
-                        : `${pendingDepartmentHeadUpdate.userLabel} will become a department head for ${pendingDepartmentHeadUpdate.departmentLabel} and will be able to manage users there.`
-                      : pendingDepartmentHeadUpdate.removingLastDepartment
-                        ? `${pendingDepartmentHeadUpdate.userLabel} will lose department-head access when ${pendingDepartmentHeadUpdate.departmentLabel} is removed.`
-                        : `${pendingDepartmentHeadUpdate.userLabel} will no longer manage users in ${pendingDepartmentHeadUpdate.departmentLabel}. Other department assignments will remain.`}
-                  </p>
-                  <div className="mt-6 flex justify-end gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setPendingDepartmentHeadUpdate(null)}
-                      disabled={savingDepartmentHead}
-                      className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleConfirmDepartmentHeadUpdate}
-                      disabled={savingDepartmentHead}
-                      className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50 ${
-                        pendingDepartmentHeadUpdate.checked
-                          ? 'bg-indigo-600 hover:bg-indigo-700'
-                          : 'bg-red-600 hover:bg-red-700'
-                      }`}
-                    >
-                      {savingDepartmentHead ? (
-                        <>
-                          <FaSpinner className="animate-spin" />
-                          Saving...
-                        </>
-                      ) : pendingDepartmentHeadUpdate.checked
-                        ? pendingDepartmentHeadUpdate.isDepartmentHead
-                          ? 'Confirm & assign'
-                          : 'Confirm & make head'
-                        : 'Confirm removal'}
-                    </button>
-                  </div>
                 </div>
               </div>
-            ) : null}
 
-            {isEditing && editForm ? (
-              <form
-                onSubmit={handleSaveUserDetails}
-                noValidate
-                className="mb-6 space-y-8 rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_16px_32px_rgba(15,23,42,0.06)] sm:p-8"
-              >
-                {/* Section 1: Member Details (Signup-style inputs) */}
-                <section>
-                  <div className="mb-4 flex items-center gap-3">
-                    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-sm font-bold text-indigo-700">
-                      1
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label>
+                  <span className={labelClass}>Password <span className="text-rose-500">*</span></span>
+                  <span className="relative block">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      name="password"
+                      value={form.password}
+                      onChange={handleChange}
+                      onBlur={handleFieldBlur}
+                      autoComplete="new-password"
+                      required
+                      minLength={6}
+                      placeholder="At least 6 characters"
+                      aria-invalid={Boolean(fieldErrors.password)}
+                      aria-describedby={fieldErrors.password ? 'password-error' : undefined}
+                      className={`${inputClass} pr-12`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((visible) => !visible)}
+                      className={`absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-xl ${
+                        isDarkMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-indigo-700'
+                      }`}
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      aria-pressed={showPassword}
+                    >
+                      {showPassword ? <FaEyeSlash /> : <FaEye />}
+                    </button>
+                  </span>
+                  <FieldError id="password-error" message={fieldErrors.password} />
+                </label>
+
+                <label>
+                  <span className={labelClass}>Confirm password <span className="text-rose-500">*</span></span>
+                  <span className="relative block">
+                    <input
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      name="confirmPassword"
+                      value={form.confirmPassword}
+                      onChange={handleChange}
+                      onBlur={handleFieldBlur}
+                      autoComplete="new-password"
+                      required
+                      minLength={6}
+                      placeholder="Type it one more time"
+                      aria-invalid={Boolean(fieldErrors.confirmPassword)}
+                      aria-describedby={fieldErrors.confirmPassword ? 'confirm-password-error' : undefined}
+                      className={`${inputClass} pr-12`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword((visible) => !visible)}
+                      className={`absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-xl ${
+                        isDarkMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-indigo-700'
+                      }`}
+                      aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                      aria-pressed={showConfirmPassword}
+                    >
+                      {showConfirmPassword ? <FaEyeSlash /> : <FaEye />}
+                    </button>
+                  </span>
+                  <FieldError id="confirm-password-error" message={fieldErrors.confirmPassword} />
+                  {!fieldErrors.confirmPassword && passwordsMatch ? (
+                    <span className="mt-1.5 block text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                      Passwords match
                     </span>
-                    <div>
-                      <h2 className="font-bold text-slate-800">Member details</h2>
-                      <p className="text-xs text-slate-500">Required fields are marked with *</p>
-                    </div>
-                  </div>
+                  ) : null}
+                </label>
+              </div>
 
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <label className="sm:col-span-2">
-                      <span className={editLabelClass}>
-                        Name with initial <span className="text-rose-500">*</span>
-                      </span>
-                      <input
-                        type="text"
-                        name="name"
-                        value={editForm.name}
-                        onChange={handleEditFieldChange}
-                        onBlur={handleEditFieldBlur}
-                        placeholder="e.g. A B User"
-                        aria-invalid={Boolean(editFieldErrors.name)}
-                        className={editInputClass}
-                      />
-                      <FieldError id="edit-name-error" message={editFieldErrors.name} />
-                    </label>
-
-                    <label className="sm:col-span-2">
-                      <span className={editLabelClass}>
-                        Username <span className="text-rose-500">*</span>
-                      </span>
-                      <input
-                        type="text"
-                        name="username"
-                        value={editForm.username}
-                        onChange={handleEditFieldChange}
-                        onBlur={handleEditFieldBlur}
-                        minLength={3}
-                        maxLength={20}
-                        placeholder="e.g. New User"
-                        aria-invalid={Boolean(editFieldErrors.username)}
-                        className={editInputClass}
-                      />
-                      <FieldError id="edit-username-error" message={editFieldErrors.username} />
-                      {!editFieldErrors.username ? (
-                        <p className="mt-1.5 text-xs text-slate-500">
-                          Display username using 3–20 letters, numbers, underscores, or spaces.
-                        </p>
-                      ) : null}
-                    </label>
-
-                    <label className="sm:col-span-2">
-                      <span className={editLabelClass}>
-                        Email address <span className="text-rose-500">*</span>
-                      </span>
-                      <input
-                        type="email"
-                        name="email"
-                        value={editForm.email}
-                        onChange={handleEditFieldChange}
-                        onBlur={handleEditFieldBlur}
-                        placeholder="you@example.com"
-                        aria-invalid={Boolean(editFieldErrors.email)}
-                        className={editInputClass}
-                      />
-                      <FieldError id="edit-email-error" message={editFieldErrors.email} />
-                    </label>
-
-                    <label>
-                      <span className={editLabelClass}>Phone number</span>
-                      <input
-                        type="tel"
-                        name="phoneNo"
-                        value={editForm.phoneNo}
-                        onChange={handleEditPhoneChange}
-                        onBlur={handleEditFieldBlur}
-                        inputMode="numeric"
-                        maxLength={10}
-                        placeholder="07XXXXXXXX"
-                        aria-invalid={Boolean(editFieldErrors.phoneNo)}
-                        className={editInputClass}
-                      />
-                      <FieldError id="edit-phone-error" message={editFieldErrors.phoneNo} />
-                    </label>
-
-                    <label>
-                      <span className={editLabelClass}>Batch</span>
-                      <select
-                        name="batch"
-                        value={editForm.batch}
-                        onChange={handleEditFieldChange}
-                        className={editInputClass}
-                      >
-                        <option value="">Choose batch</option>
-                        <option value="20/21">20/21</option>
-                        <option value="21/22">21/22</option>
-                        <option value="22/23">22/23</option>
-                        <option value="23/24">23/24</option>
-                        {editForm.batch && !['20/21', '21/22', '22/23', '23/24'].includes(editForm.batch) ? (
-                          <option value={editForm.batch}>{editForm.batch}</option>
-                        ) : null}
-                      </select>
-                    </label>
-
-                    <label>
-                      <span className={editLabelClass}>Department in study</span>
-                      <select
-                        name="studyDepartment"
-                        value={editForm.studyDepartment}
-                        onChange={handleEditFieldChange}
-                        className={editInputClass}
-                      >
-                        <option value="">Choose department</option>
-                        <option value="ITT">ITT</option>
-                        <option value="EET">EET</option>
-                        <option value="MTT">MTT</option>
-                        <option value="BPT">BPT</option>
-                        <option value="Food">Food</option>
-                        {editForm.studyDepartment && !['ITT', 'EET', 'MTT', 'BPT', 'Food'].includes(editForm.studyDepartment) ? (
-                          <option value={editForm.studyDepartment}>{editForm.studyDepartment}</option>
-                        ) : null}
-                      </select>
-                    </label>
-
-                    <label>
-                      <span className={editLabelClass}>Registration number</span>
-                      <input
-                        type="text"
-                        name="registrationNumber"
-                        value={editForm.registrationNumber}
-                        onChange={handleEditFieldChange}
-                        placeholder="e.g. ITT/2021/123"
-                        className={editInputClass}
-                      />
-                    </label>
-
-                    <label className="sm:col-span-2">
-                      <span className={editLabelClass}>Birthday</span>
-                      <input
-                        type="date"
-                        name="birthday"
-                        value={editForm.birthday}
-                        onChange={handleEditFieldChange}
-                        className={editInputClass}
-                      />
-                    </label>
-
-                    <fieldset className="sm:col-span-2">
-                      <legend className={editLabelClass}>Gender</legend>
-                      <div className="flex gap-3">
-                        {['male', 'female'].map((gender) => (
-                          <label
-                            key={gender}
-                            className={`flex flex-1 cursor-pointer items-center gap-2 rounded-xl border px-3.5 py-3 text-sm capitalize transition ${
-                              editForm.gender === gender
-                                ? 'border-indigo-400 bg-indigo-50 text-indigo-800'
-                                : 'border-slate-200 bg-white text-slate-600 hover:border-indigo-200'
-                            }`}
-                          >
-                            <input
-                              type="radio"
-                              name="gender"
-                              value={gender}
-                              checked={editForm.gender === gender}
-                              onChange={handleEditFieldChange}
-                              className="accent-indigo-600"
-                            />
-                            {gender}
-                          </label>
-                        ))}
-                      </div>
-                    </fieldset>
-                  </div>
-                </section>
-
-                {/* Section 2: Work Teams & Permissions (Admin/SuperAdmin only) */}
-                {!isDepartmentHead && (
-                  <section>
-                    <div className="mb-4 flex items-center gap-3">
-                      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-cyan-50 text-sm font-bold text-cyan-700">
-                        2
-                      </span>
-                      <div>
-                        <h2 className="font-bold text-slate-800">Work teams & role</h2>
-                        <p className="text-xs text-slate-500">Select every team this member works with.</p>
-                      </div>
-                    </div>
-
-                    <fieldset aria-describedby={editFieldErrors.departments ? 'edit-departments-error' : undefined}>
-                      <legend className={editLabelClass}>
-                        Work departments <span className="text-rose-500">*</span>
-                      </legend>
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        {WORK_DEPARTMENTS.map((department) => {
-                          const selected = Array.isArray(editForm.departments) && editForm.departments.includes(department);
-                          return (
-                            <label
-                              key={department}
-                              className={`flex cursor-pointer items-center gap-3 rounded-2xl border p-3.5 transition hover:-translate-y-0.5 focus-within:ring-4 ${
-                                selected
-                                  ? 'border-indigo-400 bg-indigo-50 ring-indigo-500/10'
-                                  : 'border-slate-200 bg-white hover:border-indigo-200 focus-within:ring-indigo-500/10'
-                              }`}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={selected}
-                                onChange={() => handleEditDepartmentToggle(department)}
-                                className="sr-only"
-                                aria-label={`${formatWorkDepartmentLabel(department)} work department`}
-                              />
-                              <span
-                                className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border text-xs ${
-                                  selected
-                                    ? 'border-indigo-600 bg-indigo-600 text-white'
-                                    : 'border-slate-300 bg-white'
-                                }`}
-                              >
-                                {selected ? <FaCheck /> : null}
-                              </span>
-                              <span className="min-w-0 flex-1">
-                                <span className="block text-sm font-semibold text-slate-800">
-                                  {formatWorkDepartmentLabel(department)}
-                                </span>
-                                <span className="mt-0.5 block text-xs text-slate-500">
-                                  {selected ? 'Selected for this profile' : 'Tap to select this team'}
-                                </span>
-                              </span>
-                              {selected ? (
-                                <span className="rounded-full bg-indigo-600/10 px-2 py-1 text-[10px] font-bold text-indigo-600">
-                                  SELECTED
-                                </span>
-                              ) : null}
-                            </label>
-                          );
-                        })}
-                      </div>
-                      <FieldError id="edit-departments-error" message={editFieldErrors.departments} />
-                    </fieldset>
-
-                    <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                      <label>
-                        <span className={editLabelClass}>User type</span>
-                        <select
-                          name="userType"
-                          value={editForm.userType}
-                          onChange={handleEditFieldChange}
-                          className={editInputClass}
-                        >
-                          <option value="user">user</option>
-                          <option value="admin">admin</option>
-                          <option value="siteAdmin">siteAdmin</option>
-                          <option value="superAdmin">superAdmin</option>
-                        </select>
-                      </label>
-
-                      <div className="flex items-end">
-                        <label className="flex w-full cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm font-semibold text-slate-700 hover:border-indigo-200">
-                          <input
-                            name="isTO"
-                            type="checkbox"
-                            checked={Boolean(editForm.isTO)}
-                            onChange={handleEditFieldChange}
-                            className="h-4 w-4 accent-indigo-600"
-                          />
-                          TO status
-                        </label>
-                      </div>
-                    </div>
-                  </section>
-                )}
-
-                <div className="flex flex-wrap gap-3 border-t border-slate-200 pt-5">
-                  <button
-                    type="submit"
-                    disabled={savingDetails}
-                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-indigo-600/20 transition hover:-translate-y-0.5 hover:from-indigo-700 hover:to-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {savingDetails ? (
-                      <>
-                        <FaSpinner className="animate-spin" />
-                        Saving changes...
-                      </>
-                    ) : (
-                      <>
-                        <FaCheck />
-                        Save changes
-                      </>
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleCancelEdit}
-                    className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            ) : (
-              <div className="mb-6 rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_16px_32px_rgba(15,23,42,0.06)] sm:p-6">
-                <div className="mb-4 flex items-center justify-between">
-                  <h2 className="text-lg font-bold text-slate-800">Profile overview</h2>
-                  <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-blue-700">
-                    {user.userType || 'user'}
+              <div className="mt-4">
+                <div className="mb-2 flex items-center justify-between text-xs">
+                  <span className={isDarkMode ? 'text-slate-400' : 'text-slate-500'}>
+                    Password strength
+                  </span>
+                  <span className={`font-semibold ${
+                    passwordStrength === 3
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : passwordStrength === 2
+                        ? 'text-amber-600 dark:text-amber-400'
+                        : passwordStrength === 1
+                          ? 'text-rose-600 dark:text-rose-400'
+                          : isDarkMode ? 'text-slate-500' : 'text-slate-400'
+                  }`}>
+                    {strengthLabel}
                   </span>
                 </div>
+                <div className={`h-1.5 overflow-hidden rounded-full ${
+                  isDarkMode ? 'bg-slate-800' : 'bg-slate-100'
+                }`}>
+                  <div
+                    className={`h-full rounded-full transition-all duration-300 ${strengthColor}`}
+                    style={{ width: `${(passwordStrength / passwordChecks.length) * 100}%` }}
+                  />
+                </div>
+                <p className={`mt-2 text-xs ${
+                  isDarkMode ? 'text-slate-500' : 'text-slate-500'
+                }`}>
+                  Tip: use a mix of upper- and lowercase letters, plus a number or symbol. Create your password before sending the verification email; you’ll use it to log in.
+                </p>
+              </div>
 
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {[
-                    ['Name with initial', user.fullName || '-'],
-                    ['Username', user.username || user.name || '-'],
-                    ['Phone', user.phoneNo || '-'],
-                    ['Batch', user.batch || '-'],
-                    ['Study department', user.studyDepartment || '-'],
-                    ['Gender', user.gender || '-'],
-                    ['Birthday', user.birthday || '-'],
-                    ['Registration no', user.registrationNumber || '-'],
-                    ['NFC Card ID', user.NFC_card_id || '-'],
-                    ['TO status', user.isTO ? 'Yes' : 'No'],
-                    ['Work departments', Array.isArray(user.departments) ? user.departments.map(formatWorkDepartmentLabel).join(', ') : user.department || '-'],
-                  ].map(([label, value]) => (
-                    <div key={label} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">{label}</p>
-                      <p className="mt-2 text-sm font-semibold text-slate-700">{value}</p>
-                    </div>
-                  ))}
+            </section>
+
+            <section>
+              <div className="mb-4 flex items-center gap-3">
+                <span className={`flex h-9 w-9 items-center justify-center rounded-xl text-sm font-bold ${
+                  isDarkMode ? 'bg-cyan-400/10 text-cyan-300' : 'bg-cyan-50 text-cyan-700'
+                }`}>
+                  4
+                </span>
+                <div>
+                  <h3 className={`font-bold ${isDarkMode ? 'text-slate-100' : 'text-slate-800'}`}>
+                    Verify your email
+                  </h3>
+                  <p className={`text-xs ${isDarkMode ? 'text-slate-500' : 'text-slate-500'}`}>
+                    Confirm your email address before creating your account.
+                  </p>
                 </div>
               </div>
-            )}
 
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <h2 className="text-xl font-bold text-slate-800 sm:text-2xl">
-                Task history
-              </h2>
-              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
-                {works.length} tasks
-              </span>
+              <div>
+                <label htmlFor="signup-email" className={labelClass}>
+                  Email address <span className="text-rose-500">*</span>
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="email"
+                    name="email"
+                    id="signup-email"
+                    value={form.email}
+                    onChange={handleChange}
+                    onBlur={handleFieldBlur}
+                    autoComplete="email"
+                    required
+                    placeholder="you@example.com"
+                    aria-invalid={Boolean(fieldErrors.email)}
+                    aria-describedby={fieldErrors.email ? 'email-error' : 'email-verification-status'}
+                    className={`${inputClass} min-w-0 flex-1`}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleEmailVerification}
+                    disabled={sendingVerificationEmail || loading || isEmailVerified}
+                    className={`shrink-0 rounded-xl px-3 py-3 text-xs font-bold transition focus:outline-none focus:ring-4 focus:ring-indigo-500/20 disabled:cursor-not-allowed disabled:opacity-60 ${
+                      isDarkMode
+                        ? 'bg-indigo-500 text-white hover:bg-indigo-400'
+                        : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                    }`}
+                  >
+                    {sendingVerificationEmail ? (
+                      <span className="flex items-center gap-1.5">
+                        <FaSpinner className="animate-spin" aria-hidden="true" />
+                        Sending
+                      </span>
+                    ) : isEmailVerified ? (
+                      <span className="flex items-center gap-1.5">
+                        <FaCheck aria-hidden="true" />
+                        Verified
+                      </span>
+                    ) : verificationEmailSentTo === normalizeEmail(form.email) ? (
+                      'Send verification link'
+                    ) : (
+                      'Send verification link'
+                    )}
+                  </button>
+                </div>
+                <FieldError id="email-error" message={fieldErrors.email} />
+                <p
+                  id="email-verification-status"
+                  role={isEmailVerified ? 'status' : undefined}
+                  className={`mt-1.5 text-xs ${
+                    isEmailVerified
+                      ? 'font-medium text-emerald-600 dark:text-emerald-400'
+                      : 'font-medium text-rose-600 dark:text-rose-400'
+                  }`}
+                >
+                  {isEmailVerified
+                    ? 'Email verified.'
+                    : verificationEmailSentTo === normalizeEmail(form.email)
+                      ? 'Open the verification link in your inbox or spam folder, then return here to complete signup.'
+                      : 'Verify this email address before creating your account.'}
+                </p>
+              </div>
+            </section>
+
+            <div className="space-y-4 border-t border-slate-200 pt-6 dark:border-slate-800">
+              <button
+                type="submit"
+                disabled={loading}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 px-5 py-3.5 text-sm font-bold text-white shadow-lg shadow-indigo-600/20 transition hover:-translate-y-0.5 hover:from-indigo-700 hover:to-blue-700 focus:outline-none focus:ring-4 focus:ring-indigo-500/20 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {loading ? (
+                  <>
+                    <FaSpinner className="animate-spin" />
+                    Creating your account...
+                  </>
+                ) : (
+                  <>
+                    <FaUserPlus />
+                    Create account
+                  </>
+                )}
+              </button>
+              <p className={`text-center text-sm ${
+                isDarkMode ? 'text-slate-400' : 'text-slate-500'
+              }`}>
+                Already have an account?{' '}
+                <button
+                  type="button"
+                  onClick={() => navigate('/login')}
+                  className="font-semibold text-indigo-600 hover:text-indigo-700 hover:underline dark:text-indigo-400 dark:hover:text-indigo-300"
+                >
+                  Log in
+                </button>
+              </p>
+              <p className={`text-center text-xs ${
+                isDarkMode ? 'text-slate-500' : 'text-slate-400'
+              }`}>
+                Your email must be verified before your account can be created.
+              </p>
             </div>
-
-            {works.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-600 shadow-sm">
-                No tasks for this user.
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {works.map((w) => {
-                  const roles = getUserRoles(w);
-                  const status = w.status || 'incomplete';
-
-                  return (
-                    <div
-                      key={w.id}
-                      onClick={() => navigate(`/tasks/${w.id}`)}
-                      className="cursor-pointer rounded-[22px] border border-slate-200 bg-white p-4 shadow-[0_12px_26px_rgba(15,23,42,0.04)] transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_20px_36px_rgba(59,130,246,0.1)]"
-                    >
-                      <div className="mb-3 flex items-start justify-between gap-3">
-                        <div className="min-w-0 flex-1">
-                          <h3 className="text-base font-bold text-slate-800 sm:text-lg">
-                            {w.title || 'Untitled task'}
-                          </h3>
-                          {w.date && (
-                            <span className="mt-1 flex items-center gap-1 text-xs text-slate-500">
-                              <FaCalendarAlt className="text-[11px]" />
-                              {new Date(w.date).toLocaleDateString()}
-                            </span>
-                          )}
-                        </div>
-                        <span
-                          className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] ${
-                            status === 'complete'
-                              ? 'bg-emerald-100 text-emerald-700'
-                              : status === 'done'
-                              ? 'bg-amber-100 text-amber-700'
-                              : 'bg-slate-100 text-slate-700'
-                          }`}
-                        >
-                          {status}
-                        </span>
-                      </div>
-
-                      {w.description && (
-                        <p className="mb-3 text-sm text-slate-600">{w.description}</p>
-                      )}
-
-                      {roles.length > 0 && (
-                        <div>
-                          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
-                            Assigned work types
-                          </p>
-                          <div className="flex flex-wrap gap-2">
-                            {roles.map((role) => {
-                              const done = isRoleDone(w, role);
-                              return (
-                                <span
-                                  key={role}
-                                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                                    done
-                                      ? 'bg-emerald-100 text-emerald-700'
-                                      : 'bg-slate-100 text-slate-700'
-                                  }`}
-                                >
-                                  {done && <FaCheck className="text-[10px]" />}
-                                  {formatWorkRoleLabel(role)}
-                                </span>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {offerLoading && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-                <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl">
-                  <div className="flex flex-col items-center gap-4">
-                    <FaSpinner className="animate-spin text-4xl text-blue-600" />
-                    <div className="text-lg font-semibold text-gray-900">Offer ID is loading...</div>
-                    <p className="text-sm text-gray-600 text-center">
-                      {nfcMessage || 'Waiting for NFC tap...'}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={closeOfferPopup}
-                      className="mt-2 inline-flex items-center justify-center rounded bg-gray-200 hover:bg-gray-300 px-4 py-2 text-sm font-semibold text-gray-800"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {duplicateUser && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-                <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl">
-                  <div className="flex flex-col items-center gap-4 text-center">
-                    <div className="text-xl font-semibold text-red-700">Card Already In Use</div>
-                    <p className="text-sm text-gray-600">
-                      This NFC card is already assigned to:
-                    </p>
-                    <p className="font-semibold text-gray-900">
-                      {duplicateUser.name}
-                    </p>
-                    {duplicateUser.email ? (
-                      <p className="text-sm text-gray-500">{duplicateUser.email}</p>
-                    ) : null}
-                    <div className="grid grid-cols-1 gap-2 w-full">
-                      <button
-                        type="button"
-                        onClick={handleScanAnother}
-                        className="inline-flex w-full items-center justify-center rounded bg-blue-600 hover:bg-blue-700 px-4 py-2 text-sm font-semibold text-white"
-                      >
-                        Scan another one
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleRemoveAndAssign}
-                        className="inline-flex w-full items-center justify-center rounded bg-red-600 hover:bg-red-700 px-4 py-2 text-sm font-semibold text-white"
-                      >
-                        Remove and assign
-                      </button>
-                      <button
-                        type="button"
-                        onClick={closeOfferPopup}
-                        className="inline-flex w-full items-center justify-center rounded bg-gray-200 hover:bg-gray-300 px-4 py-2 text-sm font-semibold text-gray-800"
-                      >
-                        Close
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </>
-        )}
+          </form>
+        </section>
       </main>
     </div>
   );
 };
 
-export default UserDetails;
+export default Signup;
