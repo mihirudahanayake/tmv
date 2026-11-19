@@ -16,8 +16,7 @@ import {
   FaMoon,
   FaSignOutAlt,
 } from 'react-icons/fa';
-import { useState } from 'react';
-import { useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { signOut } from 'firebase/auth';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
@@ -106,14 +105,13 @@ const Header = ({ userType, isTO = false, isDarkMode, toggleDarkMode, isGlobalLa
 
   const navItems = [
     { path: homePath, label: 'Dashboard', icon: <FaHome /> },
-    ...(isMemberShell
+    { path: '/task-history', label: 'Task History', icon: <FaHistory /> },
+    { path: '/my-item-usage', label: 'My Item Usage', icon: <FaHistory /> },
+    { path: '/user-reject-details', label: 'My Rejections', icon: <FaBan /> },
+    ...(showTOInventory
       ? [
-          // { path: '/my-meetings', label: 'My Meetings / Workshops', icon: <FaCalendarAlt /> },
-          { path: '/task-history', label: 'Task History', icon: <FaHistory /> },
-          { path: '/my-item-usage', label: 'My Item Usage', icon: <FaHistory /> },
-          { path: '/user-reject-details', label: 'My Rejections', icon: <FaBan /> },
-          ...(showTOInventory ? [{ path: '/inventory', label: 'Inventory', icon: <FaBox /> }] : []),
-          ...(showTOInventory ? [{ path: '/access-records', label: 'Access Records', icon: <FaIdCard /> }] : []),
+          { path: '/inventory', label: 'Inventory', icon: <FaBox /> },
+          { path: '/access-records', label: 'Access Records', icon: <FaIdCard /> },
         ]
       : []),
   ];
@@ -253,7 +251,7 @@ const Header = ({ userType, isTO = false, isDarkMode, toggleDarkMode, isGlobalLa
       {isMenuOpen && (
         <div className="fixed inset-0 z-[60] bg-black/40 lg:hidden" onClick={() => setIsMenuOpen(false)}>
           <div
-            className="absolute left-0 top-0 h-full w-72 bg-gradient-to-b from-blue-950 via-blue-900 to-blue-800 text-slate-100 shadow-2xl dark:from-slate-950 dark:via-slate-900 dark:to-slate-900"
+            className="absolute left-0 top-0 h-full w-72 overflow-y-auto bg-gradient-to-b from-blue-950 via-blue-900 to-blue-800 text-slate-100 shadow-2xl dark:from-slate-950 dark:via-slate-900 dark:to-slate-900"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-blue-800 px-5 py-4 dark:border-slate-800">
