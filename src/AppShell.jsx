@@ -291,7 +291,7 @@ const AppShell = () => {
         routes
       ) : (
         <div className={`min-h-dvh overflow-x-hidden ${isDarkMode ? 'bg-gray-900' : 'bg-slate-100'} pt-16 lg:pl-[280px]`}>
-          <div className="mx-auto min-h-[calc(100dvh-4rem)] w-full max-w-[min(100%,1800px)] min-w-0 px-3 pb-8 pt-4 sm:px-5 lg:px-6 2xl:px-10">
+          <div className="mx-auto min-h-[calc(100dvh-4rem)] w-full max-w-[min(100%,1800px)] min-w-0 sm:px-5 lg:px-6 2xl:px-10">
             {routes}
           </div>
         </div>

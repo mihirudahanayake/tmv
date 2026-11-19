@@ -25,6 +25,8 @@ import {
   FaCheckCircle,
   FaHourglassHalf,
   FaUndo,
+  FaChevronDown,
+  FaChevronUp,
 } from 'react-icons/fa';
 import { useDarkMode } from '../context/DarkModeContext';
 import { useNavigate, Link } from 'react-router-dom';
@@ -65,6 +67,7 @@ const Home = () => {
   const [rejectReason, setRejectReason] = useState('');
   const [selectedTask, setSelectedTask] = useState(null);
   const [showRejectedTasks, setShowRejectedTasks] = useState(true);
+  const [activeFilter, setActiveFilter] = useState('all'); // 'all' | 'pending' | 'active' | 'completed' | 'rejected'
 
   // Popup notification for this user
   const [popup, setPopup] = useState(null);
@@ -482,9 +485,9 @@ const Home = () => {
     if (!assignedItems.length) return null;
 
     return (
-      <div className="mt-3">
-        <p className="text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-200 mb-1.5">
-          Assigned items:
+      <div className="mt-3 pt-2.5 border-t border-gray-100 dark:border-slate-800/80">
+        <p className="text-[11px] sm:text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1.5">
+          Assigned items
         </p>
         <div className="flex flex-wrap gap-1.5 sm:gap-2">
           {assignedItems.map((itemId) => {
@@ -493,7 +496,7 @@ const Home = () => {
               return (
                 <span
                   key={itemId}
-                  className="px-2.5 py-1 rounded-full bg-gray-100 dark:bg-slate-800 text-xs text-gray-500 dark:text-gray-300"
+                  className="px-2.5 py-1 rounded-lg bg-gray-100 dark:bg-slate-800 text-[11px] sm:text-xs text-gray-500 dark:text-gray-300"
                 >
                   Unknown item
                 </span>
@@ -502,7 +505,7 @@ const Home = () => {
             return (
               <span
                 key={itemId}
-                className="px-2.5 py-1 rounded-full bg-blue-50 dark:bg-slate-800 text-xs sm:text-sm text-blue-800 dark:text-gray-100 border border-blue-100 dark:border-slate-700"
+                className="px-2.5 py-1 rounded-lg bg-blue-50/90 dark:bg-slate-800 text-[11px] sm:text-xs font-medium text-blue-800 dark:text-gray-100 border border-blue-100 dark:border-slate-700"
               >
                 {item.itemName || 'Item'}
                 {item.itemNo ? ` (${item.itemNo})` : ''}
@@ -521,18 +524,18 @@ const Home = () => {
 
     if (otherMembers.length === 0) {
       return (
-        <div className="mt-3">
-          <p className="text-xs text-gray-500 dark:text-gray-400 italic">
-            You are working on this alone
+        <div className="mt-2.5">
+          <p className="text-[11px] sm:text-xs text-gray-500 dark:text-gray-400 italic">
+            Working solo on this task
           </p>
         </div>
       );
     }
 
     return (
-      <div className="mt-3">
-        <p className="text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-200 mb-1.5">
-          Working with:
+      <div className="mt-3 pt-2.5 border-t border-gray-100 dark:border-slate-800/80">
+        <p className="text-[11px] sm:text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1.5">
+          Working with
         </p>
         <div className="flex flex-wrap gap-1.5 sm:gap-2">
           {otherMembers.map((uid) => {
@@ -541,9 +544,9 @@ const Home = () => {
               return (
                 <span
                   key={uid}
-                  className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-gray-100 dark:bg-slate-800 text-xs text-gray-500 dark:text-gray-300"
+                  className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-gray-100 dark:bg-slate-800 text-xs text-gray-500 dark:text-gray-300"
                 >
-                  <div className="w-6 h-6 rounded-full bg-gray-300 dark:bg-slate-700 flex items-center justify-center text-xs font-bold text-white">
+                  <div className="w-5 h-5 rounded-full bg-gray-300 dark:bg-slate-700 flex items-center justify-center text-[10px] font-bold text-white">
                     ?
                   </div>
                   Unknown User
@@ -556,20 +559,20 @@ const Home = () => {
             return (
               <div
                 key={uid}
-                className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-100 dark:from-slate-800 dark:to-slate-800 dark:border-slate-700"
+                className="inline-flex items-center gap-1.5 sm:gap-2 pl-1 pr-2.5 py-0.5 sm:py-1 rounded-full bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-100 dark:from-slate-800 dark:to-slate-800 dark:border-slate-700 max-w-full"
               >
                 {avatarUrl ? (
                   <img
                     src={avatarUrl}
                     alt={member.name || 'User'}
-                    className="w-6 h-6 sm:w-7 sm:h-7 rounded-full object-cover border border-white dark:border-slate-700 shadow-sm"
+                    className="w-5 h-5 sm:w-6 sm:h-6 rounded-full object-cover border border-white dark:border-slate-700 shadow-sm shrink-0"
                   />
                 ) : (
-                  <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center text-xs font-bold text-white">
+                  <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center text-[10px] sm:text-xs font-bold text-white shrink-0">
                     {(member.name || 'U').charAt(0).toUpperCase()}
                   </div>
                 )}
-                <span className="text-xs sm:text-sm font-semibold text-gray-800 dark:text-gray-100">
+                <span className="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100 truncate">
                   {member.name || 'User'}
                 </span>
               </div>
@@ -583,18 +586,18 @@ const Home = () => {
   const renderTaskDates = (task, extraClass = '') => {
     if (!task.date && !task.deadline) return null;
     return (
-      <div className={`flex flex-wrap items-center gap-x-4 gap-y-1 text-xs sm:text-sm text-gray-500 dark:text-gray-300 ${extraClass}`}>
+      <div className={`flex flex-wrap items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs text-gray-600 dark:text-gray-300 ${extraClass}`}>
         {task.date && (
-          <p className="flex items-center gap-1.5">
-            <FaCalendarAlt className="shrink-0 dark:text-yellow-300" />
-            <span>Date: {new Date(task.date).toLocaleDateString()}</span>
-          </p>
+          <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100/90 dark:bg-slate-800 px-2 py-1 font-medium">
+            <FaCalendarAlt className="shrink-0 text-blue-500 dark:text-yellow-300" />
+            <span>{new Date(task.date).toLocaleDateString()}</span>
+          </span>
         )}
         {task.deadline && (
-          <p className="flex items-center gap-1.5">
-            <FaCalendarAlt className="shrink-0 dark:text-yellow-300" />
-            <span>Deadline: {new Date(task.deadline).toLocaleDateString()}</span>
-          </p>
+          <span className="inline-flex items-center gap-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-200 px-2 py-1 font-medium">
+            <FaCalendarAlt className="shrink-0" />
+            <span>Due {new Date(task.deadline).toLocaleDateString()}</span>
+          </span>
         )}
       </div>
     );
@@ -624,9 +627,14 @@ const Home = () => {
     return popup.title || 'New notification';
   };
 
+  const showPendingSection = (activeFilter === 'all' || activeFilter === 'pending') && pendingTasks.length > 0;
+  const showActiveSection = (activeFilter === 'all' || activeFilter === 'active') && acceptedTasks.length > 0;
+  const showCompletedSection = (activeFilter === 'all' || activeFilter === 'completed') && completedTasks.length > 0;
+  const showRejectedSection = (activeFilter === 'all' || activeFilter === 'rejected') && rejectedTasks.length > 0;
+
   return (
     <div
-      className={`min-h-screen transition-colors duration-300 ${
+      className={`min-h-screen pb-8 transition-colors duration-300 ${
         isDarkMode
           ? 'bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900'
           : 'bg-gradient-to-br from-blue-50 via-white to-purple-50'
@@ -634,23 +642,26 @@ const Home = () => {
     >
       <Header userType={userType} isTO={isTO} isDarkMode={isDarkMode} toggleDarkMode={toggleDarkMode} />
 
-      {/* User popup notification */}
+      {/* Mobile bottom-sheet / Desktop modal notification popup */}
       {popup && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/50">
-          <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-slate-700 p-4 sm:p-5">
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1.5">New notification</p>
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-[2px]">
+          <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-2xl shadow-2xl border-t sm:border border-gray-200 dark:border-slate-700 p-5 pb-6 sm:p-5">
+            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-gray-300 dark:bg-slate-700 sm:hidden" />
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-1">
+              New notification
+            </p>
             <h3 className="text-base sm:text-lg font-bold text-gray-800 dark:text-gray-100 mb-2">
               {renderUserPopupText()}
             </h3>
             {popup.message && (
-              <p className="text-sm text-gray-700 dark:text-gray-300 mb-4">{popup.message}</p>
+              <p className="text-sm text-gray-700 dark:text-gray-300 mb-5 leading-relaxed">{popup.message}</p>
             )}
 
-            <div className="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">
+            <div className="grid grid-cols-2 sm:flex gap-2.5 sm:justify-end">
               <button
                 type="button"
                 onClick={() => navigate('/user/notifications')}
-                className="min-h-[44px] px-4 py-2.5 rounded-xl bg-gray-200 text-gray-800 text-sm font-semibold hover:bg-gray-300 dark:bg-slate-800 dark:text-gray-100 dark:hover:bg-slate-700 active:scale-[0.99]"
+                className="min-h-[44px] px-4 py-2.5 rounded-xl bg-gray-100 text-gray-800 text-sm font-semibold hover:bg-gray-200 dark:bg-slate-800 dark:text-gray-100 dark:hover:bg-slate-700 active:scale-[0.99]"
               >
                 View all
               </button>
@@ -659,7 +670,7 @@ const Home = () => {
                 onClick={markPopupRead}
                 className="min-h-[44px] px-4 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 active:scale-[0.99]"
               >
-                Mark as read
+                Mark read
               </button>
             </div>
           </div>
@@ -668,20 +679,24 @@ const Home = () => {
 
       {/* Mobile-friendly full-width toast */}
       {toast && (
-        <div className="fixed top-16 sm:top-20 left-3 right-3 sm:left-auto sm:right-4 sm:max-w-sm z-40 bg-gradient-to-r from-blue-600 to-purple-600 text-white text-sm px-4 py-3 rounded-xl shadow-2xl animate-slide-in">
+        <div
+          role="status"
+          className="fixed bottom-4 sm:bottom-auto sm:top-20 left-3 right-3 sm:left-auto sm:right-4 sm:max-w-sm z-40 bg-gradient-to-r from-blue-600 to-purple-600 text-white text-sm font-medium px-4 py-3 rounded-xl shadow-2xl animate-slide-in"
+        >
           {toast}
         </div>
       )}
 
-      {/* Reject Modal */}
+      {/* Reject Modal (Bottom Sheet on Mobile) */}
       {showRejectModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-3 sm:p-4">
-          <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-2xl shadow-2xl max-w-md w-full p-4 sm:p-6">
-            <h3 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-gray-100 mb-2">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-[2px] z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white dark:bg-slate-900 border-t sm:border border-gray-200 dark:border-slate-700 rounded-t-3xl sm:rounded-2xl shadow-2xl max-w-md w-full p-5 pb-6 sm:p-6">
+            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-gray-300 dark:bg-slate-700 sm:hidden" />
+            <h3 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-gray-100 mb-1.5">
               Reject Work
             </h3>
-            <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">
-              Please provide a reason for rejecting this work:
+            <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300 mb-3">
+              Please provide a reason for rejecting <span className="font-semibold text-gray-800 dark:text-gray-100">{selectedTask?.title || 'this work'}</span>:
             </p>
             <textarea
               value={rejectReason}
@@ -690,90 +705,145 @@ const Home = () => {
               className="w-full px-3.5 py-2.5 border border-gray-300 dark:border-slate-700 dark:bg-slate-800 dark:text-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 text-base sm:text-sm"
               placeholder="Enter your reason..."
             />
-            <div className="flex flex-col-reverse sm:flex-row gap-2.5 sm:gap-3 mt-4">
+            <div className="grid grid-cols-2 sm:flex gap-2.5 sm:gap-3 mt-4">
               <button
                 onClick={() => {
                   setShowRejectModal(false);
                   setSelectedTask(null);
                 }}
-                className="min-h-[44px] flex-1 bg-gray-200 dark:bg-slate-800 text-gray-800 dark:text-gray-100 py-2.5 px-4 rounded-xl font-semibold hover:bg-gray-300 dark:hover:bg-slate-700 transition-all active:scale-[0.99]"
+                className="min-h-[44px] flex-1 bg-gray-100 dark:bg-slate-800 text-gray-800 dark:text-gray-100 py-2.5 px-4 rounded-xl text-sm font-semibold hover:bg-gray-200 dark:hover:bg-slate-700 transition-all active:scale-[0.99]"
               >
                 Cancel
               </button>
               <button
                 onClick={handleReject}
-                className="min-h-[44px] flex-1 bg-gradient-to-r from-red-500 to-rose-600 text-white py-2.5 px-4 rounded-xl font-semibold hover:from-red-600 hover:to-rose-700 transition-all active:scale-[0.99]"
+                className="min-h-[44px] flex-1 bg-gradient-to-r from-red-500 to-rose-600 text-white py-2.5 px-4 rounded-xl text-sm font-semibold hover:from-red-600 hover:to-rose-700 transition-all active:scale-[0.99]"
               >
-                Submit Rejection
+                Submit
               </button>
             </div>
           </div>
         </div>
       )}
 
-      <main className="container mx-auto px-3 sm:px-4 py-4 sm:py-8 max-w-6xl">
+      <main className="container mx-auto px-3 sm:px-4 pt-3 sm:pt-8 max-w-6xl">
         {/* Admin: Add event creation button */}
         {userType === 'admin' && (
-          <div className="mb-4 sm:mb-6 flex justify-stretch sm:justify-end">
+          <div className="mb-3 sm:mb-6 flex justify-stretch sm:justify-end">
             <Link
               to="/admin-create-event"
-              className="w-full sm:w-auto text-center bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2.5 rounded-xl shadow text-sm"
+              className="w-full sm:w-auto min-h-[42px] inline-flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2.5 rounded-xl shadow-sm text-sm active:scale-[0.99]"
             >
-              Create Meeting/Workshop
+              + Create Meeting/Workshop
             </Link>
           </div>
         )}
 
-        {/* Hero Overview */}
-        <div className="mb-5 sm:mb-8 rounded-2xl sm:rounded-[28px] border border-white/40 dark:border-slate-800 bg-white/60 dark:bg-slate-900/60 p-4 sm:p-6 shadow-[0_20px_50px_rgba(59,130,246,0.12)] backdrop-blur-sm">
-          <p className="text-[11px] sm:text-xs font-semibold uppercase tracking-[0.24em] text-blue-600 dark:text-blue-300 mb-1">
-            Overview
-          </p>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h1 className="text-2xl sm:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-sky-600 to-purple-600 dark:from-yellow-300 dark:via-orange-300 dark:to-pink-400 mb-1 sm:mb-2">
+        {/* Compact Mobile Hero Overview */}
+        <div className="mb-4 sm:mb-8 rounded-2xl sm:rounded-[28px] border border-white/50 dark:border-slate-800 bg-white/75 dark:bg-slate-900/70 p-4 sm:p-6 shadow-[0_14px_35px_rgba(59,130,246,0.1)] backdrop-blur-sm">
+          <div className="flex items-start sm:items-center justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-[0.22em] text-blue-600 dark:text-blue-300 mb-0.5">
+                Overview
+              </p>
+              <h1 className="text-xl sm:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-sky-600 to-purple-600 dark:from-yellow-300 dark:via-orange-300 dark:to-pink-400">
                 Welcome Back
               </h1>
-              <p className="text-gray-600 dark:text-gray-300 text-xs sm:text-base">
-                Manage your tasks efficiently. Accept new assignments and track your progress.
-              </p>
             </div>
-            <div className="self-start sm:self-auto flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-50 to-purple-50 dark:from-slate-800 dark:to-slate-900 border border-blue-100 dark:border-slate-700 px-3 py-1.5 shadow-sm">
-              <div className="h-2 w-2 sm:h-2.5 sm:w-2.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-200">
-                {visibleTasks.length} active {visibleTasks.length === 1 ? 'item' : 'items'}
+            <div className="shrink-0 flex items-center gap-1.5 sm:gap-2 rounded-full bg-gradient-to-r from-blue-50 to-purple-50 dark:from-slate-800 dark:to-slate-900 border border-blue-100 dark:border-slate-700 px-2.5 sm:px-3.5 py-1 sm:py-1.5 shadow-sm">
+              <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-[11px] sm:text-sm font-semibold text-gray-700 dark:text-gray-200 whitespace-nowrap">
+                {visibleTasks.length} active
               </span>
             </div>
           </div>
+          <p className="mt-1.5 text-gray-600 dark:text-gray-300 text-xs sm:text-base leading-relaxed">
+            Accept new assignments and track your progress.
+          </p>
         </div>
 
-        {/* 2x2 Summary Cards on Mobile, 4-col on Desktop */}
+        {/* Interactive Summary Filter Cards (2x2 on Mobile, 4-col on Desktop) */}
         {!loadingUser && !loadingTasks && tasks.length > 0 && (
-          <div className="mb-6 sm:mb-8 grid grid-cols-2 xl:grid-cols-4 gap-2.5 sm:gap-4">
+          <div className="mb-4 sm:mb-8 grid grid-cols-2 xl:grid-cols-4 gap-2 sm:gap-4">
             {[
-              { label: 'Pending', value: pendingTasks.length, tone: 'from-yellow-400 to-orange-500', text: 'text-yellow-700 dark:text-yellow-300' },
-              { label: 'Active', value: acceptedTasks.length, tone: 'from-blue-500 to-cyan-500', text: 'text-blue-700 dark:text-blue-300' },
-              { label: 'Completed', value: completedTaskCount, tone: 'from-emerald-500 to-green-500', text: 'text-emerald-700 dark:text-emerald-300' },
-              { label: 'Rejected', value: rejectedTasks.length, tone: 'from-rose-500 to-red-500', text: 'text-rose-700 dark:text-rose-300' },
-            ].map((card) => (
-              <div
-                key={card.label}
-                className="group rounded-2xl border border-white/60 bg-white/70 p-3 sm:p-4 shadow-md backdrop-blur-sm transition-all duration-300 sm:hover:-translate-y-1 sm:hover:shadow-xl dark:border-slate-700 dark:bg-slate-900/70"
-              >
-                <div className={`mb-2 sm:mb-3 h-1.5 sm:h-2 w-12 sm:w-16 rounded-full bg-gradient-to-r ${card.tone}`} />
-                <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">{card.label}</p>
-                <div className="mt-1 sm:mt-2 flex items-baseline justify-between gap-1">
-                  <span className="text-2xl sm:text-3xl font-bold text-gray-800 dark:text-gray-100">{card.value}</span>
-                  <span className={`text-[11px] sm:text-xs font-semibold ${card.text}`}>{card.label}</span>
-                </div>
-              </div>
-            ))}
+              { key: 'pending', label: 'Pending', value: pendingTasks.length, tone: 'from-yellow-400 to-orange-500', text: 'text-yellow-700 dark:text-yellow-300', ring: 'ring-yellow-400/70' },
+              { key: 'active', label: 'Active', value: acceptedTasks.length, tone: 'from-blue-500 to-cyan-500', text: 'text-blue-700 dark:text-blue-300', ring: 'ring-blue-500/70' },
+              { key: 'completed', label: 'Completed', value: completedTaskCount, tone: 'from-emerald-500 to-green-500', text: 'text-emerald-700 dark:text-emerald-300', ring: 'ring-emerald-500/70' },
+              { key: 'rejected', label: 'Rejected', value: rejectedTasks.length, tone: 'from-rose-500 to-red-500', text: 'text-rose-700 dark:text-rose-300', ring: 'ring-rose-500/70' },
+            ].map((card) => {
+              const isSelected = activeFilter === card.key;
+              return (
+                <button
+                  key={card.key}
+                  type="button"
+                  onClick={() => setActiveFilter((prev) => (prev === card.key ? 'all' : card.key))}
+                  className={`text-left group rounded-2xl border p-3 sm:p-4 shadow-sm backdrop-blur-sm transition-all duration-200 active:scale-[0.98] sm:hover:-translate-y-0.5 sm:hover:shadow-lg ${
+                    isSelected
+                      ? `border-transparent ring-2 ${card.ring} bg-white dark:bg-slate-900`
+                      : 'border-white/60 bg-white/75 dark:border-slate-700 dark:bg-slate-900/70'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2 mb-1.5 sm:mb-2.5">
+                    <div className={`h-1.5 w-10 sm:w-14 rounded-full bg-gradient-to-r ${card.tone}`} />
+                    {isSelected && (
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-300">
+                        Filtered
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-baseline justify-between gap-1">
+                    <span className="text-2xl sm:text-3xl font-bold text-gray-800 dark:text-gray-100">{card.value}</span>
+                    <span className={`text-xs font-semibold ${card.text}`}>{card.label}</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Horizontal Scrollable Mobile Filter Pills */}
+        {!loadingUser && !loadingTasks && visibleTasks.length > 0 && (
+          <div className="mb-4 sm:mb-6 flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+            {[
+              { key: 'all', label: 'All', count: visibleTasks.length },
+              { key: 'pending', label: 'Pending', count: pendingTasks.length },
+              { key: 'active', label: 'Active', count: acceptedTasks.length },
+              { key: 'completed', label: 'Completed', count: completedTasks.length },
+              { key: 'rejected', label: 'Rejected', count: rejectedTasks.length },
+            ]
+              .filter((tab) => tab.key === 'all' || tab.count > 0)
+              .map((tab) => {
+                const active = activeFilter === tab.key;
+                return (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setActiveFilter(tab.key)}
+                    className={`shrink-0 inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs sm:text-sm font-semibold transition active:scale-[0.98] ${
+                      active
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : 'bg-white/80 dark:bg-slate-900/80 text-gray-700 dark:text-gray-200 border border-gray-200/80 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <span>{tab.label}</span>
+                    <span
+                      className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                        active
+                          ? 'bg-white/20 text-white'
+                          : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300'
+                      }`}
+                    >
+                      {tab.count}
+                    </span>
+                  </button>
+                );
+              })}
           </div>
         )}
 
         {loadingUser || loadingTasks ? (
-          <div className="flex flex-col items-center justify-center py-16 sm:py-20">
-            <FaSpinner className="animate-spin text-4xl sm:text-5xl text-blue-600 dark:text-yellow-300 mb-3" />
+          <div className="flex flex-col items-center justify-center py-14 sm:py-20">
+            <FaSpinner className="animate-spin text-3xl sm:text-5xl text-blue-600 dark:text-yellow-300 mb-3" />
             <p className="text-sm sm:text-base text-gray-600 dark:text-gray-300">Loading your tasks...</p>
           </div>
         ) : taskError ? (
@@ -781,28 +851,28 @@ const Home = () => {
             {taskError}
           </div>
         ) : visibleTasks.length === 0 ? (
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-lg p-8 sm:p-12 text-center border border-gray-100 dark:border-slate-700">
-            <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-blue-100 to-purple-100 dark:from-yellow-300 dark:to-pink-400 rounded-full flex items-center justify-center mx-auto mb-4">
-              <FaCheckCircle className="text-3xl sm:text-4xl text-blue-600 dark:text-yellow-400" />
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-lg p-7 sm:p-12 text-center border border-gray-100 dark:border-slate-700">
+            <div className="w-14 h-14 sm:w-20 sm:h-20 bg-gradient-to-br from-blue-100 to-purple-100 dark:from-yellow-300 dark:to-pink-400 rounded-full flex items-center justify-center mx-auto mb-3.5">
+              <FaCheckCircle className="text-2xl sm:text-4xl text-blue-600 dark:text-yellow-400" />
             </div>
-            <h3 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-gray-100 mb-1.5">
+            <h3 className="text-base sm:text-xl font-bold text-gray-800 dark:text-gray-100 mb-1">
               All Clear!
             </h3>
-            <p className="text-sm sm:text-base text-gray-600 dark:text-gray-300">
+            <p className="text-xs sm:text-base text-gray-600 dark:text-gray-300">
               You have no active tasks at the moment.
             </p>
           </div>
         ) : (
           <>
             {/* Pending Acceptance */}
-            {pendingTasks.length > 0 && (
+            {showPendingSection && (
               <section className="mb-6 sm:mb-8">
                 <div className="flex items-center gap-2 mb-3 sm:mb-4">
                   <div className="w-1 h-5 sm:h-6 bg-gradient-to-b from-yellow-400 to-orange-500 rounded-full" />
-                  <h2 className="text-lg sm:text-2xl font-bold text-gray-800 dark:text-gray-100">
+                  <h2 className="text-base sm:text-2xl font-bold text-gray-800 dark:text-gray-100">
                     Pending Acceptance
                   </h2>
-                  <span className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white text-xs font-bold px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full">
+                  <span className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white text-[11px] sm:text-xs font-bold px-2.5 py-0.5 rounded-full">
                     {pendingTasks.length}
                   </span>
                 </div>
@@ -810,23 +880,22 @@ const Home = () => {
                   {pendingTasks.map((task) => (
                     <div
                       key={task.id}
-                      className="group bg-white dark:bg-slate-900 rounded-2xl shadow-md sm:hover:shadow-xl sm:hover:-translate-y-1 transition-all duration-300 p-4 sm:p-6 border border-yellow-100 dark:border-blue-800"
+                      className="group bg-white dark:bg-slate-900 rounded-2xl shadow-sm sm:shadow-md sm:hover:shadow-xl sm:hover:-translate-y-1 transition-all duration-300 p-4 sm:p-6 border border-yellow-200/80 dark:border-blue-800"
                     >
-                      <div className="flex flex-wrap items-start justify-between gap-2 mb-2.5">
-                        <div className="min-w-0 flex-1">
-                          <h3 className="text-base sm:text-xl font-bold text-gray-800 dark:text-gray-100 mb-1 break-words">
-                            {task.title || 'Task'}
-                          </h3>
-                          {renderTaskDates(task)}
-                        </div>
-                        <span className="shrink-0 bg-yellow-100 dark:bg-yellow-800 text-yellow-800 dark:text-yellow-200 text-xs font-semibold px-2.5 py-1 rounded-full flex items-center gap-1 border border-yellow-200 dark:border-yellow-700">
-                          <FaHourglassHalf className="dark:text-yellow-200" />
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <h3 className="text-base sm:text-xl font-bold text-gray-800 dark:text-gray-100 break-words leading-snug">
+                          {task.title || 'Task'}
+                        </h3>
+                        <span className="shrink-0 bg-yellow-100 dark:bg-yellow-800 text-yellow-800 dark:text-yellow-200 text-[11px] font-semibold px-2.5 py-0.5 sm:py-1 rounded-full inline-flex items-center gap-1 border border-yellow-200 dark:border-yellow-700">
+                          <FaHourglassHalf className="text-[10px] dark:text-yellow-200" />
                           Pending
                         </span>
                       </div>
 
+                      {renderTaskDates(task, 'mb-2.5')}
+
                       {task.description && (
-                        <p className="text-gray-700 dark:text-gray-200 text-sm mb-2 leading-relaxed">
+                        <p className="text-gray-700 dark:text-gray-200 text-xs sm:text-sm mb-2 leading-relaxed">
                           {task.description}
                         </p>
                       )}
@@ -834,17 +903,17 @@ const Home = () => {
                       {renderAssignedItems(task)}
                       {renderTeamMembers(task)}
 
-                      <div className="grid grid-cols-2 gap-2.5 sm:flex sm:gap-3 mt-4">
+                      <div className="grid grid-cols-2 gap-2.5 sm:flex sm:gap-3 mt-4 pt-3 border-t border-gray-100 dark:border-slate-800">
                         <button
                           onClick={() => handleAccept(task)}
-                          className="min-h-[44px] sm:flex-1 bg-gradient-to-r from-green-500 to-emerald-600 dark:from-green-700 dark:to-emerald-900 text-white py-2.5 px-3 sm:px-4 rounded-xl text-sm font-semibold hover:from-green-600 hover:to-emerald-700 transition-all shadow-md flex items-center justify-center gap-1.5 sm:gap-2 active:scale-[0.99]"
+                          className="min-h-[44px] sm:flex-1 bg-gradient-to-r from-green-500 to-emerald-600 dark:from-green-700 dark:to-emerald-900 text-white py-2.5 px-3 sm:px-4 rounded-xl text-sm font-semibold hover:from-green-600 hover:to-emerald-700 transition-all shadow-sm flex items-center justify-center gap-1.5 sm:gap-2 active:scale-[0.98]"
                         >
                           <FaCheck />
                           Accept
                         </button>
                         <button
                           onClick={() => openRejectModal(task)}
-                          className="min-h-[44px] sm:flex-1 bg-gradient-to-r from-red-500 to-rose-600 dark:from-red-700 dark:to-rose-900 text-white py-2.5 px-3 sm:px-4 rounded-xl text-sm font-semibold hover:from-red-600 hover:to-rose-700 transition-all shadow-md flex items-center justify-center gap-1.5 sm:gap-2 active:scale-[0.99]"
+                          className="min-h-[44px] sm:flex-1 bg-gradient-to-r from-red-500 to-rose-600 dark:from-red-700 dark:to-rose-900 text-white py-2.5 px-3 sm:px-4 rounded-xl text-sm font-semibold hover:from-red-600 hover:to-rose-700 transition-all shadow-sm flex items-center justify-center gap-1.5 sm:gap-2 active:scale-[0.98]"
                         >
                           <FaTimes />
                           Reject
@@ -856,82 +925,15 @@ const Home = () => {
               </section>
             )}
 
-            {/* Pending Rejection with Hide/Show */}
-            {rejectedTasks.length > 0 && (
-              <section className="mb-6 sm:mb-8">
-                <div className="flex items-center justify-between gap-2 mb-3 sm:mb-4">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <div className="w-1 h-5 sm:h-6 shrink-0 bg-gradient-to-b from-orange-500 to-red-500 rounded-full" />
-                    <h2 className="text-lg sm:text-2xl font-bold text-gray-800 dark:text-gray-100 truncate">
-                      Pending Rejection
-                    </h2>
-                    <span className="shrink-0 bg-gradient-to-r from-orange-500 to-red-500 text-white text-xs font-bold px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full">
-                      {rejectedTasks.length}
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => setShowRejectedTasks((prev) => !prev)}
-                    className="shrink-0 text-xs sm:text-sm font-semibold text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white transition px-3 py-1.5 rounded-lg bg-white/70 dark:bg-slate-800 hover:bg-gray-100 dark:hover:bg-slate-700"
-                  >
-                    {showRejectedTasks ? 'Hide' : 'Show'}
-                  </button>
-                </div>
-
-                {showRejectedTasks && (
-                  <div className="space-y-3 sm:space-y-4">
-                    {rejectedTasks.map((task) => {
-                      const rejection =
-                        (task.rejections || {})[getTaskUserId(task)] || {};
-
-                      return (
-                        <div
-                          key={task.id}
-                          className="group bg-white dark:bg-slate-900 rounded-2xl shadow-md sm:hover:shadow-xl sm:hover:-translate-y-1 transition-all duration-300 p-4 sm:p-6 border border-orange-100 dark:border-slate-700"
-                        >
-                          <div className="flex flex-wrap items-start justify-between gap-2 mb-2.5">
-                            <div className="min-w-0 flex-1">
-                              <h3 className="text-base sm:text-xl font-bold text-gray-800 dark:text-gray-100 mb-1 break-words">
-                                {task.title || 'Task'}
-                              </h3>
-                              {renderTaskDates(task)}
-                            </div>
-                            <span className="shrink-0 bg-orange-100 dark:bg-orange-950/70 text-orange-800 dark:text-orange-200 text-xs font-semibold px-2.5 py-1 rounded-full flex items-center gap-1 border border-orange-200 dark:border-orange-800">
-                              <FaHourglassHalf />
-                              Pending Approval
-                            </span>
-                          </div>
-
-                          {renderAssignedItems(task)}
-                          {renderTeamMembers(task)}
-
-                          <div className="bg-orange-50 dark:bg-slate-800/80 rounded-xl p-3.5 sm:p-4 mt-3">
-                            <p className="text-xs font-semibold text-orange-800 dark:text-orange-300 mb-1">
-                              Your Rejection Reason:
-                            </p>
-                            <p className="text-sm text-gray-700 dark:text-gray-200">
-                              {rejection.reason || '-'}
-                            </p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                              Waiting for admin to approve your rejection request
-                            </p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </section>
-            )}
-
             {/* Active Tasks */}
-            {acceptedTasks.length > 0 && (
+            {showActiveSection && (
               <section className="mb-6 sm:mb-8">
                 <div className="flex items-center gap-2 mb-3 sm:mb-4">
                   <div className="w-1 h-5 sm:h-6 bg-gradient-to-b from-blue-500 to-purple-600 rounded-full" />
-                  <h2 className="text-lg sm:text-2xl font-bold text-gray-800 dark:text-gray-100">
+                  <h2 className="text-base sm:text-2xl font-bold text-gray-800 dark:text-gray-100">
                     Active Tasks
                   </h2>
-                  <span className="bg-gradient-to-r from-blue-500 to-purple-600 text-white text-xs font-bold px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full">
+                  <span className="bg-gradient-to-r from-blue-500 to-purple-600 text-white text-[11px] sm:text-xs font-bold px-2.5 py-0.5 rounded-full">
                     {acceptedTasks.length}
                   </span>
                 </div>
@@ -942,15 +944,15 @@ const Home = () => {
                     return (
                       <div
                         key={task.id}
-                        className="group bg-white dark:bg-slate-900 rounded-2xl shadow-md sm:hover:shadow-xl sm:hover:-translate-y-1 transition-all duration-300 p-4 sm:p-6 border border-blue-100 dark:border-slate-700"
+                        className="group bg-white dark:bg-slate-900 rounded-2xl shadow-sm sm:shadow-md sm:hover:shadow-xl sm:hover:-translate-y-1 transition-all duration-300 p-4 sm:p-6 border border-blue-100 dark:border-slate-700"
                       >
-                        <h3 className="text-base sm:text-xl font-bold text-gray-800 dark:text-gray-100 mb-1 break-words">
+                        <h3 className="text-base sm:text-xl font-bold text-gray-800 dark:text-gray-100 mb-1.5 break-words leading-snug">
                           {task.title || 'Task'}
                         </h3>
                         {renderTaskDates(task, 'mb-2.5')}
 
                         {task.description && (
-                          <p className="text-gray-700 dark:text-gray-300 text-sm mb-2 leading-relaxed">
+                          <p className="text-gray-700 dark:text-gray-300 text-xs sm:text-sm mb-2 leading-relaxed">
                             {task.description}
                           </p>
                         )}
@@ -958,11 +960,11 @@ const Home = () => {
                         {renderAssignedItems(task)}
                         {renderTeamMembers(task)}
 
-                        <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-slate-800 dark:to-slate-900 rounded-xl p-3.5 sm:p-4 mt-3.5">
-                          <p className="text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-100 mb-2.5">
-                            Your Work Types:
+                        <div className="bg-gradient-to-r from-blue-50/90 to-purple-50/90 dark:from-slate-800 dark:to-slate-900 rounded-xl p-3 sm:p-4 mt-3.5 border border-blue-100/70 dark:border-slate-700/70">
+                          <p className="text-[11px] sm:text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-300 mb-2">
+                            Your Work Types
                           </p>
-                          <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2">
+                          <div className="grid grid-cols-1 sm:flex sm:flex-wrap gap-2">
                             {roles.map((role) => {
                               const done = isRoleDone(task, role);
                               const label = formatWorkRoleLabel(role);
@@ -971,20 +973,20 @@ const Home = () => {
                                   key={role}
                                   type="button"
                                   onClick={() => handleToggleRole(task, role)}
-                                  className={`min-h-[44px] w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all shadow-sm active:scale-[0.99] ${
+                                  className={`min-h-[44px] w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all shadow-sm active:scale-[0.98] ${
                                     done
                                       ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700'
-                                      : 'bg-white dark:bg-slate-900 text-gray-700 dark:text-gray-100 border-2 border-gray-200 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-400'
+                                      : 'bg-white dark:bg-slate-900 text-gray-700 dark:text-gray-100 border border-gray-200 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-400'
                                   }`}
                                 >
                                   {done ? (
                                     <>
-                                      <FaUndo />
+                                      <FaUndo className="text-xs" />
                                       Undo {label}
                                     </>
                                   ) : (
                                     <>
-                                      <FaCheck />
+                                      <FaCheck className="text-xs" />
                                       {role === 'done' ? label : `Mark ${label} as done`}
                                     </>
                                   )}
@@ -1001,14 +1003,14 @@ const Home = () => {
             )}
 
             {/* Completed Tasks */}
-            {completedTasks.length > 0 && (
-              <section>
+            {showCompletedSection && (
+              <section className="mb-6 sm:mb-8">
                 <div className="flex items-center gap-2 mb-3 sm:mb-4">
                   <div className="w-1 h-5 sm:h-6 bg-gradient-to-b from-green-500 to-emerald-600 rounded-full" />
-                  <h2 className="text-lg sm:text-2xl font-bold text-gray-800 dark:text-gray-100">
+                  <h2 className="text-base sm:text-2xl font-bold text-gray-800 dark:text-gray-100">
                     Completed
                   </h2>
-                  <span className="bg-gradient-to-r from-green-500 to-emerald-600 text-white text-xs font-bold px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full">
+                  <span className="bg-gradient-to-r from-green-500 to-emerald-600 text-white text-[11px] sm:text-xs font-bold px-2.5 py-0.5 rounded-full">
                     {completedTasks.length}
                   </span>
                 </div>
@@ -1019,20 +1021,19 @@ const Home = () => {
                     return (
                       <div
                         key={task.id}
-                        className="group bg-white dark:bg-slate-900 rounded-2xl shadow-md sm:hover:shadow-xl sm:hover:-translate-y-1 transition-all duration-300 p-4 sm:p-6 border border-green-100 dark:border-slate-700"
+                        className="group bg-white dark:bg-slate-900 rounded-2xl shadow-sm sm:shadow-md sm:hover:shadow-xl sm:hover:-translate-y-1 transition-all duration-300 p-4 sm:p-6 border border-green-100 dark:border-slate-700"
                       >
-                        <div className="flex items-start justify-between gap-2 mb-2.5">
-                          <div className="min-w-0 flex-1">
-                            <h3 className="text-base sm:text-xl font-bold text-gray-800 dark:text-gray-100 mb-1 break-words">
-                              {task.title || 'Task'}
-                            </h3>
-                            {renderTaskDates(task)}
-                          </div>
-                          <FaCheckCircle className="shrink-0 text-2xl sm:text-3xl text-green-500" />
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <h3 className="text-base sm:text-xl font-bold text-gray-800 dark:text-gray-100 break-words leading-snug">
+                            {task.title || 'Task'}
+                          </h3>
+                          <FaCheckCircle className="shrink-0 text-xl sm:text-3xl text-green-500 mt-0.5" />
                         </div>
 
+                        {renderTaskDates(task, 'mb-2.5')}
+
                         {task.description && (
-                          <p className="text-gray-700 dark:text-gray-300 text-sm mb-2 leading-relaxed">
+                          <p className="text-gray-700 dark:text-gray-300 text-xs sm:text-sm mb-2 leading-relaxed">
                             {task.description}
                           </p>
                         )}
@@ -1040,26 +1041,92 @@ const Home = () => {
                         {renderAssignedItems(task)}
                         {renderTeamMembers(task)}
 
-                        <div className="flex flex-wrap gap-2 mb-3 mt-3">
+                        <div className="flex flex-wrap gap-2 mt-3.5 mb-3">
                           {roles.map((role) => (
                             <button
                               key={role}
                               onClick={() => handleToggleRole(task, role)}
-                              className="min-h-[38px] inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-green-100 text-green-800 hover:bg-green-200 transition dark:bg-slate-800 dark:text-gray-100 dark:hover:bg-slate-700 active:scale-[0.98]"
+                              className="min-h-[40px] inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-green-100 text-green-800 hover:bg-green-200 transition dark:bg-slate-800 dark:text-gray-100 dark:hover:bg-slate-700 active:scale-[0.98]"
                             >
-                              <FaUndo className="text-xs" />
+                              <FaUndo className="text-[11px]" />
                               Undo {formatWorkRoleLabel(role)}
                             </button>
                           ))}
                         </div>
 
-                        <p className="text-xs sm:text-sm text-green-700 dark:text-green-300 font-semibold bg-green-50 dark:bg-slate-800 px-3.5 py-2.5 rounded-xl">
+                        <p className="text-xs sm:text-sm text-green-700 dark:text-green-300 font-semibold bg-green-50 dark:bg-slate-800 px-3 py-2.5 rounded-xl">
                           ✓ All work completed. Waiting for admin review.
                         </p>
                       </div>
                     );
                   })}
                 </div>
+              </section>
+            )}
+
+            {/* Pending Rejection with Hide/Show */}
+            {showRejectedSection && (
+              <section className="mb-6 sm:mb-8">
+                <div className="flex items-center justify-between gap-2 mb-3 sm:mb-4">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="w-1 h-5 sm:h-6 shrink-0 bg-gradient-to-b from-orange-500 to-red-500 rounded-full" />
+                    <h2 className="text-base sm:text-2xl font-bold text-gray-800 dark:text-gray-100 truncate">
+                      Pending Rejection
+                    </h2>
+                    <span className="shrink-0 bg-gradient-to-r from-orange-500 to-red-500 text-white text-[11px] sm:text-xs font-bold px-2.5 py-0.5 rounded-full">
+                      {rejectedTasks.length}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setShowRejectedTasks((prev) => !prev)}
+                    className="shrink-0 min-h-[36px] inline-flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white transition px-3 py-1.5 rounded-xl bg-white/80 dark:bg-slate-800 border border-gray-200/80 dark:border-slate-700 active:scale-[0.98]"
+                  >
+                    <span>{showRejectedTasks ? 'Hide' : 'Show'}</span>
+                    {showRejectedTasks ? <FaChevronUp className="text-[10px]" /> : <FaChevronDown className="text-[10px]" />}
+                  </button>
+                </div>
+
+                {showRejectedTasks && (
+                  <div className="space-y-3 sm:space-y-4">
+                    {rejectedTasks.map((task) => {
+                      const rejection =
+                        (task.rejections || {})[getTaskUserId(task)] || {};
+
+                      return (
+                        <div
+                          key={task.id}
+                          className="group bg-white dark:bg-slate-900 rounded-2xl shadow-sm sm:shadow-md sm:hover:shadow-xl sm:hover:-translate-y-1 transition-all duration-300 p-4 sm:p-6 border border-orange-100 dark:border-slate-700"
+                        >
+                          <div className="flex items-start justify-between gap-2 mb-2">
+                            <h3 className="text-base sm:text-xl font-bold text-gray-800 dark:text-gray-100 break-words leading-snug">
+                              {task.title || 'Task'}
+                            </h3>
+                            <span className="shrink-0 bg-orange-100 dark:bg-orange-950/70 text-orange-800 dark:text-orange-200 text-[11px] font-semibold px-2.5 py-0.5 sm:py-1 rounded-full inline-flex items-center gap-1 border border-orange-200 dark:border-orange-800">
+                              <FaHourglassHalf className="text-[10px]" />
+                              Reviewing
+                            </span>
+                          </div>
+
+                          {renderTaskDates(task, 'mb-2.5')}
+                          {renderAssignedItems(task)}
+                          {renderTeamMembers(task)}
+
+                          <div className="bg-orange-50 dark:bg-slate-800/80 rounded-xl p-3 sm:p-4 mt-3">
+                            <p className="text-[11px] font-semibold uppercase tracking-wider text-orange-800 dark:text-orange-300 mb-1">
+                              Your Rejection Reason
+                            </p>
+                            <p className="text-xs sm:text-sm text-gray-700 dark:text-gray-200 leading-relaxed">
+                              {rejection.reason || '-'}
+                            </p>
+                            <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1.5">
+                              Waiting for admin to approve your rejection request
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </section>
             )}
           </>

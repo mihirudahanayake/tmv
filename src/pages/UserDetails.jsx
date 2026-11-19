@@ -480,8 +480,9 @@ const UserDetails = () => {
       const primaryDepartment = selectedDepartments[0] || 'videography';
 
       const normalized = {
-        username: cleanUsername,
-        name: cleanUsername || cleanFullName,
+        ...(cleanUsername !== (user.username || '')
+          ? { username: cleanUsername, name: cleanUsername || cleanFullName }
+          : { name: user.username ? (user.name || cleanUsername) : cleanFullName }),
         fullName: cleanFullName,
         email: editForm.email.trim(),
         phoneNo: editForm.phoneNo.trim(),
