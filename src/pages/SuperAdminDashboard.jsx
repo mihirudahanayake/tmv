@@ -55,7 +55,7 @@ const SuperAdminDashboard = () => {
   ];
 
   return (
-    <div className="-mx-3 -mt-4 -mb-8 min-h-[calc(100dvh-4rem)] bg-gradient-to-br from-sky-100 via-white to-violet-100 sm:-mx-5 lg:-mx-6 2xl:-mx-10">
+    <div className="min-h-[calc(100dvh-4rem)] bg-gradient-to-br from-sky-100 via-white to-violet-100 sm:-mx-5 lg:-mx-6 2xl:-mx-10">
       <Header userType="superAdmin" />
 
       <main className="mx-auto w-full px-4 py-6 sm:py-8 xl:px-8 2xl:px-10">

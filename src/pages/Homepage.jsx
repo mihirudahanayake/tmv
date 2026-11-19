@@ -209,155 +209,196 @@ const Homepage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen bg-gray-100 pb-6 sm:pb-10">
       <Header userType="admin" />
 
-      {/* popup notification */}
+      {/* Mobile full-width toast / Desktop floating notification */}
       {popup && (
         <button
+          type="button"
           onClick={handleClickNotification}
-          className="fixed bottom-4 right-4 z-50 max-w-xs text-left bg-white shadow-xl rounded-xl border border-gray-200 px-4 py-3 text-sm hover:bg-gray-50"
+          className="fixed bottom-3 left-3 right-3 sm:left-auto sm:bottom-5 sm:right-5 sm:max-w-xs z-50 flex items-center justify-between gap-3 text-left bg-white shadow-xl rounded-2xl border border-gray-200 px-4 py-3 text-sm hover:bg-gray-50 active:scale-[0.99] transition"
         >
-          <p className="font-semibold text-gray-800 mb-1">
-            {renderPopupText()}
-          </p>
-          <p className="text-gray-500 text-xs">Click to view details</p>
+          <div className="min-w-0">
+            <p className="font-semibold text-gray-800 truncate">
+              {renderPopupText()}
+            </p>
+            <p className="text-gray-500 text-xs mt-0.5">Tap to view details</p>
+          </div>
+          <FaArrowRight className="shrink-0 text-xs text-blue-600" />
         </button>
       )}
 
-      <main className="container mx-auto px-4 py-6 sm:py-8">
-        <div className="mx-auto max-w-5xl">
-          <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-600">Department overview</p>
-              <h1 className="mt-1 text-2xl font-bold text-gray-800 sm:text-3xl">
-                {activeDepartment ? `${formatWorkDepartmentLabel(activeDepartment)} Dashboard` : 'Department Dashboard'}
-              </h1>
-              <p className="mt-1 text-sm text-gray-500">Live activity and quick access for your managed department.</p>
-            </div>
-            {availableDepartments.length > 1 && (
-              <label className="text-sm font-medium text-gray-600">
-                Department
+      <main className="w-full max-w-5xl mx-auto px-2.5 sm:px-6 pt-3.5 sm:pt-8">
+        {/* Header & Department Switcher */}
+        <div className="mb-4 sm:mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-[11px] sm:text-xs font-semibold uppercase tracking-[0.22em] text-blue-600">
+              Department overview
+            </p>
+            <h1 className="mt-0.5 text-xl font-bold text-gray-800 sm:text-3xl leading-tight">
+              {activeDepartment ? `${formatWorkDepartmentLabel(activeDepartment)} Dashboard` : 'Department Dashboard'}
+            </h1>
+            <p className="mt-1 text-xs sm:text-sm text-gray-500">
+              Live activity and quick access for your managed department.
+            </p>
+          </div>
+
+          {availableDepartments.length > 1 && (
+            <div className="w-full sm:w-auto">
+              <label className="block text-xs sm:text-sm font-medium text-gray-600">
+                <span className="sr-only sm:not-sr-only">Department</span>
                 <select
                   value={activeDepartment}
                   onChange={(event) => setDepartment(event.target.value)}
-                  className="mt-1 block min-w-52 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 shadow-sm"
+                  aria-label="Select department"
+                  className="mt-0 sm:mt-1 block w-full sm:min-w-52 min-h-[42px] rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-800 shadow-sm focus:border-blue-500 focus:outline-none"
                 >
                   {availableDepartments.map((dept) => (
                     <option key={dept} value={dept}>{formatWorkDepartmentLabel(dept)}</option>
                   ))}
                 </select>
               </label>
-            )}
-          </div>
-
-          {dashboardError && (
-            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {dashboardError}
             </div>
           )}
+        </div>
 
-          <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {dashboardError && (
+          <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs sm:text-sm text-red-700">
+            {dashboardError}
+          </div>
+        )}
+
+        {/* 2x2 KPI Grid on Mobile, 4-col on Desktop */}
+        <div className="mb-5 sm:mb-6 grid grid-cols-2 gap-2.5 sm:gap-4 xl:grid-cols-4">
+          {[
+            { label: 'Department users', shortLabel: 'Users', value: departmentUserCount, icon: FaUsers, path: '/manage-users', accent: 'text-blue-600', bg: 'bg-blue-50' },
+            { label: 'Active work', shortLabel: 'Active', value: activeWorkCount, icon: FaTasks, path: '/work-list', accent: 'text-amber-500', bg: 'bg-amber-50' },
+            { label: 'Completed work', shortLabel: 'Completed', value: completedWorkCount, icon: FaCheckCircle, path: '/work-list', accent: 'text-emerald-500', bg: 'bg-emerald-50' },
+            { label: 'Unread activity', shortLabel: 'Unread', value: unreadCount, icon: FaBell, path: '/admin/notifications', accent: 'text-violet-500', bg: 'bg-violet-50' },
+          ].map(({ label, shortLabel, value, icon: Icon, path, accent, bg }) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => navigate(path)}
+              className="group rounded-2xl border border-gray-200 bg-white p-3.5 sm:p-4 text-left shadow-sm transition active:scale-[0.98] sm:hover:-translate-y-0.5 sm:hover:shadow-lg"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className={`inline-flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-xl ${bg}`}>
+                  <Icon className={`text-base sm:text-lg ${accent}`} />
+                </span>
+                <FaArrowRight className="text-[11px] sm:text-xs text-gray-400 transition group-hover:translate-x-1" />
+              </div>
+              <span className="mt-3 sm:mt-4 block text-2xl sm:text-3xl font-bold text-gray-800">
+                {dashboardLoading ? '—' : value}
+              </span>
+              <span className="mt-0.5 sm:mt-1 block text-xs sm:text-sm font-medium text-gray-500">
+                <span className="sm:hidden">{shortLabel}</span>
+                <span className="hidden sm:inline">{label}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {/* Quick Actions */}
+        <div className="mb-5 sm:mb-6">
+          <h2 className="mb-2.5 sm:mb-3 text-base sm:text-lg font-bold text-gray-800">
+            Quick actions
+          </h2>
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3 sm:gap-3">
             {[
-              { label: 'Department users', value: departmentUserCount, icon: FaUsers, path: '/manage-users', accent: 'text-blue-600' },
-              { label: 'Active work', value: activeWorkCount, icon: FaTasks, path: '/work-list', accent: 'text-amber-500' },
-              { label: 'Completed work', value: completedWorkCount, icon: FaCheckCircle, path: '/work-list', accent: 'text-emerald-500' },
-              { label: 'Unread activity', value: unreadCount, icon: FaBell, path: '/admin/notifications', accent: 'text-violet-500' },
-            ].map(({ label, value, icon: Icon, path, accent }) => (
+              { label: 'Create a user', description: 'Add a member to your department.', icon: FaUserPlus, path: '/create-user', color: 'text-emerald-600', bg: 'bg-emerald-50' },
+              ...(isDepartmentHead
+                ? [{ label: 'Assign work', description: 'Create and assign a department task.', icon: FaClipboardList, onClick: () => setIsAssignWorkOpen(true), color: 'text-blue-600', bg: 'bg-blue-50' }]
+                : []),
+              { label: 'Make an announcement', description: 'Share an update with your team.', icon: FaPaperPlane, path: '/admin/notifications', color: 'text-orange-500', bg: 'bg-orange-50' },
+            ].map(({ label, description, icon: Icon, path, onClick, color, bg }) => (
               <button
                 key={label}
                 type="button"
-                onClick={() => navigate(path)}
-                className="group rounded-2xl border border-gray-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg"
+                onClick={onClick || (() => navigate(path))}
+                className="min-h-[58px] flex items-center gap-3 rounded-2xl border border-gray-200 bg-white p-3.5 sm:p-4 text-left shadow-sm transition active:scale-[0.99] hover:border-blue-300 hover:shadow-md"
               >
-                <span className="flex items-center justify-between">
-                  <Icon className={`text-xl ${accent}`} />
-                  <FaArrowRight className="text-xs text-gray-400 transition group-hover:translate-x-1" />
+                <span className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${bg}`}>
+                  <Icon className={`text-lg sm:text-xl ${color}`} />
                 </span>
-                <span className="mt-4 block text-2xl font-bold text-gray-800">
-                  {dashboardLoading ? '—' : value}
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm sm:text-base font-semibold text-gray-800 truncate">
+                    {label}
+                  </span>
+                  <span className="mt-0.5 block text-xs text-gray-500 line-clamp-1 sm:line-clamp-none">
+                    {description}
+                  </span>
                 </span>
-                <span className="mt-1 block text-sm text-gray-500">{label}</span>
+                <FaArrowRight className="shrink-0 text-xs text-gray-400" />
               </button>
             ))}
           </div>
+        </div>
 
-          <div className="mb-6">
-            <h2 className="mb-3 text-lg font-bold text-gray-800">Quick actions</h2>
-            <div className="grid gap-3 sm:grid-cols-3">
-              {[
-                { label: 'Create a user', description: 'Add a member to your department.', icon: FaUserPlus, path: '/create-user', color: 'text-emerald-600' },
-                ...(isDepartmentHead
-                  ? [{ label: 'Assign work', description: 'Create and assign a department task.', icon: FaClipboardList, onClick: () => setIsAssignWorkOpen(true), color: 'text-blue-600' }]
-                  : []),
-                { label: 'Make an announcement', description: 'Share an update with your team.', icon: FaPaperPlane, path: '/admin/notifications', color: 'text-orange-500' },
-              ].map(({ label, description, icon: Icon, path, onClick, color }) => (
-                <button
-                  key={label}
-                  type="button"
-                  onClick={onClick || (() => navigate(path))}
-                  className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-white p-4 text-left shadow-sm transition hover:border-blue-300 hover:shadow-md"
-                >
-                  <Icon className={`shrink-0 text-2xl ${color}`} />
-                  <span className="min-w-0 flex-1">
-                    <span className="block font-semibold text-gray-800">{label}</span>
-                    <span className="mt-1 block text-xs text-gray-500">{description}</span>
-                  </span>
-                  <FaArrowRight className="shrink-0 text-xs text-gray-400" />
-                </button>
-              ))}
+        {/* Recent Work */}
+        <section className="rounded-2xl border border-gray-200 bg-white p-3.5 shadow-sm sm:p-5">
+          <div className="mb-3 sm:mb-4 flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <h2 className="text-base sm:text-lg font-bold text-gray-800">Recent work</h2>
+              <p className="text-xs sm:text-sm text-gray-500 truncate">
+                Latest in {activeDepartment ? formatWorkDepartmentLabel(activeDepartment) : 'your department'}.
+              </p>
             </div>
+            <button
+              type="button"
+              onClick={() => navigate('/work-list')}
+              className="shrink-0 min-h-[36px] inline-flex items-center rounded-xl bg-blue-50 px-3 py-1.5 text-xs sm:text-sm font-semibold text-blue-600 hover:bg-blue-100 active:scale-[0.98]"
+            >
+              View all
+            </button>
           </div>
 
-          <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-bold text-gray-800">Recent work</h2>
-                <p className="text-sm text-gray-500">Latest work items in {activeDepartment ? formatWorkDepartmentLabel(activeDepartment) : 'your department'}.</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => navigate('/work-list')}
-                className="shrink-0 text-sm font-semibold text-blue-600 hover:underline"
-              >
-                View all
-              </button>
-            </div>
-
-            {dashboardLoading ? (
-              <p className="py-6 text-center text-sm text-gray-500">Loading department activity...</p>
-            ) : recentWorks.length ? (
-              <div className="divide-y divide-gray-100">
-                {recentWorks.map((work) => {
-                  const date = getWorkDate(work);
-                  const isComplete = (work.status || '').toLowerCase() === 'complete';
-                  return (
-                    <button
-                      key={work.id}
-                      type="button"
-                      onClick={() => navigate(`/tasks/${work.id}`)}
-                      className="flex w-full items-center gap-3 py-3 text-left transition hover:bg-gray-50"
+          {dashboardLoading ? (
+            <p className="py-6 text-center text-xs sm:text-sm text-gray-500">
+              Loading department activity...
+            </p>
+          ) : recentWorks.length ? (
+            <div className="divide-y divide-gray-100">
+              {recentWorks.map((work) => {
+                const date = getWorkDate(work);
+                const isComplete = (work.status || '').toLowerCase() === 'complete';
+                return (
+                  <button
+                    key={work.id}
+                    type="button"
+                    onClick={() => navigate(`/tasks/${work.id}`)}
+                    className="flex w-full items-center gap-2.5 sm:gap-3 py-3 px-1 text-left transition hover:bg-gray-50 active:bg-gray-100/70 rounded-xl"
+                  >
+                    <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${isComplete ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-semibold text-gray-800">
+                        {work.title || 'Untitled work'}
+                      </span>
+                      <span className="mt-0.5 block text-[11px] sm:text-xs text-gray-500">
+                        {date ? date.toLocaleDateString() : 'No date set'}
+                      </span>
+                    </span>
+                    <span
+                      className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                        isComplete
+                          ? 'bg-emerald-50 text-emerald-700'
+                          : 'bg-amber-50 text-amber-700'
+                      }`}
                     >
-                      <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${isComplete ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-semibold text-gray-800">{work.title || 'Untitled work'}</span>
-                        <span className="mt-0.5 block text-xs text-gray-500">
-                          {date ? date.toLocaleDateString() : 'No date set'}
-                        </span>
-                      </span>
-                      <span className={`text-xs font-semibold ${isComplete ? 'text-emerald-600' : 'text-amber-600'}`}>
-                        {isComplete ? 'Complete' : 'In progress'}
-                      </span>
-                      <FaArrowRight className="text-xs text-gray-400" />
-                    </button>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="py-6 text-center text-sm text-gray-500">No work items found for this department.</p>
-            )}
-          </section>
-        </div>
+                      {isComplete ? 'Complete' : 'Active'}
+                    </span>
+                    <FaArrowRight className="shrink-0 text-[11px] text-gray-400" />
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="py-6 text-center text-xs sm:text-sm text-gray-500">
+              No work items found for this department.
+            </p>
+          )}
+        </section>
       </main>
 
       {isDepartmentHead && isAssignWorkOpen && (
