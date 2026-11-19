@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '../firebase/config';
 import Header from '../components/Header';
 import { FaCalendarAlt, FaSpinner, FaCheck, FaTimes, FaExclamationTriangle } from 'react-icons/fa';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { getDefaultRolesForDepartment, normalizeRolesForDepartment } from '../constants/workRoles';
+import { isUserTO } from '../utils/authz';
 
 const TaskHistory = () => {
   const { user, profile, loading: loadingProfile } = useUserProfile();
@@ -14,6 +15,16 @@ const TaskHistory = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const getTaskUserId = (task) => task?.__viewerUserId || user?.uid;
+
+  const toEnabled = isUserTO(profile);
+
+  const headerUserType = useMemo(() => {
+    const role = profile?.role;
+    if (role === 'superAdmin') return 'superAdmin';
+    if (role === 'siteAdmin') return 'siteAdmin';
+    if (role === 'departmentHead') return 'admin';
+    return 'user';
+  }, [profile]);
 
   useEffect(() => {
     if (loadingProfile) return;
@@ -104,7 +115,7 @@ const TaskHistory = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
-      <Header userType="user" isTO={!!profile?.isTO} />
+      <Header userType={headerUserType} isTO={toEnabled} />
 
       <main className="container mx-auto px-4 py-8 max-w-4xl">
         <div className="mb-8">
@@ -121,12 +132,11 @@ const TaskHistory = () => {
             <FaSpinner className="animate-spin text-5xl text-blue-600 mb-4" />
             <p className="text-gray-600">Loading history...</p>
           </div>
+        ) : error ? (
+          <div className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">
+            {error}
+          </div>
         ) : completedTasks.length === 0 && rejectedTasks.length === 0 && missedTasks.length === 0 ? (
-          error ? (
-            <div className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">
-              {error}
-            </div>
-          ) : (
           <div className="bg-white rounded-2xl shadow-lg p-12 text-center border border-gray-100">
             <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <FaCalendarAlt className="text-4xl text-blue-600" />
@@ -134,7 +144,6 @@ const TaskHistory = () => {
             <h3 className="text-xl font-bold text-gray-800 mb-2">No History</h3>
             <p className="text-gray-600">You have no completed, rejected, or missed tasks yet.</p>
           </div>
-          )
         ) : (
           <>
             {/* Missed Tasks */}

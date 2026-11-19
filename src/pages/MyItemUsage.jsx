@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Header from '../components/Header';
 import { app } from '../firebase/config';
 import { useUserProfile } from '../hooks/useUserProfile';
+import { isUserTO } from '../utils/authz';
 
 const usageEndpoint = `https://us-central1-${app.options.projectId}.cloudfunctions.net/getUserItemUsageHttp`;
 
@@ -27,13 +28,15 @@ const getLastComment = (comments) => {
   return comments[comments.length - 1];
 };
 
-const getOverdueAt = (checkedOutAt, dueAt) => checkedOutAt ? addHours(checkedOutAt, 24) : dueAt;
+const getOverdueAt = (checkedOutAt, dueAt) => (checkedOutAt ? addHours(checkedOutAt, 24) : dueAt);
 
 const MyItemUsage = () => {
   const { user, profile, loading: loadingProfile } = useUserProfile();
   const [usageRows, setUsageRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  const toEnabled = isUserTO(profile);
 
   const headerUserType = useMemo(() => {
     const role = profile?.role;
@@ -100,12 +103,20 @@ const MyItemUsage = () => {
       const dueAt = getOverdueAt(checkedOutAt, toDate(usage.dueAt));
 
       const issuedMembers = Array.isArray(usage.issuedToMembers) ? usage.issuedToMembers : [];
+      const matchedMember = issuedMembers.find(
+        (member) => member.id === user?.uid || (user?.email && member.email === user.email)
+      );
 
       return {
         key: `usage-${usage.id}`,
         source: 'usage',
         ...usage,
-        issuedToName: usage.userName || profile?.name || profile?.email || 'You',
+        issuedToName:
+          matchedMember?.name ||
+          profile?.name ||
+          usage.userName ||
+          profile?.email ||
+          'You',
         issuedMembers,
         issuedByName: usage.issuedByName || 'Unknown',
         returnedByName: usage.returnedByName || usage.updatedByName || 'Unknown',
@@ -117,13 +128,11 @@ const MyItemUsage = () => {
       };
     });
 
-    const rows = rowsFromUsage.map((row) => ({ ...row, key: `usage-${row.id}` })).sort((a, b) => {
+    return rowsFromUsage.sort((a, b) => {
       const aTime = a.checkedOutAt?.getTime?.() || 0;
       const bTime = b.checkedOutAt?.getTime?.() || 0;
       return bTime - aTime;
     });
-
-    return rows;
   }, [profile, usageRows, user]);
 
   const summary = useMemo(() => {
@@ -137,7 +146,7 @@ const MyItemUsage = () => {
 
   return (
     <div className="min-h-screen bg-gray-100">
-      <Header userType={headerUserType} isTO={!!profile?.isTO} />
+      <Header userType={headerUserType} isTO={toEnabled} />
 
       <main className="container mx-auto max-w-6xl px-4 py-6 sm:py-8">
         <div className="mb-6">
@@ -189,6 +198,11 @@ const MyItemUsage = () => {
                       <span className={`text-xs px-2 py-1 rounded-full ${row.returnedAt ? 'bg-green-100 text-green-700' : row.statusText === 'Overdue' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-800'}`}>
                         {row.statusText}
                       </span>
+                      {row.isDamaged && (
+                        <span className="text-xs px-2 py-1 rounded-full bg-red-100 text-red-700 font-semibold">
+                          Damaged
+                        </span>
+                      )}
                     </div>
                     <div className="text-sm text-gray-600">
                       {row.itemNo ? `Item No: ${row.itemNo}` : 'No item number'}
@@ -203,6 +217,11 @@ const MyItemUsage = () => {
                       <div className="mt-1 text-sm text-gray-700">
                         <span className="font-semibold text-gray-900">All issued users:</span>{' '}
                         {row.issuedMembers.map((member) => member.name || member.email || 'User').join(', ')}
+                      </div>
+                    )}
+                    {row.isDamaged && row.damageNote && (
+                      <div className="mt-2 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs text-red-700">
+                        <span className="font-semibold">Damage note:</span> {row.damageNote}
                       </div>
                     )}
                   </div>
