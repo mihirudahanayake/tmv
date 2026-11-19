@@ -39,6 +39,7 @@ import NotificationDetails from './pages/NotificationDetails';
 import EditOldWork from './pages/EditOldWork.jsx';
 import SuperAdminDashboard from './pages/SuperAdminDashboard.jsx';
 import SiteAdminDashboard from './pages/SiteAdminDashboard.jsx';
+import MyTasks from './pages/MyTasks';
 
 const AppShell = () => {
   useIdleLogout();
@@ -265,6 +266,13 @@ const AppShell = () => {
           </RoleRoute>
         }
       />
+      
+      <Route path="/my-tasks" element={
+        <RoleRoute allowRoles={['departmentHead']}>
+          <MyTasks />
+        </RoleRoute>
+        } />
+
       <Route
         path="/super-admin"
         element={
@@ -281,7 +289,7 @@ const AppShell = () => {
           </SiteAdminRoute>
         }
       />
-    </Routes>
+    </Routes> 
   );
 
   return (

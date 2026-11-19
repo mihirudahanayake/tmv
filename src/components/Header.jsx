@@ -15,6 +15,7 @@ import {
   FaSun,
   FaMoon,
   FaSignOutAlt,
+  FaTasks
 } from 'react-icons/fa';
 import { useState, useEffect } from 'react';
 import { signOut } from 'firebase/auth';
@@ -128,6 +129,7 @@ const Header = ({ userType, isTO = false, isDarkMode, toggleDarkMode, isGlobalLa
 
   if (effectiveUserType === 'admin') {
     navItems.push(
+      { path: '/my-tasks', label: 'My Tasks', icon: <FaTasks /> },
       { path: '/manage-users', label: 'Users', icon: <FaUserPlus /> },
       { path: '/work-list', label: 'Work List', icon: <FaList /> }
     );
