@@ -138,16 +138,16 @@ const Header = ({ userType, isTO = false, isDarkMode, toggleDarkMode, isGlobalLa
 
   return (
     <>
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[280px] flex-col fot-sidebar border-r text-white lg:flex">
-        <div className="flex items-center gap-3 border-b border-blue-800 px-5 py-2.5 dark:border-slate-800">
-          <FotMediaLogo darkSurface className="block h-11 w-auto shrink-0" />
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[280px] flex-col border-r border-blue-200/80 bg-gradient-to-b from-sky-100 via-blue-50 to-indigo-100 text-slate-800 lg:flex dark:border-slate-800 dark:from-slate-950 dark:via-slate-900 dark:to-slate-900 dark:text-slate-100">
+        <div className="flex items-center gap-3 border-b border-blue-200/80 px-5 py-2.5 dark:border-slate-800">
+          <FotMediaLogo darkSurface={darkModeOn} className="block h-11 w-auto shrink-0" />
           <div>
-            <div className="text-sm font-semibold tracking-wide">Media Manager</div>
+            <div className="text-sm font-semibold tracking-wide text-slate-900 dark:text-white">Media Manager</div>
           </div>
         </div>
 
         <nav className="flex-1 overflow-y-auto px-3 py-4">
-          <div className="mb-3 px-3 text-xs font-semibold uppercase tracking-[0.2em] text-blue-100/70">
+          <div className="mb-3 px-3 text-xs font-semibold uppercase tracking-[0.2em] text-blue-700/70 dark:text-slate-400">
             Navigation
           </div>
           <ul className="space-y-1">
@@ -155,10 +155,10 @@ const Header = ({ userType, isTO = false, isDarkMode, toggleDarkMode, isGlobalLa
               <li key={item.path}>
                 <Link
                   to={item.path}
-                  className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm transition ${
+                  className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition ${
                     isActive(item.path)
-                      ? 'fot-active'
-                      : 'text-blue-50 hover:bg-white/15 hover:text-white dark:text-slate-200 dark:hover:bg-slate-800'
+                      ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/20 dark:bg-blue-600 dark:text-white'
+                      : 'text-slate-700 hover:bg-blue-200/60 hover:text-blue-950 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'
                   }`}
                 >
                   <span className="text-base">{item.icon}</span>
@@ -168,37 +168,36 @@ const Header = ({ userType, isTO = false, isDarkMode, toggleDarkMode, isGlobalLa
             ))}
           </ul>
         </nav>
-
       </aside>
 
-      <header className="fixed top-0 right-0 left-0 z-50 h-16 fot-topbar border-b text-white lg:left-[280px]">
+      <header className="fixed top-0 right-0 left-0 z-50 h-16 border-b border-blue-200/80 bg-gradient-to-r from-sky-100 via-blue-50 to-indigo-100 text-slate-800 backdrop-blur lg:left-[280px] dark:border-slate-800 dark:from-slate-950 dark:via-slate-900 dark:to-slate-900 dark:text-white">
         <div className="flex h-16 items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-3 min-w-0">
             <button
               type="button"
               onClick={() => setIsMenuOpen(true)}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/15 text-white hover:bg-white/10 dark:border-white/10 dark:text-white dark:hover:bg-white/10 lg:hidden"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-blue-200 bg-white/60 text-slate-700 hover:bg-white/90 dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:bg-white/10 lg:hidden"
               aria-label="Open menu"
             >
               <FaBars />
             </button>
 
-            <FotMediaLogo darkSurface className="block h-8 w-auto shrink-0 lg:hidden" />
+            <FotMediaLogo darkSurface={darkModeOn} className="block h-8 w-auto shrink-0 lg:hidden" />
             <div className="hidden min-w-0 sm:block">
-              <div className="truncate text-base font-semibold text-white">
+              <div className="truncate text-base font-semibold text-slate-900 dark:text-white">
                 <span className="lg:hidden">Media Manager</span>
                 <span className="hidden lg:inline">Inventory &amp; Task Management</span>
               </div>
-              <div className="hidden truncate text-xs text-blue-100/85 lg:block">
-                Inventory System
+              <div className="hidden truncate text-xs text-slate-600 dark:text-slate-400 lg:block">
+                FOT Media
               </div>
             </div>
           </div>
 
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-            <div className="inline-flex items-center gap-1 rounded-full border border-white/15 px-2 py-1 text-sm font-semibold text-white dark:border-white/10">
-              <Link to="/profile" className="inline-flex min-w-0 items-center gap-2 rounded-full px-1 hover:text-blue-100">
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white/15 text-xs font-bold text-white dark:bg-white/10 dark:text-white">
+            <div className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-white/70 px-2 py-1 text-sm font-semibold text-slate-800 dark:border-white/10 dark:bg-white/5 dark:text-white">
+              <Link to="/profile" className="inline-flex min-w-0 items-center gap-2 rounded-full px-1 hover:text-blue-700 dark:hover:text-blue-200">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-blue-200/80 text-xs font-bold text-blue-800 dark:bg-white/10 dark:text-white">
                   {userAvatarUrl ? (
                     <img
                       src={userAvatarUrl}
@@ -216,7 +215,7 @@ const Header = ({ userType, isTO = false, isDarkMode, toggleDarkMode, isGlobalLa
                 onClick={() => setShowLogoutConfirm(true)}
                 aria-label="Logout"
                 title="Logout"
-                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/30 text-white/90 transition hover:bg-white/15 hover:text-white focus:outline-none focus:ring-2 focus:ring-white/70"
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-blue-200 bg-white/80 text-slate-700 transition hover:bg-red-50 hover:text-red-600 hover:border-red-200 focus:outline-none focus:ring-2 focus:ring-blue-500/40 dark:border-white/20 dark:bg-transparent dark:text-white/90 dark:hover:bg-white/15 dark:hover:text-white"
               >
                 <FaSignOutAlt />
               </button>
@@ -225,7 +224,7 @@ const Header = ({ userType, isTO = false, isDarkMode, toggleDarkMode, isGlobalLa
             <button
               type="button"
               onClick={toggleTheme}
-              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-white/5 text-white transition hover:bg-white/10 dark:border-white/10 dark:text-white dark:hover:bg-white/10"
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-blue-200 bg-white/60 text-slate-700 transition hover:bg-white/90 dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:bg-white/10"
               aria-label="Toggle dark mode"
             >
               {darkModeOn ? <FaSun /> : <FaMoon />}
@@ -235,13 +234,13 @@ const Header = ({ userType, isTO = false, isDarkMode, toggleDarkMode, isGlobalLa
               to={notificationsPath}
               aria-label="Notifications"
               title="Notifications"
-              className={`relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/15 text-white transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/70 dark:border-white/10 dark:hover:bg-white/10 ${
-                isActive(notificationsPath) ? 'bg-white/15' : ''
+              className={`relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-blue-200 bg-white/60 text-slate-700 transition hover:bg-white/90 focus:outline-none focus:ring-2 focus:ring-blue-500/40 dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:bg-white/10 ${
+                isActive(notificationsPath) ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700 dark:bg-white/15 dark:text-white' : ''
               }`}
             >
               <FaBell className="text-lg" />
               {unreadNotificationCount > 0 && (
-                <span className="absolute -right-1 -top-1 inline-flex min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold leading-5 text-white ring-2 ring-blue-900 dark:ring-slate-950">
+                <span className="absolute -right-1 -top-1 inline-flex min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold leading-5 text-white ring-2 ring-blue-100 dark:ring-slate-950">
                   {unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}
                 </span>
               )}
@@ -251,20 +250,20 @@ const Header = ({ userType, isTO = false, isDarkMode, toggleDarkMode, isGlobalLa
       </header>
 
       {isMenuOpen && (
-        <div className="fixed inset-0 z-[60] bg-black/40 lg:hidden" onClick={() => setIsMenuOpen(false)}>
+        <div className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-[1px] lg:hidden" onClick={() => setIsMenuOpen(false)}>
           <div
-            className="absolute left-0 top-0 h-full w-72 overflow-y-auto fot-sidebar text-slate-100 shadow-2xl"
+            className="absolute left-0 top-0 h-full w-72 overflow-y-auto border-r border-blue-200/80 bg-gradient-to-b from-sky-100 via-blue-50 to-indigo-100 text-slate-800 shadow-2xl dark:border-slate-800 dark:from-slate-950 dark:via-slate-900 dark:to-slate-900 dark:text-slate-100"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b border-blue-800 px-5 py-4 dark:border-slate-800">
+            <div className="flex items-center justify-between border-b border-blue-200/80 px-5 py-4 dark:border-slate-800">
               <div className="flex items-center gap-3">
-                <FotMediaLogo darkSurface className="block h-11 w-auto shrink-0" />
-                <div className="text-sm font-semibold">Media Manager</div>
+                <FotMediaLogo darkSurface={darkModeOn} className="block h-11 w-auto shrink-0" />
+                <div className="text-sm font-semibold text-slate-900 dark:text-white">Media Manager</div>
               </div>
               <button
                 type="button"
                 onClick={() => setIsMenuOpen(false)}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-blue-950 text-slate-200 dark:bg-slate-900"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-blue-200 bg-white/70 text-slate-700 hover:bg-white dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
                 aria-label="Close menu"
               >
                 <FaTimes />
@@ -278,10 +277,10 @@ const Header = ({ userType, isTO = false, isDarkMode, toggleDarkMode, isGlobalLa
                     <Link
                       to={item.path}
                       onClick={() => setIsMenuOpen(false)}
-                      className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm transition ${
+                      className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition ${
                         isActive(item.path)
-                          ? 'fot-active'
-                          : 'text-blue-50 hover:bg-white/10 hover:text-white'
+                          ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/20'
+                          : 'text-slate-700 hover:bg-blue-200/60 hover:text-blue-950 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'
                       }`}
                     >
                       <span>{item.icon}</span>
