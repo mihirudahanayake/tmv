@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <rect width="32" height="32" rx="7" fill="#fff"/>
+  <g transform="translate(-19.3 -12.4) scale(.055)">
+    <path fill="#5c6772" d="M416 400A255 255 0 0 1 619 263L697 400Z"/>
+    <path fill="#4ea5c7" d="M634 262A255 255 0 0 1 849 366L771 501Z"/>
+    <path fill="#f1dc60" d="M857 379A255 255 0 0 1 875 621H718Z"/>
+    <path fill="#83c198" d="M870 635A255 255 0 0 1 669 771L591 635Z"/>
+    <path fill="#df6755" d="M457 635H577L655 772A255 255 0 0 1 457 693Z"/>
+  </g>
+  <text x="3" y="18.8" fill="#2e2f3a" font-family="Arial, sans-serif" font-size="9" font-weight="900">FOT</text>
+</svg>
