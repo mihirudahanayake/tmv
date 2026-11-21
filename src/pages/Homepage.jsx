@@ -209,7 +209,7 @@ const Homepage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 pb-6 sm:pb-10">
+    <div className="fot-entry min-h-screen pb-6 sm:pb-10">
       <Header userType="admin" />
 
       {/* Mobile full-width toast / Desktop floating notification */}
@@ -231,9 +231,9 @@ const Homepage = () => {
 
       <main className="w-full max-w-5xl mx-auto px-2.5 sm:px-6 pt-3.5 sm:pt-8">
         {/* Header & Department Switcher */}
-        <div className="mb-4 sm:mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="fot-panel mb-4 flex flex-col gap-3 rounded-2xl p-4 sm:mb-6 sm:flex-row sm:items-end sm:justify-between sm:p-6">
           <div className="min-w-0">
-            <p className="text-[11px] sm:text-xs font-semibold uppercase tracking-[0.22em] text-blue-600">
+            <p className="text-[11px] sm:text-xs font-semibold uppercase tracking-[0.22em] text-blue-700 dark:text-blue-300">
               Department overview
             </p>
             <h1 className="mt-0.5 text-xl font-bold text-gray-800 sm:text-3xl leading-tight">

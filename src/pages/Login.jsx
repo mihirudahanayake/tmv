@@ -7,6 +7,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase/config';
 import { initPushForUser } from '../hooks/usePushNotifications';
 import { normalizeRole, SITE_ADMIN_EMAIL } from '../utils/authz';
+import FotMediaLogo from '../components/FotMediaLogo';
 
 const getLoginErrorMessage = (error) => {
   switch (error?.code) {
@@ -150,31 +151,14 @@ const Login = () => {
   };
 
   return (
-    <div className={`relative flex min-h-screen items-center justify-center overflow-hidden px-3 py-16 transition-colors duration-300 sm:px-6 sm:py-20 ${
-      isDarkMode
-        ? 'bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900 text-slate-100'
-        : 'bg-gradient-to-br from-indigo-50 via-white to-cyan-50 text-slate-900'
-    }`}>
-      <div
-        aria-hidden="true"
-        className={`pointer-events-none absolute -left-24 -top-24 h-72 w-72 rounded-full blur-3xl ${
-          isDarkMode ? 'bg-indigo-700/20' : 'bg-indigo-300/40'
-        }`}
-      />
-      <div
-        aria-hidden="true"
-        className={`pointer-events-none absolute -bottom-28 -right-20 h-80 w-80 rounded-full blur-3xl ${
-          isDarkMode ? 'bg-cyan-700/20' : 'bg-cyan-200/60'
-        }`}
-      />
-
+    <div className="fot-entry relative flex min-h-screen items-center justify-center overflow-hidden px-3 py-16 sm:px-6 sm:py-20">
       <button
         type="button"
         onClick={toggleDarkMode}
         className={`fixed top-4 right-4 z-20 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition-all duration-300 sm:top-6 sm:right-6 ${
           isDarkMode
             ? 'border-slate-600 bg-slate-800 text-amber-300 hover:bg-slate-700'
-            : 'border-white bg-white text-indigo-600 shadow-sm hover:bg-indigo-50'
+            : 'border-white bg-white text-blue-600 shadow-sm hover:bg-blue-50'
         }`}
         aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
         title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
@@ -183,11 +167,7 @@ const Login = () => {
       </button>
 
       <main className="relative z-10 w-full max-w-md">
-        <section className={`rounded-3xl border p-5 shadow-2xl backdrop-blur-md transition-colors duration-300 sm:p-8 ${
-          isDarkMode
-            ? 'border-slate-700/80 bg-slate-900/95 shadow-black/30'
-            : 'border-white/80 bg-white/95 shadow-slate-900/10'
-        }`}>
+        <section className="fot-panel rounded-2xl p-5 sm:p-8">
           <button
             type="button"
             onClick={() => navigate('/')}
@@ -202,13 +182,9 @@ const Login = () => {
           </button>
 
           <div className="mb-7">
-            <div className={`mb-3 inline-flex h-12 w-12 items-center justify-center rounded-2xl text-lg ${
-              isDarkMode ? 'bg-indigo-400/10 text-indigo-300' : 'bg-indigo-50 text-indigo-700'
-            }`}>
-              <FaSignInAlt />
-            </div>
+            <FotMediaLogo darkSurface={isDarkMode} className="mb-3 block h-auto w-32 max-w-full" />
             <p className={`mb-2 text-xs font-bold uppercase tracking-[0.2em] ${
-              isDarkMode ? 'text-indigo-300' : 'text-indigo-700'
+              isDarkMode ? 'text-blue-300' : 'text-blue-700'
             }`}>
               Welcome back
             </p>
@@ -244,8 +220,8 @@ const Login = () => {
               disabled={loading || resendingVerification}
               className={`mb-5 flex w-full items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
                 isDarkMode
-                  ? 'border-indigo-700/70 bg-indigo-950/40 text-indigo-200 hover:bg-indigo-900/50'
-                  : 'border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
+                  ? 'border-blue-700/70 bg-blue-950/40 text-blue-200 hover:bg-blue-900/50'
+                  : 'border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100'
               }`}
             >
               {resendingVerification ? (
@@ -289,8 +265,8 @@ const Login = () => {
                 required
                 className={`w-full rounded-xl border px-3.5 py-3 text-sm outline-none transition focus:ring-4 ${
                   isDarkMode
-                    ? 'border-slate-700 bg-slate-800 text-white placeholder:text-slate-500 focus:border-indigo-400 focus:ring-indigo-500/15'
-                    : 'border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-indigo-500/10'
+                    ? 'border-slate-700 bg-slate-800 text-white placeholder:text-slate-500 focus:border-blue-400 focus:ring-blue-500/15'
+                    : 'border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-blue-500/10'
                 }`}
               />
             </label>
@@ -313,8 +289,8 @@ const Login = () => {
                   required
                   className={`w-full rounded-xl border px-3.5 py-3 pr-12 text-sm outline-none transition focus:ring-4 ${
                     isDarkMode
-                      ? 'border-slate-700 bg-slate-800 text-white placeholder:text-slate-500 focus:border-indigo-400 focus:ring-indigo-500/15'
-                      : 'border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-indigo-500/10'
+                      ? 'border-slate-700 bg-slate-800 text-white placeholder:text-slate-500 focus:border-blue-400 focus:ring-blue-500/15'
+                      : 'border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-blue-500/10'
                   }`}
                 />
                 <button
@@ -338,8 +314,8 @@ const Login = () => {
                   disabled={loading}
                   className={`text-sm font-semibold transition hover:underline disabled:opacity-60 ${
                     isDarkMode
-                      ? 'text-indigo-300 hover:text-indigo-200'
-                      : 'text-indigo-700 hover:text-indigo-800'
+                      ? 'text-blue-300 hover:text-blue-200'
+                      : 'text-blue-700 hover:text-blue-800'
                   }`}
                 >
                   Forgot password?
@@ -350,7 +326,7 @@ const Login = () => {
             <button
               type="submit"
               disabled={loading}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 px-5 py-3.5 text-sm font-bold text-white shadow-lg shadow-indigo-600/20 transition hover:-translate-y-0.5 hover:from-indigo-700 hover:to-blue-700 focus:outline-none focus:ring-4 focus:ring-indigo-500/20 disabled:cursor-not-allowed disabled:opacity-70"
+              className="fot-primary flex w-full items-center justify-center gap-2 rounded-xl px-5 py-3.5 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-70"
             >
               {loading ? (
                 <>
@@ -374,7 +350,7 @@ const Login = () => {
               type="button"
               onClick={() => navigate('/signup')}
               className={`font-semibold hover:underline ${
-                isDarkMode ? 'text-indigo-300 hover:text-indigo-200' : 'text-indigo-700 hover:text-indigo-800'
+                isDarkMode ? 'text-blue-300 hover:text-blue-200' : 'text-blue-700 hover:text-blue-800'
               }`}
             >
               Create an account

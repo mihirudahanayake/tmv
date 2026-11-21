@@ -1,4 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
+import FotMediaLogo from './FotMediaLogo';
 import {
   FaHome,
   FaUserPlus,
@@ -137,11 +138,9 @@ const Header = ({ userType, isTO = false, isDarkMode, toggleDarkMode, isGlobalLa
 
   return (
     <>
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[280px] flex-col border-r border-blue-950 bg-gradient-to-b from-blue-900 via-blue-800 to-blue-700 text-white lg:flex dark:border-slate-950 dark:from-slate-950 dark:via-slate-900 dark:to-slate-900">
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[280px] flex-col fot-sidebar border-r text-white lg:flex">
         <div className="flex items-center gap-3 border-b border-blue-800 px-5 py-2.5 dark:border-slate-800">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/20 font-bold text-white shadow-lg backdrop-blur dark:bg-white/10">
-            MMS
-          </div>
+          <FotMediaLogo darkSurface className="block h-11 w-auto shrink-0" />
           <div>
             <div className="text-sm font-semibold tracking-wide">Media Manager</div>
           </div>
@@ -158,7 +157,7 @@ const Header = ({ userType, isTO = false, isDarkMode, toggleDarkMode, isGlobalLa
                   to={item.path}
                   className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm transition ${
                     isActive(item.path)
-                      ? 'bg-white text-blue-900 shadow-lg shadow-black/10 dark:bg-slate-700 dark:text-white'
+                      ? 'fot-active'
                       : 'text-blue-50 hover:bg-white/15 hover:text-white dark:text-slate-200 dark:hover:bg-slate-800'
                   }`}
                 >
@@ -172,7 +171,7 @@ const Header = ({ userType, isTO = false, isDarkMode, toggleDarkMode, isGlobalLa
 
       </aside>
 
-      <header className="fixed top-0 right-0 left-0 z-50 h-16 border-b border-blue-950 bg-gradient-to-r from-blue-900 via-blue-800 to-blue-700 text-white backdrop-blur supports-[backdrop-filter]:bg-blue-900/95 dark:border-slate-950 dark:bg-gradient-to-r dark:from-slate-950 dark:via-slate-900 dark:to-slate-900 lg:left-[280px]">
+      <header className="fixed top-0 right-0 left-0 z-50 h-16 fot-topbar border-b text-white lg:left-[280px]">
         <div className="flex h-16 items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-3 min-w-0">
             <button
@@ -184,7 +183,8 @@ const Header = ({ userType, isTO = false, isDarkMode, toggleDarkMode, isGlobalLa
               <FaBars />
             </button>
 
-            <div className="min-w-0">
+            <FotMediaLogo darkSurface className="block h-8 w-auto shrink-0 lg:hidden" />
+            <div className="hidden min-w-0 sm:block">
               <div className="truncate text-base font-semibold text-white">
                 <span className="lg:hidden">Media Manager</span>
                 <span className="hidden lg:inline">Inventory &amp; Task Management</span>
@@ -253,13 +253,13 @@ const Header = ({ userType, isTO = false, isDarkMode, toggleDarkMode, isGlobalLa
       {isMenuOpen && (
         <div className="fixed inset-0 z-[60] bg-black/40 lg:hidden" onClick={() => setIsMenuOpen(false)}>
           <div
-            className="absolute left-0 top-0 h-full w-72 overflow-y-auto bg-gradient-to-b from-blue-950 via-blue-900 to-blue-800 text-slate-100 shadow-2xl dark:from-slate-950 dark:via-slate-900 dark:to-slate-900"
+            className="absolute left-0 top-0 h-full w-72 overflow-y-auto fot-sidebar text-slate-100 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-blue-800 px-5 py-4 dark:border-slate-800">
-              <div>
+              <div className="flex items-center gap-3">
+                <FotMediaLogo darkSurface className="block h-11 w-auto shrink-0" />
                 <div className="text-sm font-semibold">Media Manager</div>
-                <div className="text-xs text-blue-100/80">FOT Media Unit</div>
               </div>
               <button
                 type="button"
@@ -280,7 +280,7 @@ const Header = ({ userType, isTO = false, isDarkMode, toggleDarkMode, isGlobalLa
                       onClick={() => setIsMenuOpen(false)}
                       className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm transition ${
                         isActive(item.path)
-                          ? 'bg-white text-blue-900'
+                          ? 'fot-active'
                           : 'text-blue-50 hover:bg-white/10 hover:text-white'
                       }`}
                     >

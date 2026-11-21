@@ -2,6 +2,7 @@
   "name": "tmv",
   "homepage": "https://tmv.fotmv.online",
   "scripts": {
+    "start": "vite",
     "dev": "vite",
     "build": "vite build",
     "postbuild": "node -e \"const fs = require('node:fs'); fs.copyFileSync('dist/index.html', 'dist/404.html'); fs.copyFileSync('CNAME', 'dist/CNAME')\"",

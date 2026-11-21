@@ -486,8 +486,8 @@ const Signup = () => {
   }`;
   const inputClass = `w-full rounded-xl border px-3.5 py-3 text-sm outline-none transition hover:-translate-y-0.5 hover:shadow-sm focus:ring-4 ${
     isDarkMode
-      ? 'border-slate-700 bg-slate-800 text-white placeholder:text-slate-500 focus:border-indigo-400 focus:ring-indigo-500/15'
-      : 'border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-indigo-500/10'
+      ? 'border-slate-700 bg-slate-800 text-white placeholder:text-slate-500 focus:border-blue-400 focus:ring-blue-500/15'
+      : 'border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-blue-500/10'
   }`;
   const strengthLabel = ['Add a password', 'Getting started', 'Good', 'Strong'][passwordStrength];
   const strengthColor = [
@@ -498,24 +498,7 @@ const Signup = () => {
   ][passwordStrength];
 
   return (
-    <div className={`relative min-h-screen overflow-x-clip px-3 pb-3 pt-20 transition-colors duration-300 sm:px-6 sm:pb-4 sm:pt-24 lg:pb-6 lg:pt-10 ${
-      isDarkMode
-        ? 'bg-slate-950 text-slate-100'
-        : 'bg-gradient-to-br from-indigo-50 via-white to-cyan-50 text-slate-900'
-    }`}>
-      <div
-        aria-hidden="true"
-        className={`pointer-events-none absolute -left-24 -top-24 h-72 w-72 rounded-full blur-3xl ${
-          isDarkMode ? 'bg-indigo-700/20' : 'bg-indigo-300/40'
-        }`}
-      />
-      <div
-        aria-hidden="true"
-        className={`pointer-events-none absolute bottom-0 -right-20 h-80 w-80 rounded-full blur-3xl ${
-          isDarkMode ? 'bg-cyan-700/20' : 'bg-cyan-200/60'
-        }`}
-      />
-
+    <div className="fot-entry relative min-h-screen overflow-x-clip px-3 pb-3 pt-20 sm:px-6 sm:pb-4 sm:pt-24 lg:pb-6 lg:pt-10">
       <div className={`fixed left-3 right-3 top-4 z-20 grid h-12 min-w-0 grid-cols-[2.5rem_minmax(0,1fr)_2.5rem] items-center rounded-2xl border px-1.5 shadow-lg backdrop-blur-md sm:left-6 sm:right-6 sm:top-6 lg:hidden ${
         isDarkMode
           ? 'border-slate-700/70 bg-slate-900/70'
@@ -527,7 +510,7 @@ const Signup = () => {
           className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition ${
             isDarkMode
               ? 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-              : 'bg-white text-slate-600 shadow-sm hover:bg-indigo-50'
+              : 'bg-white text-slate-600 shadow-sm hover:bg-blue-50'
           }`}
           aria-label="Back to welcome"
           title="Back to welcome"
@@ -545,7 +528,7 @@ const Signup = () => {
           className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl shadow-sm transition hover:scale-105 ${
             isDarkMode
               ? 'bg-slate-800 text-amber-300 hover:bg-slate-700'
-              : 'bg-white text-indigo-600 hover:bg-indigo-50'
+              : 'bg-white text-blue-600 hover:bg-blue-50'
           }`}
           aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
           title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
@@ -560,7 +543,7 @@ const Signup = () => {
         className={`fixed right-6 top-6 z-20 hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl shadow-lg transition hover:scale-105 lg:flex ${
           isDarkMode
             ? 'bg-slate-800 text-amber-300 hover:bg-slate-700'
-            : 'bg-white text-indigo-600 hover:bg-indigo-50'
+            : 'bg-white text-blue-600 hover:bg-blue-50'
         }`}
         aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
         title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
@@ -569,7 +552,7 @@ const Signup = () => {
       </button>
 
       <main className="relative mx-auto grid w-full min-w-0 max-w-6xl items-stretch gap-4 sm:gap-5 lg:min-h-[calc(100vh-5rem)] lg:grid-cols-[0.82fr_1.18fr]">
-        <aside className="relative hidden overflow-hidden rounded-[32px] bg-gradient-to-br from-indigo-700 via-blue-700 to-cyan-600 p-8 text-white shadow-2xl lg:flex lg:flex-col lg:justify-between xl:p-10">
+        <aside className="relative hidden overflow-hidden rounded-[32px] fot-sidebar p-8 text-white shadow-2xl lg:flex lg:flex-col lg:justify-between xl:p-10">
           <div
             aria-hidden="true"
             className="absolute -right-24 -top-20 h-72 w-72 rounded-full border-[40px] border-white/10"
@@ -620,15 +603,11 @@ const Signup = () => {
           </p>
         </aside>
 
-        <section className={`min-w-0 rounded-2xl border p-4 shadow-2xl transition-colors duration-300 sm:rounded-[28px] sm:p-8 lg:p-10 ${
-          isDarkMode
-            ? 'border-slate-800 bg-slate-900/95 shadow-black/30'
-            : 'border-white/80 bg-white/95 shadow-slate-900/10'
-        }`}>
+        <section className="fot-panel min-w-0 rounded-2xl p-4 sm:rounded-[28px] sm:p-8 lg:p-10">
           <div className="mb-7 flex items-start justify-between gap-4">
             <div>
               <div className={`mb-3 inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${
-                isDarkMode ? 'bg-indigo-400/10 text-indigo-300' : 'bg-indigo-50 text-indigo-700'
+                isDarkMode ? 'bg-blue-400/10 text-blue-300' : 'bg-blue-50 text-blue-700'
               }`}>
                 <FaShieldAlt />
                 Secure account setup
@@ -651,7 +630,7 @@ const Signup = () => {
               <span className={isDarkMode ? 'text-slate-300' : 'text-slate-600'}>
                 Signup progress
               </span>
-              <span className={isDarkMode ? 'text-indigo-300' : 'text-indigo-700'}>
+              <span className={isDarkMode ? 'text-blue-300' : 'text-blue-700'}>
                 {completionPercent}% complete
               </span>
             </div>
@@ -666,7 +645,7 @@ const Signup = () => {
               aria-valuenow={completionPercent}
             >
               <div
-                className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-cyan-500 transition-all duration-300"
+                className="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 transition-all duration-300"
                 style={{ width: `${completionPercent}%` }}
               />
             </div>
@@ -701,7 +680,7 @@ const Signup = () => {
             <section>
               <div className="mb-4 flex items-center gap-3">
                 <span className={`flex h-9 w-9 items-center justify-center rounded-xl text-sm font-bold ${
-                  isDarkMode ? 'bg-indigo-400/10 text-indigo-300' : 'bg-indigo-50 text-indigo-700'
+                  isDarkMode ? 'bg-blue-400/10 text-blue-300' : 'bg-blue-50 text-blue-700'
                 }`}>
                   1
                 </span>
@@ -947,8 +926,8 @@ const Signup = () => {
                         className={`flex flex-1 cursor-pointer items-center gap-2 rounded-xl border px-3.5 py-3 text-sm capitalize transition ${
                           form.gender === gender
                             ? isDarkMode
-                              ? 'border-indigo-400 bg-indigo-400/10 text-indigo-200'
-                              : 'border-indigo-400 bg-indigo-50 text-indigo-800'
+                              ? 'border-blue-400 bg-blue-400/10 text-blue-200'
+                              : 'border-blue-400 bg-blue-50 text-blue-800'
                             : isDarkMode
                               ? 'border-slate-700 bg-slate-800/60 text-slate-300'
                               : 'border-slate-200 bg-white text-slate-600'
@@ -962,7 +941,7 @@ const Signup = () => {
                           onChange={handleChange}
                           onBlur={handleFieldBlur}
                           required
-                          className="accent-indigo-600"
+                          className="accent-blue-600"
                         />
                         {gender}
                       </label>
@@ -1001,11 +980,11 @@ const Signup = () => {
                         className={`flex cursor-pointer items-center gap-3 rounded-2xl border p-3.5 transition hover:-translate-y-0.5 focus-within:ring-4 ${
                           selected
                             ? isDarkMode
-                              ? 'border-indigo-400 bg-indigo-400/10 ring-indigo-500/10'
-                              : 'border-indigo-400 bg-indigo-50 ring-indigo-500/10'
+                              ? 'border-blue-400 bg-blue-400/10 ring-blue-500/10'
+                              : 'border-blue-400 bg-blue-50 ring-blue-500/10'
                             : isDarkMode
                               ? 'border-slate-700 bg-slate-800/60 hover:border-slate-600 focus-within:ring-slate-500/10'
-                              : 'border-slate-200 bg-white hover:border-indigo-200 focus-within:ring-indigo-500/10'
+                              : 'border-slate-200 bg-white hover:border-blue-200 focus-within:ring-blue-500/10'
                         }`}
                       >
                         <input
@@ -1018,7 +997,7 @@ const Signup = () => {
                         />
                         <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border text-xs ${
                           selected
-                            ? 'border-indigo-600 bg-indigo-600 text-white'
+                            ? 'border-blue-600 bg-blue-600 text-white'
                             : isDarkMode
                               ? 'border-slate-500 bg-slate-900'
                               : 'border-slate-300 bg-white'
@@ -1038,7 +1017,7 @@ const Signup = () => {
                           </span>
                         </span>
                         {selected ? (
-                          <span className="rounded-full bg-indigo-600/10 px-2 py-1 text-[10px] font-bold text-indigo-600 dark:text-indigo-300">
+                          <span className="rounded-full bg-blue-600/10 px-2 py-1 text-[10px] font-bold text-blue-600 dark:text-blue-300">
                             SELECTED
                           </span>
                         ) : null}
@@ -1096,7 +1075,7 @@ const Signup = () => {
                       type="button"
                       onClick={() => setShowPassword((visible) => !visible)}
                       className={`absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-xl ${
-                        isDarkMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-indigo-700'
+                        isDarkMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-blue-700'
                       }`}
                       aria-label={showPassword ? 'Hide password' : 'Show password'}
                       aria-pressed={showPassword}
@@ -1128,7 +1107,7 @@ const Signup = () => {
                       type="button"
                       onClick={() => setShowConfirmPassword((visible) => !visible)}
                       className={`absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-xl ${
-                        isDarkMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-indigo-700'
+                        isDarkMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-blue-700'
                       }`}
                       aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
                       aria-pressed={showConfirmPassword}
@@ -1219,10 +1198,10 @@ const Signup = () => {
                     type="button"
                     onClick={handleEmailVerification}
                     disabled={sendingVerificationEmail || loading || isEmailVerified}
-                    className={`shrink-0 rounded-xl px-3 py-3 text-xs font-bold transition focus:outline-none focus:ring-4 focus:ring-indigo-500/20 disabled:cursor-not-allowed disabled:opacity-60 ${
+                    className={`shrink-0 rounded-xl px-3 py-3 text-xs font-bold transition focus:outline-none focus:ring-4 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60 ${
                       isDarkMode
-                        ? 'bg-indigo-500 text-white hover:bg-indigo-400'
-                        : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                        ? 'bg-blue-500 text-white hover:bg-blue-400'
+                        : 'bg-blue-600 text-white hover:bg-blue-700'
                     }`}
                   >
                     {sendingVerificationEmail ? (
@@ -1265,7 +1244,7 @@ const Signup = () => {
               <button
                 type="submit"
                 disabled={loading}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 px-5 py-3.5 text-sm font-bold text-white shadow-lg shadow-indigo-600/20 transition hover:-translate-y-0.5 hover:from-indigo-700 hover:to-blue-700 focus:outline-none focus:ring-4 focus:ring-indigo-500/20 disabled:cursor-not-allowed disabled:opacity-70"
+                className="fot-primary flex w-full items-center justify-center gap-2 rounded-xl px-5 py-3.5 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-70"
               >
                 {loading ? (
                   <>
@@ -1286,7 +1265,7 @@ const Signup = () => {
                 <button
                   type="button"
                   onClick={() => navigate('/login')}
-                  className="font-semibold text-indigo-600 hover:text-indigo-700 hover:underline dark:text-indigo-400 dark:hover:text-indigo-300"
+                  className="font-semibold text-blue-600 hover:text-blue-700 hover:underline dark:text-blue-400 dark:hover:text-blue-300"
                 >
                   Log in
                 </button>

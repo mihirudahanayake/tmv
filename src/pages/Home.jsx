@@ -634,11 +634,7 @@ const Home = () => {
 
   return (
     <div
-      className={`min-h-screen pb-8 transition-colors duration-300 ${
-        isDarkMode
-          ? 'bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900'
-          : 'bg-gradient-to-br from-blue-50 via-white to-purple-50'
-      }`}
+      className="fot-entry min-h-screen pb-8"
     >
       <Header userType={userType} isTO={isTO} isDarkMode={isDarkMode} toggleDarkMode={toggleDarkMode} />
 
@@ -740,13 +736,13 @@ const Home = () => {
         )}
 
         {/* Compact Mobile Hero Overview */}
-        <div className="mb-4 sm:mb-8 rounded-2xl sm:rounded-[28px] border border-white/50 dark:border-slate-800 bg-white/75 dark:bg-slate-900/70 p-4 sm:p-6 shadow-[0_14px_35px_rgba(59,130,246,0.1)] backdrop-blur-sm">
+        <div className="mb-4 sm:mb-8 rounded-2xl sm:rounded-[28px] fot-panel p-4 sm:p-6">
           <div className="flex items-start sm:items-center justify-between gap-2">
             <div className="min-w-0">
               <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-[0.22em] text-blue-600 dark:text-blue-300 mb-0.5">
                 Overview
               </p>
-              <h1 className="text-xl sm:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-sky-600 to-purple-600 dark:from-yellow-300 dark:via-orange-300 dark:to-pink-400">
+              <h1 className="text-xl sm:text-4xl font-bold text-slate-950 dark:text-white">
                 Welcome Back
               </h1>
             </div>
@@ -766,10 +762,10 @@ const Home = () => {
         {!loadingUser && !loadingTasks && tasks.length > 0 && (
           <div className="mb-4 sm:mb-8 grid grid-cols-2 xl:grid-cols-4 gap-2 sm:gap-4">
             {[
-              { key: 'pending', label: 'Pending', value: pendingTasks.length, tone: 'from-yellow-400 to-orange-500', text: 'text-yellow-700 dark:text-yellow-300', ring: 'ring-yellow-400/70' },
-              { key: 'active', label: 'Active', value: acceptedTasks.length, tone: 'from-blue-500 to-cyan-500', text: 'text-blue-700 dark:text-blue-300', ring: 'ring-blue-500/70' },
-              { key: 'completed', label: 'Completed', value: completedTaskCount, tone: 'from-emerald-500 to-green-500', text: 'text-emerald-700 dark:text-emerald-300', ring: 'ring-emerald-500/70' },
-              { key: 'rejected', label: 'Rejected', value: rejectedTasks.length, tone: 'from-rose-500 to-red-500', text: 'text-rose-700 dark:text-rose-300', ring: 'ring-rose-500/70' },
+              { key: 'pending', label: 'Pending', value: pendingTasks.length, tone: 'bg-[var(--fot-yellow)]', text: 'text-yellow-700 dark:text-yellow-300', ring: 'ring-yellow-400/70' },
+              { key: 'active', label: 'Active', value: acceptedTasks.length, tone: 'bg-[var(--fot-blue)]', text: 'text-blue-700 dark:text-blue-300', ring: 'ring-blue-500/70' },
+              { key: 'completed', label: 'Completed', value: completedTaskCount, tone: 'bg-[var(--fot-green)]', text: 'text-emerald-700 dark:text-emerald-300', ring: 'ring-emerald-500/70' },
+              { key: 'rejected', label: 'Rejected', value: rejectedTasks.length, tone: 'bg-[var(--fot-coral)]', text: 'text-rose-700 dark:text-rose-300', ring: 'ring-rose-500/70' },
             ].map((card) => {
               const isSelected = activeFilter === card.key;
               return (
@@ -784,7 +780,7 @@ const Home = () => {
                   }`}
                 >
                   <div className="flex items-center justify-between gap-2 mb-1.5 sm:mb-2.5">
-                    <div className={`h-1.5 w-10 sm:w-14 rounded-full bg-gradient-to-r ${card.tone}`} />
+                    <div className={`h-1.5 w-10 sm:w-14 rounded-full ${card.tone}`} />
                     {isSelected && (
                       <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-300">
                         Filtered

@@ -1,7 +1,6 @@
 // src/AppShell.jsx
 import { Routes, Route, useLocation } from 'react-router-dom';
 import { useIdleLogout } from './hooks/useIdleLogout';
-import { useDarkMode } from './context/DarkModeContext';
 import Header from './components/Header.jsx';
 import DeptHeadRoute from './components/DeptHeadRoute.jsx';
 import SuperAdminRoute from './components/SuperAdminRoute.jsx';
@@ -43,7 +42,6 @@ import MyTasks from './pages/MyTasks';
 
 const AppShell = () => {
   useIdleLogout();
-  const { isDarkMode } = useDarkMode();
   const location = useLocation();
   const hideGlobalLayout = ['/', '/login', '/forgot-password', '/signup'].includes(location.pathname);
 
@@ -298,7 +296,7 @@ const AppShell = () => {
       {hideGlobalLayout ? (
         routes
       ) : (
-        <div className={`min-h-dvh overflow-x-hidden ${isDarkMode ? 'bg-gray-900' : 'bg-slate-100'} pt-16 lg:pl-[280px]`}>
+        <div className="min-h-dvh overflow-x-hidden bg-slate-100 pt-16 dark:bg-slate-950 lg:pl-[280px]">
           <div className="mx-auto min-h-[calc(100dvh-4rem)] w-full max-w-[min(100%,1800px)]">
             {routes}
           </div>

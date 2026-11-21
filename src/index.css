@@ -2,6 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer utilities {
+	.text-\[9px\],
+	.text-\[10px\],
+	.text-\[11px\] {
+		@apply text-xs;
+	}
+}
+
 @layer base {
 	* {
 		box-sizing: border-box;
@@ -14,20 +22,8 @@
 		font-size: 16px;
 	}
 
-	@media (min-width: 1280px) {
-		html {
-			font-size: 18px;
-		}
-	}
-
-	@media (min-width: 1920px) {
-		html {
-			font-size: 20px;
-		}
-	}
-
 	body {
-		@apply min-h-screen bg-slate-50 text-slate-900 antialiased;
+		@apply min-h-screen bg-slate-50 font-sans text-base text-slate-900 antialiased;
 		margin: 0;
 		overflow-x: clip;
 	}
@@ -58,7 +54,7 @@
 	input,
 	select,
 	textarea {
-		font-size: 16px;
+		@apply text-base md:text-sm;
 	}
 
 	table {
@@ -279,4 +275,79 @@
 	.dark dialog::backdrop {
 		background-color: rgb(0 0 0 / 60%);
 	}
+}
+
+
+:root {
+	--fot-graphite: #2e2f3a;
+	--fot-blue: #4ea5c7;
+	--fot-yellow: #f1dc60;
+	--fot-green: #83c198;
+	--fot-coral: #df6755;
+	--fot-aperture: linear-gradient(90deg, #5c6772 20%, var(--fot-blue) 20% 40%,
+		var(--fot-yellow) 40% 60%, var(--fot-green) 60% 80%, var(--fot-coral) 80%);
+	--fot-entry-bg: #f7f8fa;
+	--fot-entry-blue: #d7edf5;
+	--fot-entry-green: #e4f1e9;
+	--fot-panel: #fff;
+	--fot-panel-border: #dde1e6;
+}
+
+.dark {
+	--fot-entry-bg: #191c22;
+	--fot-entry-blue: #203744;
+	--fot-entry-green: #253b34;
+	--fot-panel: #262a32;
+	--fot-panel-border: #424b55;
+}
+
+.fot-entry {
+	background: radial-gradient(ellipse at top left, var(--fot-entry-blue), transparent 55%),
+		radial-gradient(ellipse at bottom right, var(--fot-entry-green), transparent 55%),
+		var(--fot-entry-bg);
+}
+
+.fot-panel {
+	border: 1px solid var(--fot-panel-border);
+	background: var(--fot-aperture) top / 100% 4px no-repeat, var(--fot-panel);
+	box-shadow: 0 20px 52px rgb(25 28 34 / 14%);
+}
+
+.fot-sidebar,
+.fot-topbar {
+	background-color: var(--fot-graphite);
+	border-color: #424b55;
+}
+
+.fot-topbar {
+	background-image: var(--fot-aperture);
+	background-position: bottom;
+	background-repeat: no-repeat;
+	background-size: 100% 3px;
+}
+
+.dark .fot-sidebar,
+.dark .fot-topbar {
+	background-color: #191c22;
+}
+
+.fot-active {
+	background-color: #204554;
+	color: #ecf7fb;
+	box-shadow: inset 3px 0 var(--fot-blue);
+}
+
+.fot-primary {
+	background-color: #205a72;
+	color: #fff;
+	transition: background-color 160ms ease;
+}
+
+.fot-primary:hover:not(:disabled) {
+	background-color: #1c4b60;
+}
+
+.fot-primary:focus-visible {
+	outline: 2px solid var(--fot-blue);
+	outline-offset: 3px;
 }

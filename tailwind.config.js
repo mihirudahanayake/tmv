@@ -18,6 +18,22 @@ export default {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['Geist', 'Arial', 'sans-serif'],
+      },
+      colors: {
+        // FOT Media aperture blue and graphite.
+        blue: {
+          50: '#ecf7fb', 100: '#d7edf5', 200: '#b6ddea', 300: '#85c5da',
+          400: '#4ea5c7', 500: '#3385a6', 600: '#256f8c', 700: '#205a72',
+          800: '#1c4b60', 900: '#1c3f50', 950: '#122b38',
+        },
+        slate: {
+          50: '#f7f8fa', 100: '#eef0f3', 200: '#dde1e6', 300: '#c8cfd6',
+          400: '#9ba5b0', 500: '#697581', 600: '#535e6a', 700: '#424b55',
+          800: '#333941', 900: '#262a32', 950: '#191c22',
+        },
+      },
       animation: {
         blob: 'blob 7s infinite',
         float: 'float 15s infinite ease-in',
